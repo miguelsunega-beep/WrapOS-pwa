@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Color tokens ─────────────────────────────────────────────── */
+/* Light mode (default) */
+:root {
+  --surface-900: #f1f5f9;
+  --surface-800: #ffffff;
+  --surface-700: #ffffff;
+  --surface-600: #f1f5f9;
+  --surface-500: #e2e8f0;
+  --ui-border:   #e2e8f0;
+  --ui-text:     #111827;
+}
+
+/* Dark mode */
+html.dark {
+  --surface-900: #0c0c18;
+  --surface-800: #12121e;
+  --surface-700: #18182a;
+  --surface-600: #1d1d30;
+  --surface-500: #232338;
+  --ui-border:   #1e2140;
+  --ui-text:     #ffffff;
+}
+
+/* ── Base ─────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
+  background-color: var(--surface-900);
+  color: var(--ui-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--surface-800); }
+::-webkit-scrollbar-thumb { background: var(--ui-border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #E94560; }
+
+/* ── Form elements ────────────────────────────────────────────── */
+input[type='text'],
+input[type='email'],
+input[type='number'],
+input[type='date'],
+input[type='time'],
+select,
+textarea {
+  outline: none;
+}
+
+/* ── Skeleton shimmer ─────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-600) 25%,
+    var(--surface-500) 50%,
+    var(--surface-600) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: 0.5rem;
+}
