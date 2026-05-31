@@ -11,9 +11,6 @@ import { useTheme } from '../context/ThemeContext'
 import type { Servico } from '../types'
 
 // ── Helpers ───────────────────────────────────────────────────────
-const fmtPreco = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
-
 const inferirCategoria = (nome: string): string => {
   const n = nome.toLowerCase()
   if (n.includes('ppf'))           return 'PPF'
@@ -24,8 +21,8 @@ const inferirCategoria = (nome: string): string => {
   return 'Outros'
 }
 
-interface ServicoForm { nome: string; preco: string; tempEstimado: string; duracaoDias: string }
-const blankServico = (): ServicoForm => ({ nome: '', preco: '', tempEstimado: '', duracaoDias: '0' })
+interface ServicoForm { nome: string }
+const blankServico = (): ServicoForm => ({ nome: '' })
 
 // ── Types ─────────────────────────────────────────────────────────
 interface LojaForm {
@@ -100,21 +97,17 @@ export function Configuracoes() {
 
   const abrirEditarServico = (s: Servico) => {
     setServEditId(s.id)
-    setServForm({ nome: s.nome, preco: String(s.preco), tempEstimado: String(s.tempEstimado), duracaoDias: String(s.duracaoDias ?? 0) })
+    setServForm({ nome: s.nome })
     setServModalOpen(true)
   }
 
   const handleSalvarServico = () => {
     if (!servForm.nome.trim()) { toast.error('Nome é obrigatório.'); return }
-    const preco = parseFloat(servForm.preco)
-    if (!preco || preco <= 0) { toast.error('Informe um preço válido.'); return }
-    const tempEstimado = parseFloat(servForm.tempEstimado) || 0
-    const duracaoDias = parseInt(servForm.duracaoDias, 10) || 0
     if (servEditId) {
-      editarServico(servEditId, { nome: servForm.nome.trim(), preco, tempEstimado, duracaoDias })
+      editarServico(servEditId, { nome: servForm.nome.trim() })
       toast.success('Serviço atualizado!')
     } else {
-      adicionarServico({ nome: servForm.nome.trim(), preco, tempEstimado, duracaoDias })
+      adicionarServico({ nome: servForm.nome.trim() })
       toast.success('Serviço adicionado!')
     }
     setServModalOpen(false)
@@ -315,9 +308,7 @@ export function Configuracoes() {
                   <div key={s.id} className="group px-5 py-3 flex items-center gap-3 hover:bg-surface-600/30 border-b border-ui-border last:border-0 transition-colors">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-ui-text truncate">{s.nome}</p>
-                      <p className="text-[11px] text-gray-600 mt-0.5">{s.tempEstimado}h estimadas{s.duracaoDias ? ` · ${s.duracaoDias}d na loja` : ''}</p>
                     </div>
-                    <p className="text-sm font-bold text-emerald-400">{fmtPreco(s.preco)}</p>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button onClick={() => abrirEditarServico(s)} className="p-1.5 rounded-lg hover:bg-surface-500 text-gray-500 hover:text-ui-text transition-colors">
                         <Pencil size={13} />
@@ -350,44 +341,6 @@ export function Configuracoes() {
               placeholder="Ex: PPF Full Body"
               className={inputCls}
             />
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div>
-              <label className={labelCls}>Preço (R$) <span className="text-accent">*</span></label>
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={servForm.preco}
-                onChange={e => setServForm(p => ({ ...p, preco: e.target.value }))}
-                placeholder="0,00"
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Tempo (horas)</label>
-              <input
-                type="number"
-                min={0}
-                step={0.5}
-                value={servForm.tempEstimado}
-                onChange={e => setServForm(p => ({ ...p, tempEstimado: e.target.value }))}
-                placeholder="0"
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Duração na loja (dias)</label>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={servForm.duracaoDias}
-                onChange={e => setServForm(p => ({ ...p, duracaoDias: e.target.value }))}
-                placeholder="0"
-                className={inputCls}
-              />
-            </div>
           </div>
           <div className="flex justify-end gap-2 pt-1 border-t border-ui-border">
             <Button variant="secondary" onClick={() => { setServModalOpen(false); setServForm(blankServico()) }}>Cancelar</Button>

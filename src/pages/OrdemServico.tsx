@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   Plus, Search, Trash2, Check, X, PlayCircle, CheckCheck, PackageSearch,
-  Clock, DollarSign, Car, User, Wrench, MessageSquare, Edit2,
+  DollarSign, Car, User, Wrench, MessageSquare, Edit2,
   XCircle, Zap,
 } from 'lucide-react'
 import { Card } from '../components/Card'
@@ -43,14 +43,17 @@ const fmtDate = (d: string) =>
 
 type FiltroStatus = StatusOS | 'todos' | 'abertos'
 
+// ── Serviço selecionado ───────────────────────────────────────
+
+interface ServicoSelecionado { servicoId: string; valor: number }
+
 // ── Form state ────────────────────────────────────────────────
 
 interface FormState {
   clienteSearch: string
   clienteId: string
   veiculoId: string
-  servicosSel: string[]
-  valorOverride: number | null
+  servicosSel: ServicoSelecionado[]
   formaPagamento: string
   instaladorId: string
   box: number
@@ -66,7 +69,6 @@ const blankForm: FormState = {
   clienteId: '',
   veiculoId: '',
   servicosSel: [],
-  valorOverride: null,
   formaPagamento: 'PIX',
   instaladorId: '',
   box: 1,
@@ -80,8 +82,7 @@ const blankForm: FormState = {
 // ── Edit form state ───────────────────────────────────────────
 
 interface EditFormState {
-  servicosSel: string[]
-  valorManual: number
+  servicosSel: ServicoSelecionado[]
   formaPagamento: string
   instaladorId: string
   box: number
@@ -128,9 +129,9 @@ export function OrdemServico() {
   const [checkinOpen, setCheckinOpen]       = useState(false)
 
   // ── Form state ────────────────────────────────────────────────
-  const [form, setForm]           = useState<FormState>(blankForm)
-  const [editForm, setEditForm]   = useState<EditFormState>({
-    servicosSel: [], valorManual: 0, formaPagamento: 'PIX', instaladorId: '', box: 1, observacoes: '',
+  const [form, setForm]         = useState<FormState>(blankForm)
+  const [editForm, setEditForm] = useState<EditFormState>({
+    servicosSel: [], formaPagamento: 'PIX', instaladorId: '', box: 1, observacoes: '',
   })
   const [dropdownOpen, setDropdown] = useState(false)
   const dropdownRef               = useRef<HTMLDivElement>(null)
@@ -188,30 +189,22 @@ export function OrdemServico() {
   }, {} as Record<StatusOS, number>)
 
   // ── Form derived ──────────────────────────────────────────────
-  const clientesFiltrados  = clientes.filter(c =>
+  const clientesFiltrados = clientes.filter(c =>
     c.nome.toLowerCase().includes(form.clienteSearch.toLowerCase()) ||
     c.cpf.includes(form.clienteSearch),
   )
-  const veiculosDoCliente  = veiculos.filter(v => v.clienteId === form.clienteId)
+  const veiculosDoCliente = veiculos.filter(v => v.clienteId === form.clienteId)
 
-  const valorAutoNova = form.servicosSel.reduce((sum, id) => {
-    return sum + (servicos.find(s => s.id === id)?.preco ?? 0)
-  }, 0)
-
-  const valorFinalNova = form.valorOverride !== null ? form.valorOverride : valorAutoNova
+  const valorTotalNova = form.servicosSel.reduce((sum, s) => sum + (s.valor || 0), 0)
 
   const comissaoValor = form.comissaoAtiva
     ? form.comissaoTipo === 'percentual'
-      ? +(valorFinalNova * form.comissaoPerc / 100).toFixed(2)
+      ? +(valorTotalNova * form.comissaoPerc / 100).toFixed(2)
       : form.comissaoFixo
     : 0
 
   // ── Edit form derived ─────────────────────────────────────────
-  const editValorAuto = editForm.servicosSel.reduce((sum, id) => {
-    const existing = editandoOS?.servicos.find(s => s.servicoId === id)
-    const preco    = existing?.preco ?? servicos.find(s => s.id === id)?.preco ?? 0
-    return sum + preco
-  }, 0)
+  const editValorTotal = editForm.servicosSel.reduce((sum, s) => sum + (s.valor || 0), 0)
 
   // ── Form handlers ─────────────────────────────────────────────
   const resetForm = () => { setForm({ ...blankForm, servicosSel: [] }); setDropdown(false) }
@@ -222,21 +215,32 @@ export function OrdemServico() {
   }
 
   const toggleServico = (id: string) =>
-    setForm(f => ({
-      ...f,
-      servicosSel: f.servicosSel.includes(id)
-        ? f.servicosSel.filter(x => x !== id)
-        : [...f.servicosSel, id],
-      valorOverride: null,
-    }))
+    setForm(f => {
+      const existe = f.servicosSel.some(s => s.servicoId === id)
+      return {
+        ...f,
+        servicosSel: existe
+          ? f.servicosSel.filter(s => s.servicoId !== id)
+          : [...f.servicosSel, { servicoId: id, valor: 0 }],
+      }
+    })
+
+  const setValorServico = (id: string, valor: number) =>
+    setForm(f => ({ ...f, servicosSel: f.servicosSel.map(s => s.servicoId === id ? { ...s, valor } : s) }))
 
   const toggleServicoEdit = (id: string) =>
-    setEditForm(f => ({
-      ...f,
-      servicosSel: f.servicosSel.includes(id)
-        ? f.servicosSel.filter(x => x !== id)
-        : [...f.servicosSel, id],
-    }))
+    setEditForm(f => {
+      const existe = f.servicosSel.some(s => s.servicoId === id)
+      return {
+        ...f,
+        servicosSel: existe
+          ? f.servicosSel.filter(s => s.servicoId !== id)
+          : [...f.servicosSel, { servicoId: id, valor: 0 }],
+      }
+    })
+
+  const setValorServicoEdit = (id: string, valor: number) =>
+    setEditForm(f => ({ ...f, servicosSel: f.servicosSel.map(s => s.servicoId === id ? { ...s, valor } : s) }))
 
   const handleInstaladorChange = (id: string) => {
     const padrao = instaladores.find(i => i.id === id)?.comissaoPadrao ?? 12
@@ -246,15 +250,16 @@ export function OrdemServico() {
   const handleSalvar = () => {
     if (!form.clienteId) { toast.error('Selecione um cliente.'); return }
     if (form.servicosSel.length === 0) { toast.error('Selecione ao menos um serviço.'); return }
+    if (!form.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return }
 
     adicionarOS({
       clienteId:      form.clienteId,
       veiculoId:      form.veiculoId,
-      servicos:       form.servicosSel.map(id => {
-        const s = servicos.find(x => x.id === id)!
-        return { servicoId: id, nome: s.nome, preco: s.preco }
+      servicos:       form.servicosSel.map(sel => {
+        const s = servicos.find(x => x.id === sel.servicoId)!
+        return { servicoId: sel.servicoId, nome: s.nome, preco: sel.valor }
       }),
-      valorTotal:     valorFinalNova,
+      valorTotal:     valorTotalNova,
       formaPagamento: form.formaPagamento,
       instaladorId:   form.instaladorId,
       box:            form.box,
@@ -271,8 +276,7 @@ export function OrdemServico() {
   const abrirEdicao = (os: OrdemServico) => {
     setEditandoOS(os)
     setEditForm({
-      servicosSel:    os.servicos.map(s => s.servicoId),
-      valorManual:    os.valorTotal,
+      servicosSel:    os.servicos.map(s => ({ servicoId: s.servicoId, valor: s.preco ?? 0 })),
       formaPagamento: os.formaPagamento,
       instaladorId:   os.instaladorId,
       box:            os.box,
@@ -284,17 +288,17 @@ export function OrdemServico() {
   const handleSalvarEdicao = () => {
     if (!editandoOS) return
     if (editForm.servicosSel.length === 0) { toast.error('Selecione ao menos um serviço.'); return }
+    if (!editForm.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return }
 
-    const servicosAtualizados = editForm.servicosSel.map(id => {
-      const existing = editandoOS.servicos.find(s => s.servicoId === id)
-      if (existing) return { ...existing }
-      const cat = servicos.find(s => s.id === id)!
-      return { servicoId: id, nome: cat.nome, preco: cat.preco }
+    const servicosAtualizados = editForm.servicosSel.map(sel => {
+      const cat = servicos.find(s => s.id === sel.servicoId)
+      const nomeExistente = editandoOS.servicos.find(s => s.servicoId === sel.servicoId)?.nome
+      return { servicoId: sel.servicoId, nome: nomeExistente ?? cat?.nome ?? 'Serviço', preco: sel.valor }
     })
 
     const updates = {
       servicos:       servicosAtualizados,
-      valorTotal:     editForm.valorManual,
+      valorTotal:     editValorTotal,
       formaPagamento: editForm.formaPagamento,
       instaladorId:   editForm.instaladorId,
       box:            editForm.box,
@@ -432,7 +436,7 @@ export function OrdemServico() {
             <p className="text-gray-600 text-xs mt-0.5">{filtered.length} encontradas</p>
           </div>
         </div>
-        
+
         {/* Visão Desktop: Tabela */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
@@ -598,35 +602,34 @@ export function OrdemServico() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {servicos.map(s => {
-                const sel = form.servicosSel.includes(s.id)
+                const selObj = form.servicosSel.find(x => x.servicoId === s.id)
+                const sel = !!selObj
                 return (
-                  <button
+                  <div
                     key={s.id}
-                    type="button"
-                    onClick={() => toggleServico(s.id)}
-                    className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
-                      sel
-                        ? 'border-accent/60 bg-accent/8 ring-1 ring-accent/20'
-                        : 'border-ui-border bg-surface-700 hover:border-gray-500'
+                    className={`flex items-center justify-between gap-2 p-3 rounded-xl border transition-all ${
+                      sel ? 'border-accent/60 bg-accent/8 ring-1 ring-accent/20' : 'border-ui-border bg-surface-700 hover:border-gray-500'
                     }`}
                   >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-ui-text truncate">{s.nome}</p>
-                      <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
-                        <Clock size={10} />{s.tempEstimado}h estimado
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                      <span className={`text-sm font-bold ${sel ? 'text-accent' : 'text-gray-400'}`}>
-                        {fmt(s.preco)}
-                      </span>
-                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                        sel ? 'bg-accent border-accent' : 'border-gray-600'
-                      }`}>
+                    <button type="button" onClick={() => toggleServico(s.id)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all shrink-0 ${sel ? 'bg-accent border-accent' : 'border-gray-600'}`}>
                         {sel && <Check size={12} className="text-white" />}
                       </span>
-                    </div>
-                  </button>
+                      <span className="text-sm font-medium text-ui-text truncate">{s.nome}</span>
+                    </button>
+                    {sel && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[12px] text-gray-500">R$</span>
+                        <input
+                          type="number" min={0} step={10}
+                          value={selObj!.valor || ''}
+                          onChange={e => setValorServico(s.id, parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                          className="w-24 bg-surface-600 border border-ui-border rounded-lg px-2 py-1.5 text-sm text-right text-ui-text focus:border-accent/50 outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>
@@ -718,7 +721,7 @@ export function OrdemServico() {
                         onChange={e => setForm(f => ({ ...f, comissaoPerc: +e.target.value }))}
                         className="w-20 bg-surface-600 border border-ui-border rounded-lg px-3 py-1.5 text-sm text-ui-text text-center focus:border-accent/50 outline-none"
                       />
-                      <span className="text-sm text-gray-500">% sobre {fmt(valorFinalNova)}</span>
+                      <span className="text-sm text-gray-500">% sobre {fmt(valorTotalNova)}</span>
                       <span className="ml-auto text-sm font-bold text-ui-text">{fmt(comissaoValor)}</span>
                     </div>
                   ) : (
@@ -755,34 +758,11 @@ export function OrdemServico() {
           </section>
         </div>
 
-        {/* Footer fixo: valor editável + botões */}
+        {/* Footer fixo: total + botões */}
         <div className="pt-5 mt-5 border-t border-ui-border space-y-3">
-          {/* Valor editável */}
-          <div className="flex items-center gap-3 p-3 bg-surface-700 rounded-xl border border-ui-border">
-            <div className="flex-1">
-              <Label>Valor Final da OS</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  step={10}
-                  value={form.valorOverride !== null ? form.valorOverride : valorAutoNova}
-                  onChange={e => setForm(f => ({ ...f, valorOverride: +e.target.value }))}
-                  className="w-36 bg-surface-600 border border-ui-border rounded-lg px-3 py-1.5 text-sm font-bold text-ui-text focus:border-accent/50 outline-none"
-                />
-                {form.valorOverride !== null && (
-                  <button
-                    onClick={() => setForm(f => ({ ...f, valorOverride: null }))}
-                    className="text-[11px] text-accent hover:text-ui-text transition-colors"
-                  >
-                    Recalcular (auto: {fmt(valorAutoNova)})
-                  </button>
-                )}
-                {form.valorOverride === null && valorAutoNova > 0 && (
-                  <span className="text-[11px] text-gray-500">calculado automaticamente pelos serviços</span>
-                )}
-              </div>
-            </div>
+          <div className="flex items-center justify-between p-3 bg-surface-700 rounded-xl border border-ui-border">
+            <Label>Valor Total da OS</Label>
+            <span className="text-lg font-bold text-ui-text">{fmt(valorTotalNova)}</span>
           </div>
           <div className="flex items-center justify-end gap-3">
             <Button variant="secondary" onClick={() => { setNovaOSOpen(false); resetForm() }}>
@@ -948,37 +928,34 @@ export function OrdemServico() {
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {servicos.map(s => {
-                  const sel = editForm.servicosSel.includes(s.id)
-                  const existingPreco = editandoOS.servicos.find(x => x.servicoId === s.id)?.preco
-                  const displayPreco = existingPreco ?? s.preco
+                  const selObj = editForm.servicosSel.find(x => x.servicoId === s.id)
+                  const sel = !!selObj
                   return (
-                    <button
+                    <div
                       key={s.id}
-                      type="button"
-                      onClick={() => toggleServicoEdit(s.id)}
-                      className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
-                        sel
-                          ? 'border-accent/60 bg-accent/8 ring-1 ring-accent/20'
-                          : 'border-ui-border bg-surface-700 hover:border-gray-500'
+                      className={`flex items-center justify-between gap-2 p-3 rounded-xl border transition-all ${
+                        sel ? 'border-accent/60 bg-accent/8 ring-1 ring-accent/20' : 'border-ui-border bg-surface-700 hover:border-gray-500'
                       }`}
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-ui-text truncate">{s.nome}</p>
-                        <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
-                          <Clock size={10} />{s.tempEstimado}h estimado
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                        <span className={`text-sm font-bold ${sel ? 'text-accent' : 'text-gray-400'}`}>
-                          {fmt(displayPreco)}
-                        </span>
-                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                          sel ? 'bg-accent border-accent' : 'border-gray-600'
-                        }`}>
+                      <button type="button" onClick={() => toggleServicoEdit(s.id)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all shrink-0 ${sel ? 'bg-accent border-accent' : 'border-gray-600'}`}>
                           {sel && <Check size={12} className="text-white" />}
                         </span>
-                      </div>
-                    </button>
+                        <span className="text-sm font-medium text-ui-text truncate">{s.nome}</span>
+                      </button>
+                      {sel && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-[12px] text-gray-500">R$</span>
+                          <input
+                            type="number" min={0} step={10}
+                            value={selObj!.valor || ''}
+                            onChange={e => setValorServicoEdit(s.id, parseFloat(e.target.value) || 0)}
+                            placeholder="0"
+                            className="w-24 bg-surface-600 border border-ui-border rounded-lg px-2 py-1.5 text-sm text-right text-ui-text focus:border-accent/50 outline-none"
+                          />
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -1016,25 +993,10 @@ export function OrdemServico() {
                 </FieldWrap>
               </div>
 
-              {/* Valor editável */}
-              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+              {/* Valor total */}
+              <div className="flex items-center justify-between p-3 bg-surface-700 rounded-xl border border-ui-border">
                 <Label>Valor Total da OS</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    min={0}
-                    step={10}
-                    value={editForm.valorManual}
-                    onChange={e => setEditForm(f => ({ ...f, valorManual: +e.target.value }))}
-                    className="w-36 bg-surface-600 border border-ui-border rounded-lg px-3 py-2 text-sm font-bold text-ui-text focus:border-accent/50 outline-none"
-                  />
-                  <button
-                    onClick={() => setEditForm(f => ({ ...f, valorManual: editValorAuto }))}
-                    className="text-[11px] text-accent hover:text-ui-text transition-colors"
-                  >
-                    Recalcular pelos serviços ({fmt(editValorAuto)})
-                  </button>
-                </div>
+                <span className="text-lg font-bold text-ui-text">{fmt(editValorTotal)}</span>
               </div>
             </section>
 

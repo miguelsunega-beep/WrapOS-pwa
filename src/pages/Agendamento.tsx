@@ -12,12 +12,12 @@ import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
 import { useApp } from '../context/AppContext'
+import { DateField } from '../components/DateField'
 import type { Agendamento, StatusAgendamento, BadgeVariant } from '../types'
 
 // ── Module-level constants ────────────────────────────────────────
 const todayISO = new Date().toISOString().slice(0, 10)
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-const DURACOES = [1, 2, 3, 4, 6, 8, 12, 16, 24]
 
 const statusConfig: Record<StatusAgendamento, { label: string; variant: BadgeVariant }> = {
   agendado:   { label: 'Agendado',   variant: 'info'    },
@@ -37,12 +37,6 @@ const startOfWeek = (d: Date): Date => {
 
 const toISO = (d: Date) => d.toISOString().slice(0, 10)
 
-const addDays = (iso: string, dias: number) => {
-  const d = new Date(iso + 'T12:00:00')
-  d.setDate(d.getDate() + dias)
-  return d.toISOString().slice(0, 10)
-}
-
 const fmtCurrency = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
 
@@ -52,24 +46,24 @@ interface EditForm {
   veiculoId:    string
   servicoId:    string
   instaladorId: string
+  valor:        string
   data:         string
   horario:      string
-  duracao:      number
   dataSaida:    string
   mesmoDia:     boolean
 }
 
 interface AgForm {
   clienteSearch: string
-  clienteId: string
-  veiculoId: string
-  servicoId: string
-  instaladorId: string
-  data: string
-  horario: string
-  duracao: number
-  dataSaida: string
-  mesmoDia: boolean
+  clienteId:     string
+  veiculoId:     string
+  servicoId:     string
+  instaladorId:  string
+  valor:         string
+  data:          string
+  horario:       string
+  dataSaida:     string
+  mesmoDia:      boolean
 }
 
 // ── Component ─────────────────────────────────────────────────────
@@ -79,14 +73,6 @@ export function Agendamento() {
     agendamentos, clientes, veiculos, servicos, instaladores,
     adicionarAgendamento, editarAgendamento, deletarAgendamento, adicionarOS,
   } = useApp()
-
-  const duracaoDiasServico = (servicoId: string) => {
-    const s = servicos.find(x => x.id === servicoId)
-    if (!s) return 0
-    const dias = (s as typeof s & { duracaoDias?: number }).duracaoDias
-    if (dias != null) return dias
-    return Math.floor(s.tempEstimado / 24)
-  }
 
   // ── Week navigation ───────────────────────────────────────────
   const [semanaOffset, setSemanaOffset] = useState(0)
@@ -174,11 +160,11 @@ export function Agendamento() {
   }
 
   // ── Edit modal ───────────────────────────────────────────────
-  const [editOpen,    setEditOpen]    = useState(false)
-  const [editandoId,  setEditandoId]  = useState<string | null>(null)
-  const [editForm,    setEditForm]    = useState<EditForm>({
+  const [editOpen,   setEditOpen]   = useState(false)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [editForm,   setEditForm]   = useState<EditForm>({
     clienteId: '', veiculoId: '', servicoId: '', instaladorId: '',
-    data: todayISO, horario: '09:00', duracao: 3,
+    valor: '', data: todayISO, horario: '09:00',
     dataSaida: todayISO, mesmoDia: true,
   })
 
@@ -189,9 +175,9 @@ export function Agendamento() {
       veiculoId:    ag.veiculoId,
       servicoId:    ag.servicoId,
       instaladorId: ag.instaladorId,
+      valor:        ag.valor != null ? String(ag.valor) : '',
       data:         ag.data,
       horario:      ag.horario,
-      duracao:      ag.duracao,
       dataSaida:    ag.data,
       mesmoDia:     true,
     })
@@ -209,8 +195,9 @@ export function Agendamento() {
       (a.status === 'agendado' || a.status === 'confirmado')
     )
     if (conflito) { toast.error('Conflito: já existe agendamento neste horário.'); return }
-    editarAgendamento(editandoId, editForm)
-    if (detalhes?.id === editandoId) setDetalhes(prev => prev ? { ...prev, ...editForm } : null)
+    const payload = { ...editForm, duracao: 0, valor: parseFloat(editForm.valor) || 0 }
+    editarAgendamento(editandoId, payload)
+    if (detalhes?.id === editandoId) setDetalhes(prev => prev ? { ...prev, ...payload } : null)
     toast.success('Agendamento atualizado!')
     setEditOpen(false)
   }
@@ -221,8 +208,8 @@ export function Agendamento() {
     adicionarOS({
       clienteId:      ag.clienteId,
       veiculoId:      ag.veiculoId,
-      servicos:       servico ? [{ servicoId: ag.servicoId, nome: servico.nome, preco: servico.preco }] : [],
-      valorTotal:     servico?.preco ?? 0,
+      servicos:       servico ? [{ servicoId: ag.servicoId, nome: servico.nome, preco: servico.preco ?? 0 }] : [],
+      valorTotal:     ag.valor ?? servico?.preco ?? 0,
       formaPagamento: 'A definir',
       instaladorId:   ag.instaladorId,
       box:            ag.box,
@@ -244,15 +231,15 @@ export function Agendamento() {
 
   const makeInitForm = (): AgForm => ({
     clienteSearch: '',
-    clienteId: '',
-    veiculoId: '',
-    servicoId: servicos[0]?.id ?? '',
-    instaladorId: instaladores.find(i => i.ativo)?.id ?? '',
-    data: diaSelecionado,
-    horario: '09:00',
-    duracao: 3,
-    dataSaida: diaSelecionado,
-    mesmoDia: true,
+    clienteId:     '',
+    veiculoId:     '',
+    servicoId:     servicos[0]?.id ?? '',
+    instaladorId:  instaladores.find(i => i.ativo)?.id ?? '',
+    valor:         '',
+    data:          diaSelecionado,
+    horario:       '09:00',
+    dataSaida:     diaSelecionado,
+    mesmoDia:      true,
   })
 
   const [form, setForm] = useState<AgForm>(makeInitForm)
@@ -298,7 +285,8 @@ export function Agendamento() {
       box:          1,
       data:         form.data,
       horario:      form.horario,
-      duracao:      form.duracao,
+      duracao:      0,
+      valor:        parseFloat(form.valor) || 0,
       status:       'agendado',
     })
     toast.success('Agendamento criado com sucesso!')
@@ -314,9 +302,9 @@ export function Agendamento() {
   const labelCls = 'block text-xs font-medium text-gray-400 mb-1.5'
 
   // ── Details modal computed ────────────────────────────────────
-  const detCliente    = detalhes ? clientes.find(c => c.id === detalhes.clienteId)    : null
-  const detVeiculo    = detalhes ? veiculos.find(v => v.id === detalhes.veiculoId)    : null
-  const detServico    = detalhes ? servicos.find(s => s.id === detalhes.servicoId)    : null
+  const detCliente    = detalhes ? clientes.find(c => c.id === detalhes.clienteId)       : null
+  const detVeiculo    = detalhes ? veiculos.find(v => v.id === detalhes.veiculoId)       : null
+  const detServico    = detalhes ? servicos.find(s => s.id === detalhes.servicoId)       : null
   const detInstalador = detalhes ? instaladores.find(i => i.id === detalhes.instaladorId) : null
 
   return (
@@ -432,12 +420,10 @@ export function Agendamento() {
                 <div className="flex items-start md:items-center gap-3 md:gap-4 w-full md:w-auto">
                   <div className="w-14 text-center shrink-0 pt-1 md:pt-0">
                     <p className="text-sm font-bold text-accent">{ag.horario}</p>
-                    <p className="text-[10px] text-gray-600 mt-0.5">{ag.duracao}h</p>
                   </div>
                   <div className="w-px h-10 bg-ui-border shrink-0 hidden md:block" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 md:hidden mb-1.5">
-                      <Badge label={`Box ${ag.box}`} variant="info" />
                       <Badge label={statusConfig[ag.status].label} variant={statusConfig[ag.status].variant} />
                     </div>
                     <p className="text-sm font-semibold text-ui-text">{getNomeCliente(ag.clienteId)}</p>
@@ -452,7 +438,6 @@ export function Agendamento() {
                     <p className="text-[11px] text-gray-600 mt-0.5">{getInstalador(ag.instaladorId)}</p>
                   </div>
                   <div className="hidden md:flex items-center gap-2">
-                    <Badge label={`Box ${ag.box}`} variant="info" />
                     <Badge label={statusConfig[ag.status].label} variant={statusConfig[ag.status].variant} />
                     <div
                       className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2"
@@ -548,7 +533,7 @@ export function Agendamento() {
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Serviço</p>
                 <p className="text-sm font-semibold text-ui-text">{detServico?.nome ?? '—'}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {detServico ? `${fmtCurrency(detServico.preco)} · ${detServico.tempEstimado}h estimadas` : ''}
+                  {detalhes.valor != null ? fmtCurrency(detalhes.valor) : '—'}
                 </p>
               </div>
               <div className="bg-surface-700 rounded-xl p-3.5">
@@ -560,13 +545,11 @@ export function Agendamento() {
               </div>
             </div>
 
-            {/* Data/Horário/Duração/Box row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* Data/Horário row */}
+            <div className="grid grid-cols-2 gap-3">
               {([
                 { label: 'Data',    value: new Date(detalhes.data + 'T12:00:00').toLocaleDateString('pt-BR') },
                 { label: 'Horário', value: detalhes.horario },
-                { label: 'Duração', value: `${detalhes.duracao}h` },
-                { label: 'Box',     value: `Box ${detalhes.box}` },
               ] as const).map(item => (
                 <div key={item.label} className="bg-surface-700 rounded-xl p-3 text-center">
                   <p className="text-[10px] text-gray-600 uppercase tracking-wider">{item.label}</p>
@@ -673,30 +656,31 @@ export function Agendamento() {
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
               <Wrench size={12} /> Serviço &amp; Responsável
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className={labelCls}>Serviço</label>
                 <select
                   value={form.servicoId}
-                  onChange={e => {
-                    const id = e.target.value
-                    const dur = duracaoDiasServico(id)
-                    setForm(p => ({
-                      ...p,
-                      servicoId: id,
-                      mesmoDia: dur === 0,
-                      dataSaida: addDays(p.data, dur),
-                    }))
-                  }}
+                  onChange={e => setForm(p => ({ ...p, servicoId: e.target.value }))}
                   className={inputCls}
                 >
                   <option value="">Nenhum</option>
                   {servicos.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.nome} — {fmtCurrency(s.preco)}
-                    </option>
+                    <option key={s.id} value={s.id}>{s.nome}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className={labelCls}>Valor (R$)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={10}
+                  value={form.valor}
+                  onChange={e => setForm(p => ({ ...p, valor: e.target.value }))}
+                  placeholder="0"
+                  className={inputCls}
+                />
               </div>
               <div>
                 <label className={labelCls}>Instalador</label>
@@ -717,32 +701,47 @@ export function Agendamento() {
           {/* ── Seção 3: Quando ── */}
           <section className="space-y-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-              <CalendarClock size={12} /> Data &amp; Duração
+              <CalendarClock size={12} /> Data &amp; Horário
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Data <span className="text-accent">*</span></label>
-                <input
-                  type="date"
-                  value={form.data}
-                  onChange={e => setForm(p => ({
-                    ...p,
-                    data: e.target.value,
-                    dataSaida: p.mesmoDia ? e.target.value : p.dataSaida,
-                  }))}
-                  className={inputCls}
-                />
+            {form.mesmoDia ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Data <span className="text-accent">*</span></label>
+                  <DateField value={form.data} onChange={(iso) => setForm(p => ({ ...p, data: iso, dataSaida: iso }))} />
+                </div>
+                <div>
+                  <label className={labelCls}>Horário <span className="text-accent">*</span></label>
+                  <input
+                    type="time"
+                    value={form.horario}
+                    onChange={e => setForm(p => ({ ...p, horario: e.target.value }))}
+                    className={inputCls}
+                  />
+                </div>
               </div>
-              <div>
-                <label className={labelCls}>Horário <span className="text-accent">*</span></label>
-                <input
-                  type="time"
-                  value={form.horario}
-                  onChange={e => setForm(p => ({ ...p, horario: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Entrada <span className="text-accent">*</span></label>
+                    <DateField value={form.data} onChange={(iso) => setForm(p => ({ ...p, data: iso }))} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Saída prevista</label>
+                    <DateField value={form.dataSaida} min={form.data} onChange={(iso) => setForm(p => ({ ...p, dataSaida: iso }))} />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>Horário <span className="text-accent">*</span></label>
+                  <input
+                    type="time"
+                    value={form.horario}
+                    onChange={e => setForm(p => ({ ...p, horario: e.target.value }))}
+                    className={inputCls}
+                  />
+                </div>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setForm(p => ({ ...p, mesmoDia: !p.mesmoDia, dataSaida: !p.mesmoDia ? p.data : p.dataSaida }))}
@@ -760,28 +759,6 @@ export function Agendamento() {
               </span>
               Entra e sai no mesmo dia
             </button>
-            {!form.mesmoDia && (
-              <div className="mt-3">
-                <label className={labelCls}>Saída prevista</label>
-                <input
-                  type="date"
-                  value={form.dataSaida}
-                  min={form.data}
-                  onChange={e => setForm(p => ({ ...p, dataSaida: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-            )}
-            <div>
-              <label className={labelCls}>Duração estimada</label>
-              <select
-                value={form.duracao}
-                onChange={e => setForm(p => ({ ...p, duracao: Number(e.target.value) }))}
-                className={inputCls}
-              >
-                {DURACOES.map(d => <option key={d} value={d}>{d}h</option>)}
-              </select>
-            </div>
           </section>
 
           {/* Actions */}
@@ -829,29 +806,32 @@ export function Agendamento() {
             </div>
           )}
 
-          {/* Serviço + Instalador */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Serviço + Valor + Instalador */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className={labelCls}>Serviço</label>
               <select
                 value={editForm.servicoId}
-                onChange={e => {
-                  const id = e.target.value
-                  const dur = duracaoDiasServico(id)
-                  setEditForm(p => ({
-                    ...p,
-                    servicoId: id,
-                    mesmoDia: dur === 0,
-                    dataSaida: addDays(p.data, dur),
-                  }))
-                }}
+                onChange={e => setEditForm(p => ({ ...p, servicoId: e.target.value }))}
                 className={inputCls}
               >
                 <option value="">Nenhum</option>
                 {servicos.map(s => (
-                  <option key={s.id} value={s.id}>{s.nome} — {fmtCurrency(s.preco)}</option>
+                  <option key={s.id} value={s.id}>{s.nome}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className={labelCls}>Valor (R$)</label>
+              <input
+                type="number"
+                min={0}
+                step={10}
+                value={editForm.valor}
+                onChange={e => setEditForm(p => ({ ...p, valor: e.target.value }))}
+                placeholder="0"
+                className={inputCls}
+              />
             </div>
             <div>
               <label className={labelCls}>Instalador</label>
@@ -868,31 +848,46 @@ export function Agendamento() {
             </div>
           </div>
 
-          {/* Data + Horário */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Data <span className="text-accent">*</span></label>
-              <input
-                type="date"
-                value={editForm.data}
-                onChange={e => setEditForm(p => ({
-                  ...p,
-                  data: e.target.value,
-                  dataSaida: p.mesmoDia ? e.target.value : p.dataSaida,
-                }))}
-                className={inputCls}
-              />
+          {/* Data & Horário */}
+          {editForm.mesmoDia ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Data <span className="text-accent">*</span></label>
+                <DateField value={editForm.data} onChange={(iso) => setEditForm(p => ({ ...p, data: iso, dataSaida: iso }))} />
+              </div>
+              <div>
+                <label className={labelCls}>Horário <span className="text-accent">*</span></label>
+                <input
+                  type="time"
+                  value={editForm.horario}
+                  onChange={e => setEditForm(p => ({ ...p, horario: e.target.value }))}
+                  className={inputCls}
+                />
+              </div>
             </div>
-            <div>
-              <label className={labelCls}>Horário <span className="text-accent">*</span></label>
-              <input
-                type="time"
-                value={editForm.horario}
-                onChange={e => setEditForm(p => ({ ...p, horario: e.target.value }))}
-                className={inputCls}
-              />
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Entrada <span className="text-accent">*</span></label>
+                  <DateField value={editForm.data} onChange={(iso) => setEditForm(p => ({ ...p, data: iso }))} />
+                </div>
+                <div>
+                  <label className={labelCls}>Saída prevista</label>
+                  <DateField value={editForm.dataSaida} min={editForm.data} onChange={(iso) => setEditForm(p => ({ ...p, dataSaida: iso }))} />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Horário <span className="text-accent">*</span></label>
+                <input
+                  type="time"
+                  value={editForm.horario}
+                  onChange={e => setEditForm(p => ({ ...p, horario: e.target.value }))}
+                  className={inputCls}
+                />
+              </div>
+            </>
+          )}
           <button
             type="button"
             onClick={() => setEditForm(p => ({ ...p, mesmoDia: !p.mesmoDia, dataSaida: !p.mesmoDia ? p.data : p.dataSaida }))}
@@ -910,30 +905,6 @@ export function Agendamento() {
             </span>
             Entra e sai no mesmo dia
           </button>
-          {!editForm.mesmoDia && (
-            <div className="mt-3">
-              <label className={labelCls}>Saída prevista</label>
-              <input
-                type="date"
-                value={editForm.dataSaida}
-                min={editForm.data}
-                onChange={e => setEditForm(p => ({ ...p, dataSaida: e.target.value }))}
-                className={inputCls}
-              />
-            </div>
-          )}
-
-          {/* Duração */}
-          <div>
-            <label className={labelCls}>Duração estimada</label>
-            <select
-              value={editForm.duracao}
-              onChange={e => setEditForm(p => ({ ...p, duracao: Number(e.target.value) }))}
-              className={inputCls}
-            >
-              {DURACOES.map(d => <option key={d} value={d}>{d}h</option>)}
-            </select>
-          </div>
 
           <div className="flex justify-end gap-2 pt-1 border-t border-ui-border">
             <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancelar</Button>

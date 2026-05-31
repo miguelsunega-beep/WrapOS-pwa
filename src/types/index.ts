@@ -39,8 +39,8 @@ export interface Veiculo {
 export interface Servico {
   id: string
   nome: string
-  preco: number
-  tempEstimado: number
+  preco?: number
+  tempEstimado?: number
   duracaoDias?: number
 }
 
@@ -80,6 +80,7 @@ export interface Agendamento {
   horario: string
   duracao: number
   status: StatusAgendamento
+  valor?: number
 }
 
 export interface Instalador {

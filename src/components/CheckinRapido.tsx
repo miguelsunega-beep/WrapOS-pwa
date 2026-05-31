@@ -6,23 +6,12 @@ import {
   Plus, AlertCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { DateField } from './DateField'
 import { usePlacaLookup } from '../hooks/usePlacaLookup'
 import type { Cliente, Veiculo, Instalador, OrdemServico } from '../types'
 
-// ── Types ────────────────────────────────────────────────────────
-
-interface ServicoManual {
-  categoria: string
-  descricao: string
-  valor: string
-}
-
 // ── Helpers ─────────────────────────────────────────────────────────
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
-
-const CATEGORIAS_SERVICO = ['PPF', 'Envelopamento', 'Insulfilm', 'Lavagem', 'Pintura', 'Outros']
 
 const inputCls =
   'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 outline-none transition-colors placeholder-gray-500'
@@ -377,21 +366,14 @@ function StepVeiculo({
 }
 
 function StepServicos({
-  servicosMan, setServicosMan, obsOS, setObsOS, errors,
+  servicos, servicoSel, setServicoSel, servicoValor, setServicoValor, obsOS, setObsOS, errors,
 }: {
-  servicosMan: ServicoManual[]
-  setServicosMan: React.Dispatch<React.SetStateAction<ServicoManual[]>>
+  servicos: { id: string; nome: string }[]
+  servicoSel: string; setServicoSel: (v: string) => void
+  servicoValor: string; setServicoValor: (v: string) => void
   obsOS: string; setObsOS: (v: string) => void
   errors: Record<string, string>
 }) {
-  const subtotal = servicosMan.reduce((s, m) => s + (parseFloat(m.valor) || 0), 0)
-
-  const update = (i: number, field: keyof ServicoManual, value: string) =>
-    setServicosMan(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
-
-  const remove = (i: number) =>
-    setServicosMan(prev => prev.filter((_, idx) => idx !== i))
-
   return (
     <div className="space-y-4">
       {errors.servicos && (
@@ -399,87 +381,29 @@ function StepServicos({
           <AlertCircle size={11} />{errors.servicos}
         </p>
       )}
-
-      <div className="space-y-3">
-        {servicosMan.map((s, i) => (
-          <div
-            key={i}
-            className="p-3 rounded-xl space-y-2"
-            style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#5a6070' }}>
-                Serviço {i + 1}
-              </span>
-              {servicosMan.length > 1 && (
-                <button
-                  onClick={() => remove(i)}
-                  className="text-gray-600 hover:text-red-400 transition-colors"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-            <select
-              value={s.categoria}
-              onChange={e => update(i, 'categoria', e.target.value)}
-              className={inputCls}
-            >
-              {CATEGORIAS_SERVICO.map(c => <option key={c}>{c}</option>)}
-            </select>
-            <input
-              type="text"
-              placeholder="Descrição do serviço..."
-              value={s.descricao}
-              onChange={e => update(i, 'descricao', e.target.value)}
-              className={inputCls}
-            />
-            <div className="relative">
-              <span
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] select-none"
-                style={{ color: '#5a6070' }}
-              >
-                R$
-              </span>
-              <input
-                type="number"
-                min={0}
-                step={10}
-                placeholder="0"
-                value={s.valor}
-                onChange={e => update(i, 'valor', e.target.value)}
-                className={`${inputCls} pl-8`}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={() => setServicosMan(prev => [...prev, { categoria: 'PPF', descricao: '', valor: '' }])}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed text-sm font-medium transition-all hover:border-accent/40 hover:text-accent"
-        style={{ borderColor: 'rgba(255,255,255,0.12)', color: '#5a6070' }}
-      >
-        <Plus size={14} />
-        Adicionar serviço
-      </button>
-
-      {subtotal > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between px-4 py-3 rounded-xl"
-          style={{ backgroundColor: 'rgba(232,48,74,0.08)', border: '1px solid rgba(232,48,74,0.20)' }}
+      <div>
+        <label className="text-[11px] text-gray-500 block mb-1.5">Serviço</label>
+        <select
+          value={servicoSel}
+          onChange={e => setServicoSel(e.target.value)}
+          className={inputCls}
         >
-          <p className="text-xs" style={{ color: '#5a6070' }}>
-            {servicosMan.filter(s => parseFloat(s.valor) > 0).length} serviço(s)
-          </p>
-          <p className="text-sm font-bold" style={{ color: 'var(--wrap-accent)' }}>
-            {fmt(subtotal)}
-          </p>
-        </motion.div>
-      )}
-
+          <option value="">Selecionar serviço…</option>
+          {servicos.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="text-[11px] text-gray-500 block mb-1.5">Valor (R$)</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] select-none" style={{ color: '#5a6070' }}>R$</span>
+          <input
+            type="number" min={0} step={10} placeholder="0"
+            value={servicoValor}
+            onChange={e => setServicoValor(e.target.value)}
+            className={`${inputCls} pl-8`}
+          />
+        </div>
+      </div>
       <div>
         <label className="text-[11px] text-gray-500 block mb-1">Observações (opcional)</label>
         <textarea
@@ -506,16 +430,23 @@ function StepPeriodo({
 }) {
   return (
     <div className="space-y-4">
-      <div>
-        <label className="text-[11px] text-gray-500 block mb-1.5">Data de entrada</label>
-        <input
-          type="date"
-          value={dataEntrada}
-          onChange={e => { setDataEntrada(e.target.value); if (mesmoDia) setDataSaida(e.target.value) }}
-          onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
-          className={`${inputCls} cursor-pointer`}
-        />
-      </div>
+      {mesmoDia ? (
+        <div>
+          <label className="text-[11px] text-gray-500 block mb-1.5">Data de entrada</label>
+          <DateField value={dataEntrada} onChange={(iso) => { setDataEntrada(iso); setDataSaida(iso) }} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-[11px] text-gray-500 block mb-1.5">Entrada</label>
+            <DateField value={dataEntrada} onChange={(iso) => setDataEntrada(iso)} />
+          </div>
+          <div>
+            <label className="text-[11px] text-gray-500 block mb-1.5">Saída prevista</label>
+            <DateField value={dataSaida} min={dataEntrada} onChange={(iso) => setDataSaida(iso)} />
+          </div>
+        </div>
+      )}
 
       <button
         type="button"
@@ -523,31 +454,11 @@ function StepPeriodo({
         className="flex items-center gap-2 text-sm font-medium transition-colors"
         style={{ color: mesmoDia ? 'var(--wrap-accent)' : '#5a6070' }}
       >
-        <span
-          className="relative rounded-full transition-colors"
-          style={{ height: 22, width: 40, background: mesmoDia ? 'var(--wrap-accent)' : 'var(--surface-500)' }}
-        >
-          <span
-            className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform"
-            style={{ width: 18, height: 18, transform: mesmoDia ? 'translateX(18px)' : 'translateX(0)' }}
-          />
+        <span className="relative rounded-full transition-colors" style={{ height: 22, width: 40, background: mesmoDia ? 'var(--wrap-accent)' : 'var(--surface-500)' }}>
+          <span className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform" style={{ width: 18, height: 18, transform: mesmoDia ? 'translateX(18px)' : 'translateX(0)' }} />
         </span>
         Entra e sai no mesmo dia
       </button>
-
-      {!mesmoDia && (
-        <div>
-          <label className="text-[11px] text-gray-500 block mb-1.5">Data de saída prevista</label>
-          <input
-            type="date"
-            value={dataSaida}
-            min={dataEntrada}
-            onChange={e => setDataSaida(e.target.value)}
-            onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
-            className={`${inputCls} cursor-pointer`}
-          />
-        </div>
-      )}
 
       <div>
         <label className="text-[11px] text-gray-500 block mb-1.5">Responsável</label>
@@ -564,7 +475,7 @@ function StepPeriodo({
 
 export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () => void }) {
   const {
-    clientes, veiculos, instaladores,
+    clientes, veiculos, instaladores, servicos,
     adicionarCliente, adicionarVeiculo, adicionarOS,
   } = useApp()
 
@@ -602,8 +513,9 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
     }
   }, [placaData, veiculoSel])
 
-  // Step 3: Serviços (manual)
-  const [servicosMan, setServicosMan] = useState<ServicoManual[]>([{ categoria: 'PPF', descricao: '', valor: '' }])
+  // Step 3: Serviços
+  const [servicoSel, setServicoSel]   = useState('')
+  const [servicoValor, setServicoValor] = useState('')
   const [obsOS, setObsOS]             = useState('')
 
   // Step 4: Período
@@ -621,7 +533,7 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
     setPlacaRaw(''); setVeiculoSel(null)
     setNovaMarca(''); setNovoModelo(''); setNovoAno(new Date().getFullYear()); setNovaCor('')
     setShowExtras(false)
-    setServicosMan([{ categoria: 'PPF', descricao: '', valor: '' }]); setObsOS('')
+    setServicoSel(''); setServicoValor(''); setObsOS('')
     const today = new Date().toISOString().split('T')[0]
     setMesmoDia(true); setDataEntrada(today); setDataSaida(today)
     setInstSel('')
@@ -667,8 +579,8 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
       if (!novoModelo.trim()) errs.modelo = 'Modelo obrigatório.'
     }
     if (step === 3) {
-      const hasValid = servicosMan.some(s => parseFloat(s.valor) > 0)
-      if (!hasValid) errs.servicos = 'Informe ao menos um serviço com valor.'
+      if (!servicoSel) errs.servicos = 'Selecione um serviço.'
+      else if (!(parseFloat(servicoValor) > 0)) errs.servicos = 'Informe o valor cobrado.'
     }
 
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
@@ -719,16 +631,11 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
       })
     }
 
-    // 3. Build items from manual services
-    const itens = servicosMan
-      .filter(s => parseFloat(s.valor) > 0)
-      .map(s => ({
-        servicoId: '',
-        nome: s.descricao.trim() ? `${s.categoria} — ${s.descricao.trim()}` : s.categoria,
-        preco: parseFloat(s.valor),
-      }))
-
-    const valorTotal = itens.reduce((sum, item) => sum + item.preco, 0)
+    // 3. Build item from catalog service
+    const serv = servicos.find(s => s.id === servicoSel)
+    const valorNum = parseFloat(servicoValor) || 0
+    const itens = serv ? [{ servicoId: serv.id, nome: serv.nome, preco: valorNum }] : []
+    const valorTotal = valorNum
     const nomeCliente  = criando ? novoNome.trim() : (clienteSel?.nome ?? '')
     const labelVeiculo = veiculoSel
       ? `${veiculoSel.marca} ${veiculoSel.modelo}`
@@ -880,8 +787,11 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
                   )}
                   {step === 3 && (
                     <StepServicos
-                      servicosMan={servicosMan}
-                      setServicosMan={setServicosMan}
+                      servicos={servicos}
+                      servicoSel={servicoSel}
+                      setServicoSel={setServicoSel}
+                      servicoValor={servicoValor}
+                      setServicoValor={setServicoValor}
                       obsOS={obsOS}
                       setObsOS={setObsOS}
                       errors={errors}

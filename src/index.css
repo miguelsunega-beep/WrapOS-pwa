@@ -67,3 +67,35 @@ textarea {
   animation: shimmer 1.5s infinite linear;
   border-radius: 0.5rem;
 }
+
+/* ── DateField (react-day-picker) ─────────────────────────────── */
+.wrapos-daypicker .rdp {
+  --rdp-cell-size: 32px;
+  --rdp-accent-color: var(--wrap-accent);
+  --rdp-background-color: rgba(255,255,255,0.06);
+  margin: 0;
+  font-size: 13px;
+}
+.wrapos-daypicker .rdp-caption_label,
+.wrapos-daypicker .rdp-head_cell,
+.wrapos-daypicker .rdp-day {
+  color: var(--wrap-text, #f0f0f4);
+}
+.wrapos-daypicker .rdp-head_cell {
+  color: #5a6070;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.wrapos-daypicker .rdp-day_selected,
+.wrapos-daypicker .rdp-day_selected:hover {
+  background-color: var(--wrap-accent);
+  color: #fff;
+}
+.wrapos-daypicker .rdp-day_today {
+  color: var(--wrap-accent);
+  font-weight: 700;
+}
+.wrapos-daypicker .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
+  background-color: rgba(255,255,255,0.08);
+}
+.wrapos-daypicker .rdp-nav_button { color: var(--wrap-text, #f0f0f4); }
