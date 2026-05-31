@@ -186,27 +186,29 @@ export function Estoque() {
         </Button>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-4 gap-3">
+      {/* KPIs com Carrossel Mobile */}
+      <div className="flex overflow-x-auto pb-2 -mx-6 px-6 md:mx-0 md:px-0 md:grid md:grid-cols-4 gap-3 snap-x [&::-webkit-scrollbar]:hidden">
         {[
           { label: 'Total de Itens',   value: String(produtos.length),   color: 'text-ui-text',     icon: Package,      bg: 'bg-surface-600'      },
-          { label: 'Estoque Crítico',  value: String(criticos),           color: 'text-accent',      icon: AlertTriangle,bg: 'bg-accent/10'        },
-          { label: 'Valor em Estoque', value: fmt(valorTotal),            color: 'text-emerald-400', icon: DollarSign,   bg: 'bg-emerald-500/10'   },
+          { label: 'Estoque Crítico',  value: String(criticos),          color: 'text-accent',      icon: AlertTriangle,bg: 'bg-accent/10'        },
+          { label: 'Valor em Estoque', value: fmt(valorTotal),           color: 'text-emerald-400', icon: DollarSign,   bg: 'bg-emerald-500/10'   },
           { label: 'Fornecedores',     value: String(fornecedoresUnicos), color: 'text-blue-400',    icon: Users,        bg: 'bg-blue-500/10'      },
         ].map((item) => {
           const Icon = item.icon
           return (
-            <Card key={item.label}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wider">{item.label}</p>
-                  <p className={`text-2xl font-bold mt-1.5 ${item.color}`}>{item.value}</p>
+            <div key={item.label} className="min-w-[220px] md:min-w-0 shrink-0 snap-start">
+              <Card>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wider">{item.label}</p>
+                    <p className={`text-2xl font-bold mt-1.5 ${item.color}`}>{item.value}</p>
+                  </div>
+                  <div className={`w-9 h-9 ${item.bg} rounded-xl flex items-center justify-center shrink-0`}>
+                    <Icon size={17} className={item.color} />
+                  </div>
                 </div>
-                <div className={`w-9 h-9 ${item.bg} rounded-xl flex items-center justify-center shrink-0`}>
-                  <Icon size={17} className={item.color} />
-                </div>
-              </div>
-            </Card>
+              </Card>
+            </div>
           )
         })}
       </div>
@@ -222,21 +224,23 @@ export function Estoque() {
         </div>
       )}
 
-      {/* Table */}
+      {/* Tabela Desktop / Cards Mobile */}
       <Card padding={false}>
-        <div className="px-5 py-4 border-b border-ui-border flex items-center gap-3">
+        <div className="px-4 md:px-5 py-4 border-b border-ui-border flex flex-col md:flex-row md:items-center gap-3">
           <h2 className="text-sm font-semibold text-ui-text shrink-0">Produtos em Estoque</h2>
-          <div className="relative flex-1 max-w-xs ml-auto">
+          <div className="relative flex-1 w-full md:max-w-xs md:ml-auto">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar por nome, categoria ou fornecedor..."
+              placeholder="Buscar por nome, categoria..."
               className="w-full bg-surface-700 border border-ui-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-accent/50 transition-colors"
             />
           </div>
         </div>
-        <div className="overflow-x-auto">
+
+        {/* Visão Desktop */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-ui-border">
@@ -282,34 +286,10 @@ export function Estoque() {
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => abrirEditar(produto)}
-                          title="Editar produto"
-                          className="p-1.5 rounded-lg hover:bg-surface-500 text-gray-500 hover:text-ui-text transition-colors"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => abrirEntrada(produto)}
-                          title="Registrar entrada"
-                          className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-gray-500 hover:text-emerald-400 transition-colors"
-                        >
-                          <PackagePlus size={13} />
-                        </button>
-                        <button
-                          onClick={() => abrirBaixa(produto)}
-                          title="Registrar baixa"
-                          className="p-1.5 rounded-lg hover:bg-amber-500/10 text-gray-500 hover:text-amber-400 transition-colors"
-                        >
-                          <PackageMinus size={13} />
-                        </button>
-                        <button
-                          onClick={() => setDeletarId(produto.id)}
-                          title="Excluir produto"
-                          className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        <button onClick={() => abrirEditar(produto)} className="p-1.5 rounded-lg hover:bg-surface-500 text-gray-500 hover:text-ui-text transition-colors"><Pencil size={13} /></button>
+                        <button onClick={() => abrirEntrada(produto)} className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-gray-500 hover:text-emerald-400 transition-colors"><PackagePlus size={13} /></button>
+                        <button onClick={() => abrirBaixa(produto)} className="p-1.5 rounded-lg hover:bg-amber-500/10 text-gray-500 hover:text-amber-400 transition-colors"><PackageMinus size={13} /></button>
+                        <button onClick={() => setDeletarId(produto.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
                       </div>
                     </td>
                   </tr>
@@ -317,6 +297,52 @@ export function Estoque() {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Visão Mobile */}
+        <div className="md:hidden flex flex-col divide-y divide-ui-border">
+          {filtrados.length === 0 ? (
+            <div className="py-10 text-center text-gray-600 text-sm">Nenhum produto encontrado.</div>
+          ) : filtrados.map((produto) => {
+            const critico = produto.quantidade <= produto.minimo
+            return (
+              <div key={produto.id} className="p-4 flex flex-col gap-3 hover:bg-surface-600/40 transition-colors">
+                <div className="flex justify-between items-start w-full">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${critico ? 'bg-accent/10' : 'bg-surface-600'}`}>
+                      <Package size={18} className={critico ? 'text-accent' : 'text-gray-500'} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-ui-text truncate">{produto.nome}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5 truncate">{produto.categoria} · {produto.fornecedor}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  <div className="bg-surface-700 rounded-lg p-2 text-center border border-ui-border">
+                    <p className="text-[9px] text-gray-500 uppercase">Estoque</p>
+                    <p className={`text-sm font-bold mt-0.5 ${critico ? 'text-accent' : 'text-ui-text'}`}>{produto.quantidade}</p>
+                  </div>
+                  <div className="bg-surface-700 rounded-lg p-2 text-center border border-ui-border">
+                    <p className="text-[9px] text-gray-500 uppercase">Mínimo</p>
+                    <p className="text-sm font-bold text-gray-400 mt-0.5">{produto.minimo} {produto.unidade}</p>
+                  </div>
+                  <div className="bg-surface-700 rounded-lg p-2 text-center border border-ui-border">
+                    <p className="text-[9px] text-gray-500 uppercase">Valor Un.</p>
+                    <p className="text-sm font-bold text-ui-text mt-0.5">{fmt(produto.valorUnitario)}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-ui-border/50">
+                  <button onClick={() => abrirEditar(produto)} className="flex-1 py-2 rounded-lg bg-surface-600 text-gray-300 text-xs font-medium flex justify-center items-center gap-1.5"><Pencil size={13}/> Editar</button>
+                  <button onClick={() => abrirEntrada(produto)} className="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium flex justify-center items-center gap-1.5"><PackagePlus size={13}/> Entrar</button>
+                  <button onClick={() => abrirBaixa(produto)} className="flex-1 py-2 rounded-lg bg-amber-500/10 text-amber-400 text-xs font-medium flex justify-center items-center gap-1.5"><PackageMinus size={13}/> Baixar</button>
+                  <button onClick={() => setDeletarId(produto.id)} className="p-2 rounded-lg bg-red-500/10 text-red-400 flex justify-center items-center shrink-0"><Trash2 size={15}/></button>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </Card>
 

@@ -44,7 +44,7 @@ function WeekStrip({ agendamentoDates }: { agendamentoDates: Set<string> }) {
   const todayStr = toDateStr(new Date())
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap sm:flex-nowrap gap-2">
       {days.map((day, i) => {
         const dateStr = toDateStr(day)
         const isToday = dateStr === todayStr
@@ -53,7 +53,7 @@ function WeekStrip({ agendamentoDates }: { agendamentoDates: Set<string> }) {
         return (
           <div
             key={dateStr}
-            className="flex-1 flex flex-col items-center py-2.5 rounded-xl"
+            className="flex-1 min-w-[40px] flex flex-col items-center py-2.5 rounded-xl"
             style={{
               backgroundColor: isToday
                 ? 'rgb(var(--wrap-accent-rgb) / 0.10)'
@@ -101,13 +101,10 @@ interface StatChipProps {
 
 function StatChip({ label, value, color, icon: Icon }: StatChipProps) {
   return (
-    <div
-      className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl"
-      style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
-    >
+    <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/[0.07]">
       <Icon size={14} style={{ color: color ?? '#5a6070' }} />
       <div>
-        <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: '#5a6070' }}>
+        <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">
           {label}
         </p>
         <p className="text-[15px] font-bold leading-tight" style={{ color: color ?? '#f0f0f4' }}>
@@ -205,10 +202,10 @@ export function Patio() {
   )
 
   // ── Lookups ───────────────────────────────────────────────────
-  const getCliente    = (id: string) => clientes.find(c => c.id === id) ?? null
-  const getVeiculo    = (id: string) => veiculos.find(v => v.id === id) ?? null
+  const getCliente  = (id: string) => clientes.find(c => c.id === id) ?? null
+  const getVeiculo  = (id: string) => veiculos.find(v => v.id === id) ?? null
   const getInstalador = (id: string) => instaladores.find(i => i.id === id) ?? null
-  const getServico    = (id: string) => servicos.find(s => s.id === id)
+  const getServico  = (id: string) => servicos.find(s => s.id === id)
 
   // ── Confirm concluir modal ────────────────────────────────────
   const [confirmOS, setConfirmOS]       = useState<OrdemServico | null>(null)
@@ -265,7 +262,7 @@ export function Patio() {
       {/* ── Header + live indicator ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white font-display">Pátio Ao Vivo</h1>
+          <h1 className="text-xl font-bold text-ui-text font-display">Pátio Ao Vivo</h1>
           <div className="flex items-center gap-2 mt-1">
             <span className="relative flex h-2 w-2">
               <span
@@ -277,32 +274,27 @@ export function Patio() {
                 style={{ backgroundColor: '#34d399' }}
               />
             </span>
-            <span className="text-[13px]" style={{ color: '#5a6070' }}>
+            <span className="text-[13px] text-slate-500">
               Atualizado em tempo real
             </span>
           </div>
         </div>
       </div>
 
-      {/* ── Status bar ── */}
-      <div className="grid grid-cols-5 gap-3">
-        <StatChip label="No Pátio"       value={occupiedCount}                      color="#f0f0f4"                                     icon={LayoutGrid}    />
-        <StatChip label="Livres"         value={livresCount < 0 ? 0 : livresCount}  color="#34d399"                                     icon={LayoutGrid}    />
-        <StatChip label="Atrasados"      value={atrasadosCount}                     color={atrasadosCount > 0 ? '#e8304a' : '#5a6070'}  icon={AlertTriangle} />
-        <StatChip label="Faturado Hoje"  value={fmt(faturamentoHoje)}               color="#34d399"                                     icon={TrendingUp}    />
-        <StatChip
-          label="Agendamentos"
-          value={`${todayAgendamentos.length} hoje`}
-          color={todayAgendamentos.length > 0 ? 'var(--wrap-accent)' : '#5a6070'}
-          icon={Calendar}
-        />
+      {/* ── Status bar (Mobile Carrossel) ── */}
+      <div className="flex overflow-x-auto pb-2 -mx-6 px-6 gap-3 snap-x [&::-webkit-scrollbar]:hidden">
+        <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="No Pátio" value={occupiedCount} color="#f0f0f4" icon={LayoutGrid} /></div>
+        <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="Livres" value={livresCount < 0 ? 0 : livresCount} color="#34d399" icon={LayoutGrid} /></div>
+        <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="Atrasados" value={atrasadosCount} color={atrasadosCount > 0 ? '#e8304a' : '#5a6070'} icon={AlertTriangle} /></div>
+        <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Faturado" value={fmt(faturamentoHoje)} color="#34d399" icon={TrendingUp} /></div>
+        <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Agenda" value={`${todayAgendamentos.length} hoje`} color={todayAgendamentos.length > 0 ? 'var(--wrap-accent)' : '#5a6070'} icon={Calendar} /></div>
       </div>
 
       {/* ── Weekly calendar strip ── */}
       <WeekStrip agendamentoDates={agendamentoDates} />
 
       {/* ── Boxes grid ── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {boxes.map(boxNum => {
           const os = boxMap.get(boxNum) ?? null
           return (
@@ -333,10 +325,7 @@ export function Patio() {
             exit={{ opacity: 0 }}
             className="space-y-3"
           >
-            <h2
-              className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2"
-              style={{ color: '#5a6070' }}
-            >
+            <h2 className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2 text-slate-500">
               Aguardando Alocação
               <span
                 className="px-1.5 py-0.5 rounded text-[11px] font-bold"
@@ -346,7 +335,7 @@ export function Patio() {
               </span>
             </h2>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {aguardandoAlocacao.map(os => {
                 const cliente = getCliente(os.clienteId)
                 const veiculo = getVeiculo(os.veiculoId)
@@ -360,10 +349,10 @@ export function Patio() {
                     }}
                   >
                     <div className="min-w-0">
-                      <div className="text-[12px] font-semibold text-white truncate">
+                      <div className="text-[12px] font-semibold text-ui-text truncate">
                         OS #{os.numero}
                       </div>
-                      <div className="text-[11px] truncate" style={{ color: '#5a6070' }}>
+                      <div className="text-[11px] truncate text-slate-500">
                         {cliente?.nome ?? '—'} · {veiculo?.modelo ?? '—'}
                       </div>
                     </div>
@@ -395,10 +384,7 @@ export function Patio() {
             exit={{ opacity: 0 }}
             className="space-y-3"
           >
-            <h2
-              className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2"
-              style={{ color: '#5a6070' }}
-            >
+            <h2 className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2 text-slate-500">
               <CheckCircle2 size={12} style={{ color: '#34d399' }} />
               Concluídas Hoje
               <span
@@ -409,7 +395,7 @@ export function Patio() {
               </span>
             </h2>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {concluidasHoje.map(os => {
                 const cliente = getCliente(os.clienteId)
                 const veiculo = getVeiculo(os.veiculoId)
@@ -424,10 +410,10 @@ export function Patio() {
                     }}
                   >
                     <div className="min-w-0">
-                      <div className="text-[12px] font-semibold text-white truncate">
+                      <div className="text-[12px] font-semibold text-ui-text truncate">
                         OS #{os.numero}
                       </div>
-                      <div className="text-[11px] truncate" style={{ color: '#5a6070' }}>
+                      <div className="text-[11px] truncate text-slate-500">
                         {cliente?.nome ?? '—'} · {veiculo?.modelo ?? '—'}
                       </div>
                     </div>
@@ -444,14 +430,11 @@ export function Patio() {
 
       {/* ── Agendamentos de hoje ── */}
       <section className="space-y-3">
-        <h2
-          className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2"
-          style={{ color: '#5a6070' }}
-        >
+        <h2 className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2 text-slate-500">
           <Calendar size={12} />
           Agendamentos de Hoje
           {todayAgendamentos.length === 0 && (
-            <span className="normal-case font-normal" style={{ color: '#3a4050' }}>
+            <span className="normal-case font-normal text-slate-400">
               — nenhum
             </span>
           )}
@@ -468,28 +451,24 @@ export function Patio() {
               return (
                 <div
                   key={ag.id}
-                  className="flex items-center gap-4 px-4 py-3 rounded-xl"
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.025)',
-                    border: '1px solid rgba(255,255,255,0.05)',
-                  }}
+                  className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/[0.025] border border-white/5"
                 >
                   <div className="shrink-0 w-14 text-center">
                     <div className="text-[15px] font-bold" style={{ color: 'var(--wrap-accent)' }}>
                       {ag.horario}
                     </div>
-                    <div className="text-[10px]" style={{ color: '#3a4050' }}>
+                    <div className="text-[10px] text-slate-400">
                       {ag.duracao}h
                     </div>
                   </div>
 
-                  <div className="w-px h-8 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} />
+                  <div className="w-px h-8 shrink-0 bg-white/[0.08]" />
 
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-white truncate">
+                    <div className="text-[13px] font-semibold text-ui-text truncate">
                       {cliente?.nome ?? '—'}
                     </div>
-                    <div className="text-[11px] truncate" style={{ color: '#5a6070' }}>
+                    <div className="text-[11px] truncate text-slate-500">
                       {veiculo ? `${veiculo.marca} ${veiculo.modelo}` : '—'}
                       {servico ? ` · ${servico.nome}` : ''}
                       {ag.box > 0 ? ` · Box ${ag.box}` : ''}
@@ -497,7 +476,7 @@ export function Patio() {
                   </div>
 
                   {tecnico && (
-                    <div className="shrink-0 flex items-center gap-1 text-[11px]" style={{ color: '#5a6070' }}>
+                    <div className="shrink-0 flex items-center gap-1 text-[11px] text-slate-500">
                       <User size={11} />
                       {tecnico.nome.split(' ')[0]}
                     </div>
@@ -522,10 +501,10 @@ export function Patio() {
               className="p-4 rounded-xl space-y-1"
               style={{ backgroundColor: 'rgba(52,211,153,0.05)', border: '1px solid rgba(52,211,153,0.18)' }}
             >
-              <p className="text-[14px] font-semibold text-white">
+              <p className="text-[14px] font-semibold text-ui-text">
                 OS #{confirmOS.numero} — {getCliente(confirmOS.clienteId)?.nome ?? '—'}
               </p>
-              <p className="text-[12px]" style={{ color: '#5a6070' }}>
+              <p className="text-[12px] text-slate-500">
                 {getVeiculo(confirmOS.veiculoId)?.modelo ?? '—'}
                 {confirmOS.box > 0 ? ` · Box ${confirmOS.box}` : ''}
               </p>
@@ -533,7 +512,7 @@ export function Patio() {
                 {fmt(confirmOS.valorTotal)}
               </p>
             </div>
-            <p className="text-[12px]" style={{ color: '#5a6070' }}>
+            <p className="text-[12px] text-slate-500">
               Isso lançará o valor no financeiro e liberará o box.
             </p>
             <div className="flex gap-2">
@@ -557,18 +536,17 @@ export function Patio() {
       <Modal isOpen={alocandoOS !== null} onClose={() => setAlocandoOS(null)} title="Alocar OS" size="sm">
         {alocandoOS && (
           <div className="space-y-5">
-            <p className="text-[13px]" style={{ color: '#5a6070' }}>
+            <p className="text-[13px] text-slate-500">
               OS #{alocandoOS.numero} —{' '}
-              <span className="text-white font-medium">{getCliente(alocandoOS.clienteId)?.nome}</span>
+              <span className="text-ui-text font-medium">{getCliente(alocandoOS.clienteId)?.nome}</span>
             </p>
             <div className="space-y-3">
               <div>
-                <label className="text-[12px] block mb-1.5" style={{ color: '#5a6070' }}>Box</label>
+                <label className="text-[12px] block mb-1.5 text-slate-500">Box</label>
                 <select
                   value={alocBox}
                   onChange={e => setAlocBox(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-lg text-[13px] outline-none"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', color: '#f0f0f4' }}
+                  className="w-full px-3 py-2 rounded-lg text-[13px] outline-none bg-white/5 border border-white/10 text-ui-text"
                 >
                   <option value={0}>Selecione um box…</option>
                   {Array.from({ length: configuracoes.numeroBoxes }, (_, i) => i + 1).map(n => (
@@ -577,12 +555,11 @@ export function Patio() {
                 </select>
               </div>
               <div>
-                <label className="text-[12px] block mb-1.5" style={{ color: '#5a6070' }}>Técnico</label>
+                <label className="text-[12px] block mb-1.5 text-slate-500">Técnico</label>
                 <select
                   value={alocInst}
                   onChange={e => setAlocInst(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-[13px] outline-none"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', color: '#f0f0f4' }}
+                  className="w-full px-3 py-2 rounded-lg text-[13px] outline-none bg-white/5 border border-white/10 text-ui-text"
                 >
                   <option value="">Sem técnico definido</option>
                   {instaladores.filter(i => i.ativo).map(i => (
@@ -617,7 +594,7 @@ export function Patio() {
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'rgba(255,107,53,0.08)', border: '1px solid rgba(255,107,53,0.20)' }}>
               <Wrench size={16} className="text-[#ff6b35] shrink-0" />
-              <p className="text-[13px]" style={{ color: '#f0f0f4' }}>
+              <p className="text-[13px] text-ui-text">
                 {boxesManutencao.includes(manutModal)
                   ? `Liberar Box ${manutModal} e marcar como disponível?`
                   : `Colocar Box ${manutModal} em manutenção? O box ficará indisponível.`}

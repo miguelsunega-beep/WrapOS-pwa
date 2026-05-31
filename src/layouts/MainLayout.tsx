@@ -13,16 +13,23 @@ import { useTheme } from '../context/ThemeContext'
 import { CheckinRapido }    from '../components/CheckinRapido'
 import { SearchSpotlight }  from '../components/SearchSpotlight'
 
-// ── Mudança 1: hook de breakpoint mobile ─────────────────────────
+// ── Mudança 1: hook de breakpoint mobile com Debounce ────────────
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < 768,
   )
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const onResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => setIsMobile(window.innerWidth < 768), 150);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      clearTimeout(timeoutId);
+    };
   }, [])
   return isMobile
 }

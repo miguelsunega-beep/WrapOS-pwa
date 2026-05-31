@@ -69,7 +69,7 @@ export function BoxCard({
     const inManut = emManutencao ?? false
     return (
       <div
-        className="relative group flex flex-col items-center justify-center rounded-xl min-h-[260px] p-6"
+        className="relative group flex flex-col items-center justify-center rounded-xl h-full p-6"
         style={{
           border: inManut
             ? '1px dashed rgba(255,107,53,0.35)'
@@ -123,14 +123,14 @@ export function BoxCard({
       initial={{ opacity: 1, scale: 1, y: 0 }}
       animate={leaving
         ? { opacity: 0, scale: 0.82, y: -18 }
-        : { opacity: 1, scale: 1,    y: 0   }
+        : { opacity: 1, scale: 1,    y: 0  }
       }
       transition={{ duration: 0.32, ease: 'easeInOut' }}
       onAnimationComplete={() => {
         if (leaving) onConcluir(os.id)
       }}
       onClick={onOpenDrawer}
-      className="group relative flex flex-col rounded-xl min-h-[260px] overflow-hidden cursor-pointer"
+      className="group relative flex flex-col rounded-xl h-full overflow-hidden cursor-pointer"
       style={{ border: `1px solid ${statusColor}28`, backgroundColor: 'var(--wrap-surface)' }}
     >
       {/* Status accent bar */}
@@ -173,10 +173,10 @@ export function BoxCard({
       {/* Footer */}
       <div className="px-4 pb-4 space-y-3">
         <div>
-          <div className="text-[13px] font-semibold text-white truncate">
+          <div className="text-[13px] font-semibold text-ui-text truncate">
             {cliente?.nome ?? '—'}
           </div>
-          <div className="text-[11px] truncate" style={{ color: '#5a6070' }}>
+          <div className="text-[11px] truncate text-slate-500">
             {veiculo ? `${veiculo.marca} ${veiculo.modelo}` : '—'}
             {veiculo?.placa ? ` · ${veiculo.placa}` : ''}
             {instalador ? ` · ${instalador.nome.split(' ')[0]}` : ''}

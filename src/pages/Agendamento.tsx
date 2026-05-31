@@ -344,8 +344,8 @@ export function Agendamento() {
         </button>
       </div>
 
-      {/* Week cards */}
-      <div className="grid grid-cols-7 gap-2">
+      {/* Week cards Carrossel Mobile */}
+      <div className="flex overflow-x-auto pb-2 -mx-6 px-6 md:mx-0 md:px-0 md:grid md:grid-cols-7 gap-2 snap-x [&::-webkit-scrollbar]:hidden">
         {diasDaSemana.map((d, i) => {
           const iso = toISO(d)
           const isToday = iso === todayISO
@@ -355,7 +355,7 @@ export function Agendamento() {
             <button
               key={iso}
               onClick={() => setDiaSelecionado(iso)}
-              className={`text-center p-3 rounded-xl border transition-all ${
+              className={`min-w-[65px] md:min-w-0 shrink-0 snap-start text-center p-3 rounded-xl border transition-all ${
                 isSel
                   ? 'border-accent/50 bg-accent/5'
                   : 'border-ui-border bg-surface-800 hover:border-accent/25 hover:bg-surface-700'
@@ -386,15 +386,17 @@ export function Agendamento() {
 
       {/* Schedule list */}
       <Card padding={false}>
-        <div className="px-5 py-4 border-b border-ui-border flex items-center gap-2">
-          <Calendar size={15} className="text-accent" />
-          <h2 className="text-sm font-semibold text-ui-text">
-            Agenda —{' '}
-            {new Date(diaSelecionado + 'T12:00:00').toLocaleDateString('pt-BR', {
-              weekday: 'long', day: '2-digit', month: 'long',
-            }).replace(/^./, c => c.toUpperCase())}
-          </h2>
-          <span className="ml-auto text-xs text-gray-600">
+        <div className="px-5 py-4 border-b border-ui-border flex flex-col md:flex-row md:items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Calendar size={15} className="text-accent shrink-0" />
+            <h2 className="text-sm font-semibold text-ui-text">
+              Agenda —{' '}
+              {new Date(diaSelecionado + 'T12:00:00').toLocaleDateString('pt-BR', {
+                weekday: 'long', day: '2-digit', month: 'long',
+              }).replace(/^./, c => c.toUpperCase())}
+            </h2>
+          </div>
+          <span className="md:ml-auto text-xs text-gray-600">
             {agsDia.length} agendamento{agsDia.length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -404,57 +406,70 @@ export function Agendamento() {
             Nenhum agendamento para este dia.
           </div>
         ) : (
-          <div className="divide-y divide-ui-border">
+          <div className="divide-y divide-ui-border flex flex-col">
             {agsDia.map(ag => (
               <div
                 key={ag.id}
                 onClick={() => setDetalhes(ag)}
-                className="group px-5 py-4 flex items-center gap-4 hover:bg-surface-600/40 transition-colors cursor-pointer"
+                className="group px-4 py-4 md:px-5 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 hover:bg-surface-600/40 transition-colors cursor-pointer"
               >
-                <div className="w-14 text-center shrink-0">
-                  <p className="text-sm font-bold text-accent">{ag.horario}</p>
-                  <p className="text-[10px] text-gray-600 mt-0.5">{ag.duracao}h</p>
+                {/* Mobile Top Row / Desktop Left */}
+                <div className="flex items-start md:items-center gap-3 md:gap-4 w-full md:w-auto">
+                  <div className="w-14 text-center shrink-0 pt-1 md:pt-0">
+                    <p className="text-sm font-bold text-accent">{ag.horario}</p>
+                    <p className="text-[10px] text-gray-600 mt-0.5">{ag.duracao}h</p>
+                  </div>
+                  <div className="w-px h-10 bg-ui-border shrink-0 hidden md:block" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 md:hidden mb-1.5">
+                      <Badge label={`Box ${ag.box}`} variant="info" />
+                      <Badge label={statusConfig[ag.status].label} variant={statusConfig[ag.status].variant} />
+                    </div>
+                    <p className="text-sm font-semibold text-ui-text">{getNomeCliente(ag.clienteId)}</p>
+                    <p className="text-xs text-gray-500">{getVeiculoLabel(ag.veiculoId)}</p>
+                  </div>
                 </div>
-                <div className="w-px h-10 bg-ui-border shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-ui-text">{getNomeCliente(ag.clienteId)}</p>
-                  <p className="text-xs text-gray-500">{getVeiculoLabel(ag.veiculoId)}</p>
-                </div>
-                <div className="min-w-0 hidden lg:block">
-                  <p className="text-xs text-gray-400 truncate max-w-[160px]">{getServicoNome(ag.servicoId)}</p>
-                  <p className="text-[11px] text-gray-600 mt-0.5">{getInstalador(ag.instaladorId)}</p>
-                </div>
-                <Badge label={`Box ${ag.box}`} variant="info" />
-                <Badge label={statusConfig[ag.status].label} variant={statusConfig[ag.status].variant} />
-                <div
-                  className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={e => e.stopPropagation()}
-                >
-                  {ag.status === 'agendado' && (
-                    <button
-                      onClick={() => handleStatus(ag, 'confirmado')}
-                      title="Confirmar"
-                      className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-gray-500 hover:text-emerald-400 transition-colors"
+
+                {/* Mobile Bottom / Desktop Right */}
+                <div className="flex-1 min-w-0 pl-[68px] md:pl-0 flex flex-col md:flex-row md:items-center md:justify-between w-full md:w-auto">
+                  <div className="mb-2 md:mb-0">
+                    <p className="text-xs text-gray-400 truncate max-w-[220px]">{getServicoNome(ag.servicoId)}</p>
+                    <p className="text-[11px] text-gray-600 mt-0.5">{getInstalador(ag.instaladorId)}</p>
+                  </div>
+                  <div className="hidden md:flex items-center gap-2">
+                    <Badge label={`Box ${ag.box}`} variant="info" />
+                    <Badge label={statusConfig[ag.status].label} variant={statusConfig[ag.status].variant} />
+                    <div
+                      className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2"
+                      onClick={e => e.stopPropagation()}
                     >
-                      <Check size={13} />
-                    </button>
-                  )}
-                  {(ag.status === 'agendado' || ag.status === 'confirmado') && (
-                    <button
-                      onClick={() => handleStatus(ag, 'concluido')}
-                      title="Concluir"
-                      className="p-1.5 rounded-lg hover:bg-blue-500/10 text-gray-500 hover:text-blue-400 transition-colors"
-                    >
-                      <CheckCheck size={13} />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setConfirmarDelete(ag.id)}
-                    title="Excluir"
-                    className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                      {ag.status === 'agendado' && (
+                        <button
+                          onClick={() => handleStatus(ag, 'confirmado')}
+                          title="Confirmar"
+                          className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-gray-500 hover:text-emerald-400 transition-colors"
+                        >
+                          <Check size={13} />
+                        </button>
+                      )}
+                      {(ag.status === 'agendado' || ag.status === 'confirmado') && (
+                        <button
+                          onClick={() => handleStatus(ag, 'concluido')}
+                          title="Concluir"
+                          className="p-1.5 rounded-lg hover:bg-blue-500/10 text-gray-500 hover:text-blue-400 transition-colors"
+                        >
+                          <CheckCheck size={13} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setConfirmarDelete(ag.id)}
+                        title="Excluir"
+                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}

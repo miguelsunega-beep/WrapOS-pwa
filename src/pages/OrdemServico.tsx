@@ -33,8 +33,6 @@ const FORMAS_PAGAMENTO = [
   'PIX', 'Dinheiro', 'Cartão de Débito', 'Cartão de Crédito', 'Parcelado',
 ]
 
-const BOXES = [1, 2, 3, 4, 5, 6]
-
 const fmt = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
 
@@ -112,9 +110,12 @@ const selectCls = `${inputCls} cursor-pointer`
 export function OrdemServico() {
   const {
     ordens, clientes, veiculos, servicos, instaladores, produtos,
-    adicionarOS, editarOS, mudarStatusOS, deletarOS, concluirOS, cancelarOS,
+    adicionarOS, editarOS, mudarStatusOS, deletarOS, concluirOS, cancelarOS, configuracoes,
   } = useApp()
   const location = useLocation()
+
+  // Gerando os boxes dinamicamente baseados nas configurações da loja
+  const BOXES = Array.from({ length: configuracoes?.numeroBoxes || 6 }, (_, i) => i + 1);
 
   // ── UI state ─────────────────────────────────────────────────
   const [search, setSearch]                 = useState('')
@@ -426,65 +427,76 @@ export function OrdemServico() {
         )}
       </div>
 
-      {/* Tabela */}
+      {/* Tabela (Desktop) / Cards (Mobile) */}
       <Card padding={false}>
-        <div className="px-5 py-4 border-b border-ui-border">
-          <h2 className="text-sm font-semibold text-ui-text">Todas as Ordens</h2>
-          <p className="text-gray-600 text-xs mt-0.5">{filtered.length} encontradas</p>
+        <div className="px-4 py-4 border-b border-ui-border flex justify-between items-center">
+          <div>
+            <h2 className="text-sm font-semibold text-ui-text">Todas as Ordens</h2>
+            <p className="text-gray-600 text-xs mt-0.5">{filtered.length} encontradas</p>
+          </div>
         </div>
-        <div className="overflow-x-auto">
+        
+        {/* Visão Desktop: Tabela */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-ui-border">
-                {['#OS', 'Cliente', 'Veículo / Placa', 'Serviços', 'Instalador', 'Data', 'Valor', 'Status', ''].map(h => (
-                  <th key={h} className="text-left py-2.5 px-4 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">
-                    {h}
-                  </th>
+                {['#OS', 'Cliente', 'Veículo', 'Serviços', 'Valor', 'Status', ''].map(h => (
+                  <th key={h} className="text-left py-2.5 px-4 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-ui-border">
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-16 text-center text-gray-600 text-sm">
-                    Nenhuma OS encontrada para os filtros aplicados.
-                  </td>
-                </tr>
-              ) : filtered.map(os => {
+              {filtered.map(os => {
                 const v  = getVeiculo(os.veiculoId)
                 const sc = statusConfig[os.status]
                 return (
-                  <tr
-                    key={os.id}
-                    onClick={() => setDetalhesOS(os)}
-                    className="hover:bg-surface-600/40 transition-colors cursor-pointer group"
-                  >
+                  <tr key={os.id} onClick={() => setDetalhesOS(os)} className="hover:bg-surface-600/40 transition-colors cursor-pointer group">
                     <td className="py-3.5 px-4 text-xs font-mono text-accent font-semibold">#{os.numero}</td>
                     <td className="py-3.5 px-4 text-sm font-medium text-ui-text">{clienteNome(os.clienteId)}</td>
                     <td className="py-3.5 px-4">
                       <p className="text-sm text-gray-300">{veiculoLabel(os.veiculoId)}</p>
                       <p className="text-[11px] text-gray-600 font-mono mt-0.5">{v?.placa ?? '—'}</p>
                     </td>
-                    <td className="py-3.5 px-4 text-sm text-gray-400 max-w-[180px] truncate">
-                      {os.servicos.map(s => s.nome).join(', ')}
-                    </td>
-                    <td className="py-3.5 px-4 text-sm text-gray-500">{instNome(os.instaladorId)}</td>
-                    <td className="py-3.5 px-4 text-sm text-gray-500">{fmtDate(os.dataCriacao)}</td>
+                    <td className="py-3.5 px-4 text-sm text-gray-400 max-w-[180px] truncate">{os.servicos.map(s => s.nome).join(', ')}</td>
                     <td className="py-3.5 px-4 text-sm font-bold text-ui-text">{fmt(os.valorTotal)}</td>
                     <td className="py-3.5 px-4"><Badge label={sc.label} variant={sc.variant} /></td>
-                    <td className="py-3.5 px-4">
-                      <button
-                        onClick={e => { e.stopPropagation(); setConfirmarDelete(os.id) }}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/10 text-gray-600 hover:text-red-400 transition-all"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                    <td className="py-3.5 px-4 text-right">
+                      <button onClick={e => { e.stopPropagation(); setConfirmarDelete(os.id) }} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-600 hover:text-red-400 transition-all"><Trash2 size={14} /></button>
                     </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Visão Mobile: Lista de Cards */}
+        <div className="md:hidden flex flex-col divide-y divide-ui-border">
+          {filtered.length === 0 ? (
+            <div className="py-12 text-center text-gray-600 text-sm">Nenhuma OS encontrada.</div>
+          ) : filtered.map(os => {
+            const v  = getVeiculo(os.veiculoId)
+            const sc = statusConfig[os.status]
+            return (
+              <button key={os.id} onClick={() => setDetalhesOS(os)} className="p-4 text-left hover:bg-surface-600/40 transition-colors flex flex-col gap-2">
+                <div className="flex justify-between items-start w-full">
+                  <div>
+                    <span className="text-xs font-mono text-accent font-bold bg-accent/10 px-1.5 py-0.5 rounded mr-2">#{os.numero}</span>
+                    <span className="text-sm font-semibold text-ui-text">{clienteNome(os.clienteId)}</span>
+                  </div>
+                  <span className="text-sm font-bold text-ui-text">{fmt(os.valorTotal)}</span>
+                </div>
+                <div className="flex justify-between items-end w-full">
+                  <div>
+                    <p className="text-xs text-gray-400">{veiculoLabel(os.veiculoId)} <span className="text-[10px] uppercase ml-1">({v?.placa ?? '—'})</span></p>
+                    <p className="text-[11px] text-gray-500 mt-1 truncate max-w-[200px]">{os.servicos.map(s => s.nome).join(', ')}</p>
+                  </div>
+                  <Badge label={sc.label} variant={sc.variant} />
+                </div>
+              </button>
+            )
+          })}
         </div>
       </Card>
 
