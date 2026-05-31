@@ -20,75 +20,7 @@ function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function getWeekDays(): Date[] {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const dow = today.getDay()
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1))
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    return d
-  })
-}
-
-const DAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-
 const ACTIVE_STATUSES: StatusOS[] = ['em_andamento', 'aguardando_material', 'aguardando_aprovacao']
-
-// ── WeekStrip ────────────────────────────────────────────────────
-
-function WeekStrip({ agendamentoDates }: { agendamentoDates: Set<string> }) {
-  const days     = getWeekDays()
-  const todayStr = toDateStr(new Date())
-
-  return (
-    <div className="flex flex-wrap sm:flex-nowrap gap-2">
-      {days.map((day, i) => {
-        const dateStr = toDateStr(day)
-        const isToday = dateStr === todayStr
-        const hasAppt = agendamentoDates.has(dateStr)
-
-        return (
-          <div
-            key={dateStr}
-            className="flex-1 min-w-[40px] flex flex-col items-center py-2.5 rounded-xl"
-            style={{
-              backgroundColor: isToday
-                ? 'rgb(var(--wrap-accent-rgb) / 0.10)'
-                : 'rgba(255,255,255,0.025)',
-              border: isToday
-                ? '1px solid rgb(var(--wrap-accent-rgb) / 0.30)'
-                : '1px solid rgba(255,255,255,0.05)',
-            }}
-          >
-            <span
-              className="text-[10px] font-semibold uppercase tracking-wider mb-1"
-              style={{ color: isToday ? 'var(--wrap-accent)' : '#5a6070' }}
-            >
-              {DAY_LABELS[i]}
-            </span>
-            <span
-              className="text-[17px] font-bold leading-tight"
-              style={{ color: isToday ? 'var(--wrap-accent)' : '#f0f0f4' }}
-            >
-              {day.getDate()}
-            </span>
-            <span
-              className="mt-1.5 w-1.5 h-1.5 rounded-full"
-              style={{
-                backgroundColor: hasAppt
-                  ? (isToday ? 'var(--wrap-accent)' : '#4a5060')
-                  : 'transparent',
-              }}
-            />
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 // ── StatusBar ────────────────────────────────────────────────────
 
@@ -187,12 +119,6 @@ export function Patio() {
     .filter(l => l.tipo === 'entrada' && l.data === todayStr)
     .reduce((s, l) => s + l.valor, 0)
 
-  const agendamentoDates = new Set(
-    agendamentos
-      .filter(a => a.status !== 'concluido' && a.status !== 'cancelado')
-      .map(a => a.data)
-  )
-
   const todayAgendamentos = agendamentos
     .filter(a => a.data === todayStr && a.status !== 'concluido' && a.status !== 'cancelado')
     .sort((a, b) => a.horario.localeCompare(b.horario))
@@ -257,13 +183,13 @@ export function Patio() {
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-6 min-h-full" style={{ backgroundColor: 'var(--wrap-bg)' }}>
+    <div className="p-4 md:p-6 space-y-6 min-h-full" style={{ backgroundColor: 'var(--wrap-bg)' }}>
 
       {/* ── Header + live indicator ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-ui-text font-display">Pátio Ao Vivo</h1>
-          <div className="flex items-center gap-2 mt-1">
+          <h1 className="text-lg sm:text-xl font-bold text-ui-text font-display leading-tight">Pátio Ao Vivo</h1>
+          <div className="flex items-center gap-1.5 mt-0.5">
             <span className="relative flex h-2 w-2">
               <span
                 className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
@@ -274,15 +200,20 @@ export function Patio() {
                 style={{ backgroundColor: '#34d399' }}
               />
             </span>
-            <span className="text-[13px] text-slate-500">
+            <span className="text-[12px] sm:text-[13px] text-slate-500">
               Atualizado em tempo real
             </span>
           </div>
+          <p className="text-[13px] mt-1.5 capitalize" style={{ color: 'var(--wrap-muted)' }}>
+            {new Date().toLocaleDateString('pt-BR', {
+              weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+            })}
+          </p>
         </div>
       </div>
 
       {/* ── Status bar (Mobile Carrossel) ── */}
-      <div className="flex overflow-x-auto pb-2 -mx-6 px-6 gap-3 snap-x [&::-webkit-scrollbar]:hidden">
+      <div className="hidden md:flex overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 gap-3 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:hidden">
         <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="No Pátio" value={occupiedCount} color="#f0f0f4" icon={LayoutGrid} /></div>
         <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="Livres" value={livresCount < 0 ? 0 : livresCount} color="#34d399" icon={LayoutGrid} /></div>
         <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="Atrasados" value={atrasadosCount} color={atrasadosCount > 0 ? '#e8304a' : '#5a6070'} icon={AlertTriangle} /></div>
@@ -290,11 +221,8 @@ export function Patio() {
         <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Agenda" value={`${todayAgendamentos.length} hoje`} color={todayAgendamentos.length > 0 ? 'var(--wrap-accent)' : '#5a6070'} icon={Calendar} /></div>
       </div>
 
-      {/* ── Weekly calendar strip ── */}
-      <WeekStrip agendamentoDates={agendamentoDates} />
-
       {/* ── Boxes grid ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {boxes.map(boxNum => {
           const os = boxMap.get(boxNum) ?? null
           return (
@@ -335,30 +263,30 @@ export function Patio() {
               </span>
             </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {aguardandoAlocacao.map(os => {
                 const cliente = getCliente(os.clienteId)
                 const veiculo = getVeiculo(os.veiculoId)
                 return (
                   <div
                     key={os.id}
-                    className="flex items-center justify-between rounded-xl px-4 py-3"
+                    className="flex items-center justify-between rounded-xl p-5 sm:px-4 sm:py-3"
                     style={{
                       backgroundColor: 'rgba(232,48,74,0.05)',
                       border: '1px solid rgba(232,48,74,0.18)',
                     }}
                   >
                     <div className="min-w-0">
-                      <div className="text-[12px] font-semibold text-ui-text truncate">
+                      <div className="text-[13px] sm:text-[12px] font-semibold text-ui-text truncate">
                         OS #{os.numero}
                       </div>
-                      <div className="text-[11px] truncate text-slate-500">
+                      <div className="text-[12px] sm:text-[11px] truncate text-slate-500 mt-0.5">
                         {cliente?.nome ?? '—'} · {veiculo?.modelo ?? '—'}
                       </div>
                     </div>
                     <button
                       onClick={() => abrirAlocar(os)}
-                      className="ml-3 shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-opacity hover:opacity-80"
+                      className="ml-3 shrink-0 min-h-12 sm:min-h-0 px-4 sm:px-3 py-2.5 sm:py-1.5 rounded-lg text-[12px] sm:text-[11px] font-semibold transition-opacity hover:opacity-80 inline-flex items-center justify-center"
                       style={{
                         backgroundColor: 'rgba(232,48,74,0.14)',
                         color: '#e8304a',
@@ -395,7 +323,7 @@ export function Patio() {
               </span>
             </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {concluidasHoje.map(os => {
                 const cliente = getCliente(os.clienteId)
                 const veiculo = getVeiculo(os.veiculoId)
@@ -403,21 +331,21 @@ export function Patio() {
                   <button
                     key={os.id}
                     onClick={() => setDrawerOS(os)}
-                    className="flex items-center justify-between rounded-xl px-4 py-3 text-left transition-opacity hover:opacity-80"
+                    className="flex min-h-12 items-center justify-between rounded-xl p-5 sm:px-4 sm:py-3 text-left transition-opacity hover:opacity-80 w-full"
                     style={{
                       backgroundColor: 'rgba(52,211,153,0.04)',
                       border: '1px solid rgba(52,211,153,0.15)',
                     }}
                   >
                     <div className="min-w-0">
-                      <div className="text-[12px] font-semibold text-ui-text truncate">
+                      <div className="text-[13px] sm:text-[12px] font-semibold text-ui-text truncate">
                         OS #{os.numero}
                       </div>
-                      <div className="text-[11px] truncate text-slate-500">
+                      <div className="text-[12px] sm:text-[11px] truncate text-slate-500 mt-0.5">
                         {cliente?.nome ?? '—'} · {veiculo?.modelo ?? '—'}
                       </div>
                     </div>
-                    <div className="ml-3 shrink-0 text-[11px] font-semibold" style={{ color: '#34d399' }}>
+                    <div className="ml-3 shrink-0 text-[12px] sm:text-[11px] font-semibold" style={{ color: '#34d399' }}>
                       {fmt(os.valorTotal)}
                     </div>
                   </button>
@@ -521,7 +449,7 @@ export function Patio() {
               </Button>
               <button
                 onClick={handleConfirmar}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold transition-opacity hover:opacity-90"
+                className="flex-1 flex min-h-12 sm:min-h-0 items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold transition-opacity hover:opacity-90"
                 style={{ backgroundColor: '#34d399', color: '#0a0c12' }}
               >
                 <CheckCircle2 size={14} />
@@ -570,7 +498,7 @@ export function Patio() {
             </div>
             <button
               onClick={confirmarAlocacao}
-              className="w-full py-2.5 rounded-lg text-[13px] font-semibold transition-opacity hover:opacity-90"
+              className="w-full min-h-12 sm:min-h-0 py-2.5 rounded-lg text-[13px] font-semibold transition-opacity hover:opacity-90 inline-flex items-center justify-center"
               style={{ backgroundColor: 'var(--wrap-accent)', color: 'white' }}
             >
               Confirmar Alocação
@@ -604,7 +532,7 @@ export function Patio() {
               <Button variant="secondary" onClick={() => setManutModal(null)}>Cancelar</Button>
               <button
                 onClick={handleConfirmarManut}
-                className="px-4 py-2 rounded-lg text-[13px] font-semibold transition-opacity hover:opacity-90"
+                className="min-h-12 sm:min-h-0 px-4 py-2 rounded-lg text-[13px] font-semibold transition-opacity hover:opacity-90 inline-flex items-center justify-center"
                 style={{
                   backgroundColor: boxesManutencao.includes(manutModal)
                     ? 'rgba(52,211,153,0.15)'

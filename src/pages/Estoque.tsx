@@ -172,7 +172,7 @@ export function Estoque() {
   const labelCls = 'block text-xs font-medium text-gray-400 mb-1.5'
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="px-6 py-5 space-y-5 md:p-6">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -300,13 +300,16 @@ export function Estoque() {
         </div>
 
         {/* Visão Mobile */}
-        <div className="md:hidden flex flex-col divide-y divide-ui-border">
+        <div className="md:hidden flex flex-col gap-6 p-4">
           {filtrados.length === 0 ? (
             <div className="py-10 text-center text-gray-600 text-sm">Nenhum produto encontrado.</div>
           ) : filtrados.map((produto) => {
             const critico = produto.quantidade <= produto.minimo
             return (
-              <div key={produto.id} className="p-4 flex flex-col gap-3 hover:bg-surface-600/40 transition-colors">
+              <div
+                key={produto.id}
+                className="p-4 flex flex-col gap-3 rounded-xl border border-ui-border shadow-sm hover:bg-surface-600/40 transition-colors"
+              >
                 <div className="flex justify-between items-start w-full">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${critico ? 'bg-accent/10' : 'bg-surface-600'}`}>

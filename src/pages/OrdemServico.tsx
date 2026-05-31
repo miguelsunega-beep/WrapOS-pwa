@@ -357,10 +357,10 @@ export function OrdemServico() {
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-5">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ui-text">Ordens de Serviço</h1>
           <p className="text-gray-500 text-xs mt-0.5">
@@ -381,7 +381,7 @@ export function OrdemServico() {
       </div>
 
       {/* Status cards (filtro clicável) */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {([
           { s: 'em_andamento',         label: 'Em Andamento',      color: 'text-amber-400',   ring: 'ring-amber-500/30'   },
           { s: 'aguardando_material',  label: 'Aguard. Material',  color: 'text-blue-400',    ring: 'ring-blue-500/30'    },
@@ -517,7 +517,7 @@ export function OrdemServico() {
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
               <User size={12} /> Cliente &amp; Veículo
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
               {/* Busca de cliente com autocomplete */}
               <div className="relative" ref={dropdownRef}>
@@ -599,7 +599,7 @@ export function OrdemServico() {
               <Wrench size={12} /> Serviços<span className="text-accent">*</span>
             </p>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {servicos.map(s => {
                 const sel = form.servicosSel.includes(s.id)
                 return (
@@ -641,7 +641,7 @@ export function OrdemServico() {
               <DollarSign size={12} /> Financeiro &amp; Logística
             </p>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <FieldWrap>
                 <Label>Forma de Pagamento</Label>
                 <select
@@ -869,7 +869,7 @@ export function OrdemServico() {
                 </div>
 
                 {/* Info */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
                     <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><User size={11} />Cliente</p>
                     <p className="text-sm font-semibold text-ui-text">{clienteNome(os.clienteId)}</p>
@@ -910,7 +910,7 @@ export function OrdemServico() {
                 </div>
 
                 {/* Dados financeiros */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
                     <p className="text-[11px] text-gray-600 mb-1">Pagamento</p>
                     <p className="text-sm font-semibold text-ui-text">{os.formaPagamento}</p>
@@ -962,7 +962,7 @@ export function OrdemServico() {
               <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                 <Wrench size={12} /> Serviços<span className="text-accent">*</span>
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {servicos.map(s => {
                   const sel = editForm.servicosSel.includes(s.id)
                   const existingPreco = editandoOS.servicos.find(x => x.servicoId === s.id)?.preco
@@ -1005,7 +1005,7 @@ export function OrdemServico() {
               <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                 <DollarSign size={12} /> Financeiro &amp; Logística
               </p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <FieldWrap>
                   <Label>Forma de Pagamento</Label>
                   <select

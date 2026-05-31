@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, CSSProperties } from 'react'
+import { useState, useEffect, CSSProperties } from 'react'
 import { hexToRgb } from '../utils/colors'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -6,32 +6,39 @@ import {
   ClipboardList, Calendar, Users,
   DollarSign, Package, UserCheck, Settings,
   LogOut, Bell, Sun, Moon, ChevronLeft, ChevronRight, Car,
-  Search, Zap, AlertCircle,
+  Search, Zap, AlertCircle, MoreVertical, Plus,
 } from 'lucide-react'
 import { useApp }   from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CheckinRapido }    from '../components/CheckinRapido'
 import { SearchSpotlight }  from '../components/SearchSpotlight'
 
-// ── Mudança 1: hook de breakpoint mobile com Debounce ────────────
+// ── breakpoint com 3 faixas: mobile / tablet / desktop ──────────
+type Breakpoint = 'mobile' | 'tablet' | 'desktop'
 
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth < 768,
+function getBreakpoint(w: number): Breakpoint {
+  if (w < 768) return 'mobile'
+  if (w < 1024) return 'tablet'
+  return 'desktop'
+}
+
+function useBreakpoint(): Breakpoint {
+  const [bp, setBp] = useState<Breakpoint>(
+    () => (typeof window !== 'undefined' ? getBreakpoint(window.innerWidth) : 'desktop'),
   )
   useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout>;
+    let timeoutId: ReturnType<typeof setTimeout>
     const onResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => setIsMobile(window.innerWidth < 768), 150);
-    };
-    window.addEventListener('resize', onResize);
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => setBp(getBreakpoint(window.innerWidth)), 150)
+    }
+    window.addEventListener('resize', onResize)
     return () => {
-      window.removeEventListener('resize', onResize);
-      clearTimeout(timeoutId);
-    };
+      window.removeEventListener('resize', onResize)
+      clearTimeout(timeoutId)
+    }
   }, [])
-  return isMobile
+  return bp
 }
 
 // ── Nav structure ────────────────────────────────────────────────
@@ -91,14 +98,22 @@ const ROUTE_LABELS: Record<string, string> = {
   '/configuracoes': 'Configurações',
 }
 
-// ── Mudança 2: itens da bottom nav ───────────────────────────────
+// Bottom nav: 4 rotas + botão central de ação (Registrar Carro)
+const BOTTOM_NAV_LEFT: NavItem[] = [
+  { to: '/patio',       label: 'Pátio',  icon: Car,      end: true },
+  { to: '/agendamento', label: 'Agenda', icon: Calendar           },
+]
+const BOTTOM_NAV_RIGHT: NavItem[] = [
+  { to: '/estoque',       label: 'Estoque', icon: Package,  badgeKey: 'estoque' },
+  { to: '/configuracoes', label: 'Config',  icon: Settings              },
+]
 
-const BOTTOM_NAV: NavItem[] = [
-  { to: '/patio',         label: 'Pátio',   icon: Car,           end: true        },
-  { to: '/agendamento',   label: 'Agenda',  icon: Calendar                        },
-  { to: '/ordens',        label: 'OS',      icon: ClipboardList                   },
-  { to: '/estoque',       label: 'Estoque', icon: Package, badgeKey: 'estoque'    },
-  { to: '/configuracoes', label: 'Config',  icon: Settings                        },
+// Itens do menu "⋮" (features que não estão na bottom nav)
+const DRAWER_ITEMS: NavItem[] = [
+  { to: '/ordens',     label: 'Ordens de Serviço', icon: ClipboardList },
+  { to: '/clientes',   label: 'Clientes',          icon: Users         },
+  { to: '/financeiro', label: 'Financeiro',        icon: DollarSign    },
+  { to: '/equipe',     label: 'Equipe',            icon: UserCheck     },
 ]
 
 const handleLogout = () => {
@@ -133,16 +148,20 @@ export function MainLayout() {
   const location  = useLocation()
   const navigate  = useNavigate()
 
-  // ── Mudança 3: detectar mobile ───────────────────────────────
-  const isMobile = useIsMobile()
+  const breakpoint = useBreakpoint()
+  const isMobile  = breakpoint === 'mobile'
+  const isTablet  = breakpoint === 'tablet'
 
   const [collapsed,     setCollapsed]     = useState(() =>
     localStorage.getItem('wrapos_sidebar_collapsed') === 'true',
   )
+
+  // tablet: sidebar sempre colapsada (desktop reduzido)
+  const sidebarCollapsed = isTablet || collapsed
   const [checkinOpen,   setCheckinOpen]   = useState(false)
   const [bellOpen,      setBellOpen]      = useState(false)
   const [spotlightOpen, setSpotlightOpen] = useState(false)
-  const bellRef = useRef<HTMLDivElement>(null)
+  const [drawerOpen,    setDrawerOpen]    = useState(false)
 
   // ── Inject dynamic accent color ──────────────────────────────
   useEffect(() => {
@@ -162,16 +181,7 @@ export function MainLayout() {
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
-  // ── Close bell on outside click ───────────────────────────────
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
-        setBellOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [])
+  useEffect(() => { setDrawerOpen(false) }, [location.pathname])
 
   // ── Alerts ────────────────────────────────────────────────────
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -222,7 +232,7 @@ export function MainLayout() {
       {/* Mudança 4: sidebar só no desktop */}
       {!isMobile && (
         <aside
-          style={{ ...sidebarBg, width: collapsed ? 56 : 220 }}
+          style={{ ...sidebarBg, width: sidebarCollapsed ? 56 : 220 }}
           className="flex flex-col shrink-0 transition-[width] duration-200 ease-in-out overflow-hidden"
         >
           {/* Logo */}
@@ -237,7 +247,7 @@ export function MainLayout() {
             >
               <Car size={14} style={accentText} />
             </div>
-            {!collapsed && (
+            {!sidebarCollapsed && (
               <span className="flex items-baseline gap-0 font-display font-bold text-[17px] tracking-tight whitespace-nowrap">
                 <span style={wrapText}>Wrap</span>
                 <span style={accentText}>OS</span>
@@ -249,7 +259,7 @@ export function MainLayout() {
           <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2">
             {NAV_GROUPS.map((group, gi) => (
               <div key={gi} className={gi > 0 ? 'mt-3' : ''}>
-                {group.label && !collapsed && (
+                {group.label && !sidebarCollapsed && (
                   <p
                     className="px-3 py-1 text-[10px] font-semibold tracking-widest uppercase"
                     style={mutedText}
@@ -257,7 +267,7 @@ export function MainLayout() {
                     {group.label}
                   </p>
                 )}
-                {group.label && collapsed && <div className="my-1.5 mx-2.5 h-px" style={{ background: 'var(--wrap-border)' }} />}
+                {group.label && sidebarCollapsed && <div className="my-1.5 mx-2.5 h-px" style={{ background: 'var(--wrap-border)' }} />}
 
                 <div className="space-y-0.5 px-1.5">
                   {group.items.map(item => {
@@ -267,14 +277,14 @@ export function MainLayout() {
                         key={item.to}
                         to={item.to}
                         end={!!item.end}
-                        title={collapsed ? item.label : undefined}
+                        title={sidebarCollapsed ? item.label : undefined}
                         style={({ isActive }) =>
                           isActive ? activeItemStyle() : inactiveItemStyle()
                         }
                         className={({ isActive }) =>
                           [
                             'flex items-center py-1.5 text-[13px] font-medium transition-colors border-l-2 rounded-r-lg',
-                            collapsed ? 'justify-center px-0 w-full' : 'gap-2.5 px-2.5',
+                            sidebarCollapsed ? 'justify-center px-0 w-full' : 'gap-2.5 px-2.5',
                             isActive
                               ? ''
                               : 'hover:bg-[var(--wrap-surface2)] hover:text-[var(--wrap-text)] text-[var(--wrap-muted)]',
@@ -282,7 +292,7 @@ export function MainLayout() {
                         }
                       >
                         <item.icon size={15} className="shrink-0" />
-                        {!collapsed && (
+                        {!sidebarCollapsed && (
                           <>
                             <span className="truncate flex-1">{item.label}</span>
                             {badge > 0 && (
@@ -292,7 +302,7 @@ export function MainLayout() {
                             )}
                           </>
                         )}
-                        {collapsed && badge > 0 && (
+                        {sidebarCollapsed && badge > 0 && (
                           <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-red-500" />
                         )}
                       </NavLink>
@@ -305,7 +315,7 @@ export function MainLayout() {
 
           {/* Footer */}
           <div style={{ borderTop: '1px solid var(--wrap-border)' }}>
-            {!collapsed ? (
+            {!sidebarCollapsed ? (
               <div className="p-3 flex items-center gap-2">
                 <div
                   className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold"
@@ -354,14 +364,16 @@ export function MainLayout() {
             )}
 
             {/* Collapse toggle */}
-            <button
-              onClick={toggleCollapsed}
-              className="w-full flex items-center justify-center py-2 hover:bg-[var(--wrap-surface2)] transition-colors"
-              style={{ ...mutedText, borderTop: '1px solid var(--wrap-border)' }}
-              title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-            >
-              {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-            </button>
+            {!isTablet && (
+              <button
+                onClick={toggleCollapsed}
+                className="w-full flex items-center justify-center py-2 hover:bg-[var(--wrap-surface2)] transition-colors"
+                style={{ ...mutedText, borderTop: '1px solid var(--wrap-border)' }}
+                title={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
+              >
+                {sidebarCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+              </button>
+            )}
           </div>
         </aside>
       )}
@@ -407,65 +419,17 @@ export function MainLayout() {
               </button>
 
               {/* Bell */}
-              <div className="relative" ref={bellRef}>
-                <button
-                  onClick={() => setBellOpen(b => !b)}
-                  className="relative p-2 rounded-lg hover:bg-[var(--wrap-surface2)] transition-colors"
-                  style={mutedText}
-                  title="Alertas"
-                >
-                  <Bell size={16} />
-                  {totalAlertas > 0 && (
-                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
-                  )}
-                </button>
-
-                {/* Bell dropdown */}
-                <AnimatePresence>
-                  {bellOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                      transition={{ duration: 0.14 }}
-                      style={{ background: 'var(--wrap-surface)', border: '1px solid var(--wrap-border2)' }}
-                      className="absolute right-0 top-full mt-2 w-72 rounded-xl shadow-2xl z-50 overflow-hidden"
-                    >
-                      <div className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--wrap-border)' }}>
-                        <p className="text-[11px] font-semibold" style={wrapText}>Alertas do sistema</p>
-                      </div>
-                      {allAlerts.length === 0 ? (
-                        <div className="px-4 py-4 text-center">
-                          <p className="text-xs" style={mutedText}>Nenhum alerta ativo</p>
-                        </div>
-                      ) : (
-                        <div>
-                          {allAlerts.slice(0, 5).map(a => (
-                            <button
-                              key={a.id}
-                              onClick={() => { navigate(a.to); setBellOpen(false) }}
-                              className="w-full flex items-start gap-2.5 px-4 py-2.5 text-left hover:bg-[var(--wrap-surface2)] transition-colors"
-                              style={{ borderBottom: '1px solid var(--wrap-border)' }}
-                            >
-                              <AlertCircle size={13} className="text-amber-400 mt-0.5 shrink-0" />
-                              <p className="text-[12px]" style={wrapText}>{a.text}</p>
-                            </button>
-                          ))}
-                          {allAlerts.length > 5 && (
-                            <button
-                              onClick={() => { navigate('/'); setBellOpen(false) }}
-                              className="w-full px-4 py-2 text-center text-[11px] hover:bg-[var(--wrap-surface2)] transition-colors"
-                              style={accentText}
-                            >
-                              Ver todos os {allAlerts.length} alertas →
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <button
+                onClick={() => setBellOpen(b => !b)}
+                className="relative p-2 rounded-lg hover:bg-[var(--wrap-surface2)] transition-colors"
+                style={mutedText}
+                title="Alertas"
+              >
+                <Bell size={16} />
+                {totalAlertas > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+                )}
+              </button>
 
               {/* Theme toggle */}
               <button
@@ -477,6 +441,38 @@ export function MainLayout() {
                 {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
               </button>
             </div>
+          </header>
+        )}
+
+        {/* ─────────── TOPBAR MOBILE (só mobile) ─────────── */}
+        {isMobile && (
+          <header
+            style={topbarStyle}
+            className="flex items-center gap-2 px-3 shrink-0"
+          >
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="p-2 rounded-lg hover:bg-[var(--wrap-surface2)] transition-colors"
+              style={mutedText}
+              title="Mais opções"
+            >
+              <MoreVertical size={20} />
+            </button>
+            <span className="flex items-baseline gap-0 font-display font-bold text-[16px] tracking-tight">
+              <span style={wrapText}>Wrap</span>
+              <span style={accentText}>OS</span>
+            </span>
+            <button
+              onClick={() => setBellOpen(b => !b)}
+              className="relative p-2 rounded-lg hover:bg-[var(--wrap-surface2)] transition-colors ml-auto"
+              style={mutedText}
+              title="Alertas"
+            >
+              <Bell size={18} />
+              {totalAlertas > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+              )}
+            </button>
           </header>
         )}
 
@@ -495,13 +491,50 @@ export function MainLayout() {
           </motion.main>
         </AnimatePresence>
 
-        {/* Mudança 6: bottom nav (mobile only) */}
+        {/* Bottom nav (mobile) com botão central de ação */}
         {isMobile && (
           <nav
             style={{ background: 'var(--wrap-surface)', borderTop: '1px solid var(--wrap-border)' }}
-            className="flex items-stretch justify-around shrink-0"
+            className="flex items-stretch justify-around shrink-0 relative"
           >
-            {BOTTOM_NAV.map(item => {
+            {BOTTOM_NAV_LEFT.map(item => {
+              const badge = item.badgeKey ? (navBadges[item.to] ?? 0) : 0
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={!!item.end}
+                  className="relative flex flex-col items-center justify-center gap-0.5 flex-1 py-2 text-[10px] font-medium"
+                  style={({ isActive }) =>
+                    isActive
+                      ? { color: 'var(--wrap-accent)' }
+                      : { color: 'var(--wrap-muted)' }
+                  }
+                >
+                  <item.icon size={20} />
+                  <span>{item.label}</span>
+                  {badge > 0 && (
+                    <span className="absolute top-1 right-1/4 min-w-[15px] h-[15px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-1">
+                      {badge}
+                    </span>
+                  )}
+                </NavLink>
+              )
+            })}
+
+            {/* Botão central: Registrar Carro (Check-in) */}
+            <div className="flex-1 flex items-center justify-center">
+              <button
+                onClick={() => setCheckinOpen(true)}
+                className="flex items-center justify-center rounded-full shadow-lg -translate-y-3 text-white transition-transform active:scale-95"
+                style={{ background: 'var(--wrap-accent)', width: 52, height: 52 }}
+                title="Registrar carro"
+              >
+                <Plus size={26} />
+              </button>
+            </div>
+
+            {BOTTOM_NAV_RIGHT.map(item => {
               const badge = item.badgeKey ? (navBadges[item.to] ?? 0) : 0
               return (
                 <NavLink
@@ -528,6 +561,154 @@ export function MainLayout() {
           </nav>
         )}
       </div>
+
+      {/* ─────────── DRAWER MOBILE (menu ⋮) ─────────── */}
+      <AnimatePresence>
+        {drawerOpen && isMobile && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 z-40 bg-black/50"
+              onClick={() => setDrawerOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: 'tween', duration: 0.22, ease: 'easeOut' }}
+              style={sidebarBg}
+              className="fixed left-0 top-0 bottom-0 z-50 w-[260px] flex flex-col"
+            >
+              <div
+                className="flex items-center gap-2.5 px-4"
+                style={{ borderBottom: '1px solid var(--wrap-border)', minHeight: 52 }}
+              >
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'rgb(var(--wrap-accent-rgb) / 0.15)' }}
+                >
+                  <Car size={14} style={accentText} />
+                </div>
+                <span className="flex items-baseline gap-0 font-display font-bold text-[17px] tracking-tight">
+                  <span style={wrapText}>Wrap</span>
+                  <span style={accentText}>OS</span>
+                </span>
+              </div>
+              <nav className="flex-1 overflow-y-auto py-2 px-1.5 space-y-0.5">
+                {DRAWER_ITEMS.map(item => {
+                  const badge = item.badgeKey ? (navBadges[item.to] ?? 0) : 0
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={!!item.end}
+                      style={({ isActive }) =>
+                        isActive ? activeItemStyle() : inactiveItemStyle()
+                      }
+                      className={({ isActive }) =>
+                        [
+                          'flex items-center gap-2.5 px-2.5 py-2.5 text-[14px] font-medium transition-colors border-l-2 rounded-r-lg',
+                          isActive
+                            ? ''
+                            : 'hover:bg-[var(--wrap-surface2)] hover:text-[var(--wrap-text)] text-[var(--wrap-muted)]',
+                        ].join(' ')
+                      }
+                    >
+                      <item.icon size={17} className="shrink-0" />
+                      <span className="flex-1">{item.label}</span>
+                      {badge > 0 && (
+                        <span className="ml-auto min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-1">
+                          {badge}
+                        </span>
+                      )}
+                    </NavLink>
+                  )
+                })}
+              </nav>
+              <div style={{ borderTop: '1px solid var(--wrap-border)' }} className="p-3 flex items-center gap-2">
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold"
+                  style={{ background: 'rgb(var(--wrap-accent-rgb) / 0.18)', color: 'var(--wrap-accent)' }}
+                >
+                  {avatar}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold truncate" style={wrapText}>{configuracoes.nomeLoja}</p>
+                  <p className="text-[10px] truncate" style={mutedText}>{configuracoes.cidade}</p>
+                </div>
+                <button
+                  onClick={toggleTheme}
+                  className="p-1 rounded hover:bg-[var(--wrap-surface2)] transition-colors shrink-0"
+                  style={mutedText}
+                  title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+                >
+                  {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="p-1 rounded hover:bg-[var(--wrap-surface2)] transition-colors shrink-0"
+                  style={mutedText}
+                  title="Trocar perfil"
+                >
+                  <LogOut size={13} />
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ─────────── PAINEL DE ALERTAS (overlay único) ─────────── */}
+      <AnimatePresence>
+        {bellOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -6, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.97 }}
+              transition={{ duration: 0.14 }}
+              style={{ background: 'var(--wrap-surface)', border: '1px solid var(--wrap-border2)' }}
+              className="fixed z-50 right-3 top-14 w-[min(20rem,calc(100vw-1.5rem))] rounded-xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--wrap-border)' }}>
+                <p className="text-[11px] font-semibold" style={wrapText}>Alertas do sistema</p>
+              </div>
+              {allAlerts.length === 0 ? (
+                <div className="px-4 py-4 text-center">
+                  <p className="text-xs" style={mutedText}>Nenhum alerta ativo</p>
+                </div>
+              ) : (
+                <div>
+                  {allAlerts.slice(0, 5).map(a => (
+                    <button
+                      key={a.id}
+                      onClick={() => { navigate(a.to); setBellOpen(false) }}
+                      className="w-full flex items-start gap-2.5 px-4 py-2.5 text-left hover:bg-[var(--wrap-surface2)] transition-colors"
+                      style={{ borderBottom: '1px solid var(--wrap-border)' }}
+                    >
+                      <AlertCircle size={13} className="text-amber-400 mt-0.5 shrink-0" />
+                      <p className="text-[12px]" style={wrapText}>{a.text}</p>
+                    </button>
+                  ))}
+                  {allAlerts.length > 5 && (
+                    <button
+                      onClick={() => { navigate('/'); setBellOpen(false) }}
+                      className="w-full px-4 py-2 text-center text-[11px] hover:bg-[var(--wrap-surface2)] transition-colors"
+                      style={accentText}
+                    >
+                      Ver todos os {allAlerts.length} alertas →
+                    </button>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Check-in Rápido global */}
       <CheckinRapido open={checkinOpen} onClose={() => setCheckinOpen(false)} />

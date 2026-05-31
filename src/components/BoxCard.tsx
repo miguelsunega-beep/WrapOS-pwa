@@ -1,8 +1,20 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { CheckCircle2, Clock, Wrench, ChevronRight } from 'lucide-react'
+import { CheckCircle2, Clock, Wrench, AlertTriangle, LayoutGrid } from 'lucide-react'
 import type { OrdemServico, Cliente, Veiculo, Instalador } from '../types'
-import { CarSilhouette } from './CarSilhouette'
+
+const COR_VEICULO: Record<string, string> = {
+  preto: '#1a1a1a', branco: '#e5e5e5', prata: '#c4c8cc', prateado: '#c4c8cc',
+  cinza: '#6b7280', vermelho: '#c0392b', azul: '#2563eb', verde: '#16a34a',
+  amarelo: '#eab308', laranja: '#ea580c', marrom: '#78350f', bege: '#d6c7a1',
+  dourado: '#c8a44d', vinho: '#7b1e3a', grafite: '#3a3f44',
+}
+
+function corDoVeiculo(cor?: string): string {
+  if (!cor) return '#3a4050'
+  const key = cor.trim().toLowerCase()
+  return COR_VEICULO[key] ?? '#3a4050'
+}
 
 const STATUS_COLOR = {
   ok:   '#34d399',
@@ -77,15 +89,18 @@ export function BoxCard({
           backgroundColor: inManut ? 'rgba(255,107,53,0.04)' : 'rgba(19,22,30,0.5)',
         }}
       >
+        <LayoutGrid
+          size={22}
+          style={{ color: inManut ? '#ff6b35' : '#2a3040' }}
+        />
         <span
-          className="text-[10px] font-semibold tracking-widest uppercase mb-3"
+          className="text-[10px] font-semibold tracking-widest uppercase mt-3"
           style={{ color: inManut ? 'rgba(255,107,53,0.5)' : '#2a3040' }}
         >
           Box {boxNum}
         </span>
-        <CarSilhouette color={inManut ? 'rgba(255,107,53,0.25)' : '#1e2330'} size={88} />
         <span
-          className="mt-4 text-[12px] font-medium flex items-center gap-1.5"
+          className="mt-1 text-[12px] font-medium flex items-center gap-1.5"
           style={{ color: inManut ? '#ff6b35' : '#2a3040' }}
         >
           {inManut && <Wrench size={12} />}
@@ -112,6 +127,13 @@ export function BoxCard({
   // ── Occupied box ────────────────────────────────────────────────
   const status      = getBoxStatus(elapsed)
   const statusColor = STATUS_COLOR[status]
+  const corVeic     = corDoVeiculo(veiculo?.cor)
+
+  const servicoLabel = os.servicos.length
+    ? os.servicos[0].nome + (os.servicos.length > 1 ? ` +${os.servicos.length - 1}` : '')
+    : 'Sem serviço'
+
+  const primeiroNomeInst = instalador?.nome.split(' ')[0]
 
   const handleConcluirClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -130,63 +152,67 @@ export function BoxCard({
         if (leaving) onConcluir(os.id)
       }}
       onClick={onOpenDrawer}
-      className="group relative flex flex-col rounded-xl h-full overflow-hidden cursor-pointer"
-      style={{ border: `1px solid ${statusColor}28`, backgroundColor: 'var(--wrap-surface)' }}
+      className="group relative flex rounded-xl h-full overflow-hidden cursor-pointer"
+      style={{
+        border: `1px solid ${status === 'late' ? `${STATUS_COLOR.late}40` : 'var(--wrap-border)'}`,
+        backgroundColor: 'var(--wrap-surface)',
+      }}
     >
-      {/* Status accent bar */}
-      <div className="h-[2px] w-full shrink-0" style={{ backgroundColor: statusColor }} />
+      {/* Barra lateral — cor do veículo */}
+      <div style={{ width: 5, backgroundColor: corVeic, flexShrink: 0 }} />
 
-      {/* Header */}
-      <div className="flex items-center px-4 pt-3 pb-1">
-        <span className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: '#3a4050' }}>
-          Box {boxNum}
-        </span>
-      </div>
-
-      {/* Silhouette + timer */}
-      <div className="relative flex-1 flex items-center justify-center py-2">
-        <div
-          className="absolute top-2 right-4 flex items-center gap-1 text-[11px] font-mono font-semibold"
-          style={{ color: statusColor }}
-        >
-          <Clock size={11} />
-          {formatElapsed(elapsed)}
+      <div className="flex-1 min-w-0 px-4 py-3 flex flex-col">
+        {/* Topo: BOX + badge de tempo */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="text-[10px] font-semibold tracking-widest uppercase shrink-0"
+            style={{ color: '#5a6070' }}
+          >
+            BOX {boxNum}
+          </span>
+          <span
+            className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full ml-auto shrink-0"
+            style={{ color: statusColor, backgroundColor: `${statusColor}1f` }}
+          >
+            {status === 'late' ? <AlertTriangle size={11} /> : <Clock size={11} />}
+            {formatElapsed(elapsed)}
+          </span>
         </div>
 
-        <motion.div
-          whileHover={{ filter: `drop-shadow(0 0 14px ${statusColor}88)` }}
-          transition={{ duration: 0.25 }}
-        >
-          <CarSilhouette color={statusColor} size={88} />
-        </motion.div>
+        {/* Modelo */}
+        <p className="text-[15px] font-semibold text-ui-text truncate mt-2">
+          {veiculo ? `${veiculo.marca} ${veiculo.modelo}` : '—'}
+        </p>
 
-        {/* "Ver detalhes" hint on hover */}
-        <div
-          className="absolute bottom-1 inset-x-3 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none flex items-center justify-center gap-1"
-          style={{ color: '#5a6070' }}
-        >
-          <span className="text-[10px]">Ver detalhes</span>
-          <ChevronRight size={11} />
-        </div>
-      </div>
+        {/* Serviço principal */}
+        <p className="text-[12px] text-slate-400 truncate mt-0.5">
+          {servicoLabel}
+        </p>
 
-      {/* Footer */}
-      <div className="px-4 pb-4 space-y-3">
-        <div>
-          <div className="text-[13px] font-semibold text-ui-text truncate">
-            {cliente?.nome ?? '—'}
-          </div>
-          <div className="text-[11px] truncate text-slate-500">
-            {veiculo ? `${veiculo.marca} ${veiculo.modelo}` : '—'}
-            {veiculo?.placa ? ` · ${veiculo.placa}` : ''}
-            {instalador ? ` · ${instalador.nome.split(' ')[0]}` : ''}
-          </div>
+        {/* Cor + cliente */}
+        <div className="flex items-center gap-1.5 mt-1.5 min-w-0">
+          <span
+            className="shrink-0"
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: corVeic,
+              border: '1px solid rgba(255,255,255,0.25)',
+            }}
+          />
+          <p className="text-[11px] text-slate-500 truncate">
+            {(veiculo?.cor ?? '—')}
+            {' · '}
+            {(cliente?.nome ?? '—')}
+            {primeiroNomeInst ? ` · ${primeiroNomeInst}` : ''}
+          </p>
         </div>
 
         <button
           onClick={handleConcluirClick}
           disabled={leaving}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:opacity-40"
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:opacity-40 mt-3"
           style={{
             backgroundColor: `${STATUS_COLOR.ok}18`,
             color: STATUS_COLOR.ok,

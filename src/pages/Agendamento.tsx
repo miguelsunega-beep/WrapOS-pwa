@@ -37,6 +37,12 @@ const startOfWeek = (d: Date): Date => {
 
 const toISO = (d: Date) => d.toISOString().slice(0, 10)
 
+const addDays = (iso: string, dias: number) => {
+  const d = new Date(iso + 'T12:00:00')
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().slice(0, 10)
+}
+
 const fmtCurrency = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
 
@@ -46,10 +52,11 @@ interface EditForm {
   veiculoId:    string
   servicoId:    string
   instaladorId: string
-  box:          number
   data:         string
   horario:      string
   duracao:      number
+  dataSaida:    string
+  mesmoDia:     boolean
 }
 
 interface AgForm {
@@ -58,21 +65,28 @@ interface AgForm {
   veiculoId: string
   servicoId: string
   instaladorId: string
-  box: number
   data: string
   horario: string
   duracao: number
+  dataSaida: string
+  mesmoDia: boolean
 }
 
 // ── Component ─────────────────────────────────────────────────────
 export function Agendamento() {
   const navigate = useNavigate()
   const {
-    agendamentos, clientes, veiculos, servicos, instaladores, configuracoes,
+    agendamentos, clientes, veiculos, servicos, instaladores,
     adicionarAgendamento, editarAgendamento, deletarAgendamento, adicionarOS,
   } = useApp()
 
-  const boxes = Array.from({ length: configuracoes.numeroBoxes }, (_, i) => i + 1)
+  const duracaoDiasServico = (servicoId: string) => {
+    const s = servicos.find(x => x.id === servicoId)
+    if (!s) return 0
+    const dias = (s as typeof s & { duracaoDias?: number }).duracaoDias
+    if (dias != null) return dias
+    return Math.floor(s.tempEstimado / 24)
+  }
 
   // ── Week navigation ───────────────────────────────────────────
   const [semanaOffset, setSemanaOffset] = useState(0)
@@ -164,7 +178,8 @@ export function Agendamento() {
   const [editandoId,  setEditandoId]  = useState<string | null>(null)
   const [editForm,    setEditForm]    = useState<EditForm>({
     clienteId: '', veiculoId: '', servicoId: '', instaladorId: '',
-    box: 1, data: todayISO, horario: '09:00', duracao: 3,
+    data: todayISO, horario: '09:00', duracao: 3,
+    dataSaida: todayISO, mesmoDia: true,
   })
 
   const abrirEditar = (ag: Agendamento) => {
@@ -174,10 +189,11 @@ export function Agendamento() {
       veiculoId:    ag.veiculoId,
       servicoId:    ag.servicoId,
       instaladorId: ag.instaladorId,
-      box:          ag.box,
       data:         ag.data,
       horario:      ag.horario,
       duracao:      ag.duracao,
+      dataSaida:    ag.data,
+      mesmoDia:     true,
     })
     setEditOpen(true)
   }
@@ -188,12 +204,11 @@ export function Agendamento() {
     if (!editForm.horario) { toast.error('Informe o horário.'); return }
     const conflito = agendamentos.some(a =>
       a.id !== editandoId &&
-      a.box === editForm.box &&
       a.data === editForm.data &&
       a.horario === editForm.horario &&
       (a.status === 'agendado' || a.status === 'confirmado')
     )
-    if (conflito) { toast.error(`Conflito: Box ${editForm.box} já está ocupado neste horário.`); return }
+    if (conflito) { toast.error('Conflito: já existe agendamento neste horário.'); return }
     editarAgendamento(editandoId, editForm)
     if (detalhes?.id === editandoId) setDetalhes(prev => prev ? { ...prev, ...editForm } : null)
     toast.success('Agendamento atualizado!')
@@ -233,10 +248,11 @@ export function Agendamento() {
     veiculoId: '',
     servicoId: servicos[0]?.id ?? '',
     instaladorId: instaladores.find(i => i.ativo)?.id ?? '',
-    box: 1,
     data: diaSelecionado,
     horario: '09:00',
     duracao: 3,
+    dataSaida: diaSelecionado,
+    mesmoDia: true,
   })
 
   const [form, setForm] = useState<AgForm>(makeInitForm)
@@ -269,18 +285,17 @@ export function Agendamento() {
     if (!form.data)      { toast.error('Informe a data.'); return }
     if (!form.horario)   { toast.error('Informe o horário.'); return }
     const conflito = agendamentos.some(a =>
-      a.box === form.box &&
       a.data === form.data &&
       a.horario === form.horario &&
       (a.status === 'agendado' || a.status === 'confirmado')
     )
-    if (conflito) { toast.error(`Conflito: Box ${form.box} já está ocupado neste horário.`); return }
+    if (conflito) { toast.error('Conflito: já existe agendamento neste horário.'); return }
     adicionarAgendamento({
       clienteId:    form.clienteId,
       veiculoId:    form.veiculoId,
       servicoId:    form.servicoId,
       instaladorId: form.instaladorId,
-      box:          form.box,
+      box:          1,
       data:         form.data,
       horario:      form.horario,
       duracao:      form.duracao,
@@ -305,7 +320,7 @@ export function Agendamento() {
   const detInstalador = detalhes ? instaladores.find(i => i.id === detalhes.instaladorId) : null
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-5">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -514,7 +529,7 @@ export function Agendamento() {
             </div>
 
             {/* Info grid 2x2 */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="bg-surface-700 rounded-xl p-3.5">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Cliente</p>
                 <p className="text-sm font-semibold text-ui-text">{detCliente?.nome ?? '—'}</p>
@@ -546,7 +561,7 @@ export function Agendamento() {
             </div>
 
             {/* Data/Horário/Duração/Box row */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {([
                 { label: 'Data',    value: new Date(detalhes.data + 'T12:00:00').toLocaleDateString('pt-BR') },
                 { label: 'Horário', value: detalhes.horario },
@@ -658,12 +673,21 @@ export function Agendamento() {
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
               <Wrench size={12} /> Serviço &amp; Responsável
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Serviço</label>
                 <select
                   value={form.servicoId}
-                  onChange={e => setForm(p => ({ ...p, servicoId: e.target.value }))}
+                  onChange={e => {
+                    const id = e.target.value
+                    const dur = duracaoDiasServico(id)
+                    setForm(p => ({
+                      ...p,
+                      servicoId: id,
+                      mesmoDia: dur === 0,
+                      dataSaida: addDays(p.data, dur),
+                    }))
+                  }}
                   className={inputCls}
                 >
                   <option value="">Nenhum</option>
@@ -693,25 +717,19 @@ export function Agendamento() {
           {/* ── Seção 3: Quando ── */}
           <section className="space-y-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-              <CalendarClock size={12} /> Data, Box &amp; Duração
+              <CalendarClock size={12} /> Data &amp; Duração
             </p>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className={labelCls}>Box</label>
-                <select
-                  value={form.box}
-                  onChange={e => setForm(p => ({ ...p, box: Number(e.target.value) }))}
-                  className={inputCls}
-                >
-                  {boxes.map(b => <option key={b} value={b}>Box {b}</option>)}
-                </select>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Data <span className="text-accent">*</span></label>
                 <input
                   type="date"
                   value={form.data}
-                  onChange={e => setForm(p => ({ ...p, data: e.target.value }))}
+                  onChange={e => setForm(p => ({
+                    ...p,
+                    data: e.target.value,
+                    dataSaida: p.mesmoDia ? e.target.value : p.dataSaida,
+                  }))}
                   className={inputCls}
                 />
               </div>
@@ -725,6 +743,35 @@ export function Agendamento() {
                 />
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setForm(p => ({ ...p, mesmoDia: !p.mesmoDia, dataSaida: !p.mesmoDia ? p.data : p.dataSaida }))}
+              className="flex items-center gap-2 text-sm font-medium transition-colors mt-1"
+              style={{ color: form.mesmoDia ? 'var(--wrap-accent)' : '#6b7280' }}
+            >
+              <span
+                className="relative rounded-full transition-colors"
+                style={{ height: 22, width: 40, background: form.mesmoDia ? 'var(--wrap-accent)' : 'var(--surface-500)' }}
+              >
+                <span
+                  className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform"
+                  style={{ width: 18, height: 18, transform: form.mesmoDia ? 'translateX(18px)' : 'translateX(0)' }}
+                />
+              </span>
+              Entra e sai no mesmo dia
+            </button>
+            {!form.mesmoDia && (
+              <div className="mt-3">
+                <label className={labelCls}>Saída prevista</label>
+                <input
+                  type="date"
+                  value={form.dataSaida}
+                  min={form.data}
+                  onChange={e => setForm(p => ({ ...p, dataSaida: e.target.value }))}
+                  className={inputCls}
+                />
+              </div>
+            )}
             <div>
               <label className={labelCls}>Duração estimada</label>
               <select
@@ -783,12 +830,21 @@ export function Agendamento() {
           )}
 
           {/* Serviço + Instalador */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Serviço</label>
               <select
                 value={editForm.servicoId}
-                onChange={e => setEditForm(p => ({ ...p, servicoId: e.target.value }))}
+                onChange={e => {
+                  const id = e.target.value
+                  const dur = duracaoDiasServico(id)
+                  setEditForm(p => ({
+                    ...p,
+                    servicoId: id,
+                    mesmoDia: dur === 0,
+                    dataSaida: addDays(p.data, dur),
+                  }))
+                }}
                 className={inputCls}
               >
                 <option value="">Nenhum</option>
@@ -812,24 +868,18 @@ export function Agendamento() {
             </div>
           </div>
 
-          {/* Box + Data + Horário */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={labelCls}>Box</label>
-              <select
-                value={editForm.box}
-                onChange={e => setEditForm(p => ({ ...p, box: Number(e.target.value) }))}
-                className={inputCls}
-              >
-                {boxes.map(b => <option key={b} value={b}>Box {b}</option>)}
-              </select>
-            </div>
+          {/* Data + Horário */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Data <span className="text-accent">*</span></label>
               <input
                 type="date"
                 value={editForm.data}
-                onChange={e => setEditForm(p => ({ ...p, data: e.target.value }))}
+                onChange={e => setEditForm(p => ({
+                  ...p,
+                  data: e.target.value,
+                  dataSaida: p.mesmoDia ? e.target.value : p.dataSaida,
+                }))}
                 className={inputCls}
               />
             </div>
@@ -843,6 +893,35 @@ export function Agendamento() {
               />
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setEditForm(p => ({ ...p, mesmoDia: !p.mesmoDia, dataSaida: !p.mesmoDia ? p.data : p.dataSaida }))}
+            className="flex items-center gap-2 text-sm font-medium transition-colors mt-1"
+            style={{ color: editForm.mesmoDia ? 'var(--wrap-accent)' : '#6b7280' }}
+          >
+            <span
+              className="relative rounded-full transition-colors"
+              style={{ height: 22, width: 40, background: editForm.mesmoDia ? 'var(--wrap-accent)' : 'var(--surface-500)' }}
+            >
+              <span
+                className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform"
+                style={{ width: 18, height: 18, transform: editForm.mesmoDia ? 'translateX(18px)' : 'translateX(0)' }}
+              />
+            </span>
+            Entra e sai no mesmo dia
+          </button>
+          {!editForm.mesmoDia && (
+            <div className="mt-3">
+              <label className={labelCls}>Saída prevista</label>
+              <input
+                type="date"
+                value={editForm.dataSaida}
+                min={editForm.data}
+                onChange={e => setEditForm(p => ({ ...p, dataSaida: e.target.value }))}
+                className={inputCls}
+              />
+            </div>
+          )}
 
           {/* Duração */}
           <div>

@@ -3,11 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   Search, X, Check, Zap, Loader2, Car, ChevronRight,
-  Plus, AlertCircle, Wrench,
+  Plus, AlertCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { usePlacaLookup } from '../hooks/usePlacaLookup'
-import type { Cliente, Veiculo, Instalador } from '../types'
+import type { Cliente, Veiculo, Instalador, OrdemServico } from '../types'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -494,53 +494,65 @@ function StepServicos({
   )
 }
 
-function StepAlocacao({
-  numeroBoxes, instaladores, boxSel, setBoxSel, instSel, setInstSel,
+function StepPeriodo({
+  instaladores, instSel, setInstSel,
+  mesmoDia, setMesmoDia, dataEntrada, setDataEntrada, dataSaida, setDataSaida,
 }: {
-  numeroBoxes: number
   instaladores: Instalador[]
-  boxSel: number; setBoxSel: (v: number) => void
   instSel: string; setInstSel: (v: string) => void
+  mesmoDia: boolean; setMesmoDia: (v: boolean) => void
+  dataEntrada: string; setDataEntrada: (v: string) => void
+  dataSaida: string; setDataSaida: (v: string) => void
 }) {
   return (
     <div className="space-y-4">
-      <div className="p-3 bg-surface-700/50 border border-ui-border/50 rounded-xl text-xs text-gray-500">
-        Esta etapa é totalmente opcional. A OS pode ser criada e alocada depois pelo Operacional.
+      <div>
+        <label className="text-[11px] text-gray-500 block mb-1.5">Data de entrada</label>
+        <input
+          type="date"
+          value={dataEntrada}
+          onChange={e => { setDataEntrada(e.target.value); if (mesmoDia) setDataSaida(e.target.value) }}
+          className={`${inputCls} cursor-pointer`}
+        />
       </div>
 
-      <div>
-        <label className="text-[11px] text-gray-500 block mb-1.5">Box</label>
-        <select
-          value={boxSel}
-          onChange={e => setBoxSel(Number(e.target.value))}
-          className={`${inputCls} cursor-pointer`}
+      <button
+        type="button"
+        onClick={() => { const v = !mesmoDia; setMesmoDia(v); if (v) setDataSaida(dataEntrada) }}
+        className="flex items-center gap-2 text-sm font-medium transition-colors"
+        style={{ color: mesmoDia ? 'var(--wrap-accent)' : '#5a6070' }}
+      >
+        <span
+          className="relative rounded-full transition-colors"
+          style={{ height: 22, width: 40, background: mesmoDia ? 'var(--wrap-accent)' : 'var(--surface-500)' }}
         >
-          <option value={0}>— Selecionar box —</option>
-          {Array.from({ length: numeroBoxes }, (_, i) => i + 1).map(n => (
-            <option key={n} value={n}>Box {n}</option>
-          ))}
-        </select>
-      </div>
+          <span
+            className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform"
+            style={{ width: 18, height: 18, transform: mesmoDia ? 'translateX(18px)' : 'translateX(0)' }}
+          />
+        </span>
+        Entra e sai no mesmo dia
+      </button>
+
+      {!mesmoDia && (
+        <div>
+          <label className="text-[11px] text-gray-500 block mb-1.5">Data de saída prevista</label>
+          <input
+            type="date"
+            value={dataSaida}
+            min={dataEntrada}
+            onChange={e => setDataSaida(e.target.value)}
+            className={`${inputCls} cursor-pointer`}
+          />
+        </div>
+      )}
 
       <div>
         <label className="text-[11px] text-gray-500 block mb-1.5">Responsável</label>
-        <select
-          value={instSel}
-          onChange={e => setInstSel(e.target.value)}
-          className={`${inputCls} cursor-pointer`}
-        >
+        <select value={instSel} onChange={e => setInstSel(e.target.value)} className={`${inputCls} cursor-pointer`}>
           <option value="">— Selecionar responsável —</option>
-          {instaladores.map(i => (
-            <option key={i.id} value={i.id}>{i.nome}</option>
-          ))}
+          {instaladores.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
         </select>
-      </div>
-
-      <div className="flex items-center gap-2 p-3 bg-amber-500/8 border border-amber-500/20 rounded-xl">
-        <Wrench size={13} className="text-amber-400 shrink-0" />
-        <p className="text-xs text-gray-400">
-          Se pular, a OS aparecerá em <span className="text-ui-text font-medium">Operacional › Aguardando Alocação</span> para ser alocada quando conveniente.
-        </p>
       </div>
     </div>
   )
@@ -550,9 +562,11 @@ function StepAlocacao({
 
 export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () => void }) {
   const {
-    clientes, veiculos, instaladores, configuracoes,
+    clientes, veiculos, instaladores,
     adicionarCliente, adicionarVeiculo, adicionarOS,
   } = useApp()
+
+  const hoje = new Date().toISOString().split('T')[0]
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const stepDir = useRef<1 | -1>(1)
@@ -590,9 +604,11 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
   const [servicosMan, setServicosMan] = useState<ServicoManual[]>([{ categoria: 'PPF', descricao: '', valor: '' }])
   const [obsOS, setObsOS]             = useState('')
 
-  // Step 4: Alocação
-  const [boxSel, setBoxSel]   = useState(0)
-  const [instSel, setInstSel] = useState('')
+  // Step 4: Período
+  const [mesmoDia, setMesmoDia]         = useState(true)
+  const [dataEntrada, setDataEntrada]   = useState(hoje)
+  const [dataSaida, setDataSaida]       = useState(hoje)
+  const [instSel, setInstSel]           = useState('')
 
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -604,7 +620,9 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
     setNovaMarca(''); setNovoModelo(''); setNovoAno(new Date().getFullYear()); setNovaCor('')
     setShowExtras(false)
     setServicosMan([{ categoria: 'PPF', descricao: '', valor: '' }]); setObsOS('')
-    setBoxSel(0); setInstSel('')
+    const today = new Date().toISOString().split('T')[0]
+    setMesmoDia(true); setDataEntrada(today); setDataSaida(today)
+    setInstSel('')
     setErrors({})
   }, [])
 
@@ -671,8 +689,8 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   const confirmar = (overrideBox?: number, overrideInst?: string) => {
-    const finalBox  = overrideBox  !== undefined ? overrideBox  : boxSel
-    const finalInst = overrideInst !== undefined ? overrideInst : instSel
+    const finalBox  = overrideBox ?? 0
+    const finalInst = overrideInst ?? instSel
 
     // 1. Resolve clienteId
     let clienteId = clienteSel?.id ?? ''
@@ -724,13 +742,15 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
       comissao: 0,
       observacoes: obsOS,
       status: 'em_andamento',
-    })
+      dataEntrada,
+      dataSaidaPrevista: mesmoDia ? dataEntrada : dataSaida,
+    } as Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>)
 
     toast.success(`OS #${numero} criada — ${nomeCliente} · ${labelVeiculo}`)
     onClose()
   }
 
-  const STEPS = ['Cliente', 'Veículo', 'Serviços', 'Alocação'] as const
+  const STEPS = ['Cliente', 'Veículo', 'Serviços', 'Período'] as const
 
   return (
     <AnimatePresence>
@@ -866,13 +886,16 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
                     />
                   )}
                   {step === 4 && (
-                    <StepAlocacao
-                      numeroBoxes={configuracoes.numeroBoxes}
+                    <StepPeriodo
                       instaladores={instaladores.filter(i => i.ativo)}
-                      boxSel={boxSel}
-                      setBoxSel={setBoxSel}
                       instSel={instSel}
                       setInstSel={setInstSel}
+                      mesmoDia={mesmoDia}
+                      setMesmoDia={setMesmoDia}
+                      dataEntrada={dataEntrada}
+                      setDataEntrada={setDataEntrada}
+                      dataSaida={dataSaida}
+                      setDataSaida={setDataSaida}
                     />
                   )}
                 </motion.div>
