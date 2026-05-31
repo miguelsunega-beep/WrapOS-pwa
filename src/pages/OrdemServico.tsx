@@ -110,12 +110,9 @@ const selectCls = `${inputCls} cursor-pointer`
 export function OrdemServico() {
   const {
     ordens, clientes, veiculos, servicos, instaladores, produtos,
-    adicionarOS, editarOS, mudarStatusOS, deletarOS, concluirOS, cancelarOS, configuracoes,
+    adicionarOS, editarOS, mudarStatusOS, deletarOS, concluirOS, cancelarOS,
   } = useApp()
   const location = useLocation()
-
-  // Gerando os boxes dinamicamente baseados nas configurações da loja
-  const BOXES = Array.from({ length: configuracoes?.numeroBoxes || 6 }, (_, i) => i + 1);
 
   // ── UI state ─────────────────────────────────────────────────
   const [search, setSearch]                 = useState('')
@@ -635,13 +632,13 @@ export function OrdemServico() {
             </div>
           </section>
 
-          {/* ── Seção 3: Pagamento, Instalador, Box ── */}
+          {/* ── Seção 3: Pagamento e Instalador ── */}
           <section className="space-y-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
               <DollarSign size={12} /> Financeiro &amp; Logística
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <FieldWrap>
                 <Label>Forma de Pagamento</Label>
                 <select
@@ -663,19 +660,6 @@ export function OrdemServico() {
                   <option value="">— Selecionar —</option>
                   {instaladores.filter(i => i.ativo).map(i => (
                     <option key={i.id} value={i.id}>{i.nome}</option>
-                  ))}
-                </select>
-              </FieldWrap>
-
-              <FieldWrap>
-                <Label>Box</Label>
-                <select
-                  value={form.box}
-                  onChange={e => setForm(f => ({ ...f, box: Number(e.target.value) }))}
-                  className={selectCls}
-                >
-                  {BOXES.map(n => (
-                    <option key={n} value={n}>Box {n}</option>
                   ))}
                 </select>
               </FieldWrap>
@@ -880,7 +864,7 @@ export function OrdemServico() {
                     {v && <p className="text-[11px] font-mono text-gray-500 mt-0.5">{v.placa} · {v.cor}</p>}
                   </div>
                   <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                    <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><Wrench size={11} />Instalador · Box {os.box}</p>
+                    <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><Wrench size={11} />Instalador</p>
                     <p className="text-sm font-semibold text-ui-text">{instNome(os.instaladorId)}</p>
                   </div>
                 </div>
@@ -1005,7 +989,7 @@ export function OrdemServico() {
               <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                 <DollarSign size={12} /> Financeiro &amp; Logística
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FieldWrap>
                   <Label>Forma de Pagamento</Label>
                   <select
@@ -1027,19 +1011,6 @@ export function OrdemServico() {
                     <option value="">— Selecionar —</option>
                     {instaladores.filter(i => i.ativo).map(i => (
                       <option key={i.id} value={i.id}>{i.nome}</option>
-                    ))}
-                  </select>
-                </FieldWrap>
-
-                <FieldWrap>
-                  <Label>Box</Label>
-                  <select
-                    value={editForm.box}
-                    onChange={e => setEditForm(f => ({ ...f, box: Number(e.target.value) }))}
-                    className={selectCls}
-                  >
-                    {BOXES.map(n => (
-                      <option key={n} value={n}>Box {n}</option>
                     ))}
                   </select>
                 </FieldWrap>

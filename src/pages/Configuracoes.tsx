@@ -24,8 +24,8 @@ const inferirCategoria = (nome: string): string => {
   return 'Outros'
 }
 
-interface ServicoForm { nome: string; preco: string; tempEstimado: string }
-const blankServico = (): ServicoForm => ({ nome: '', preco: '', tempEstimado: '' })
+interface ServicoForm { nome: string; preco: string; tempEstimado: string; duracaoDias: string }
+const blankServico = (): ServicoForm => ({ nome: '', preco: '', tempEstimado: '', duracaoDias: '0' })
 
 // ── Types ─────────────────────────────────────────────────────────
 interface LojaForm {
@@ -36,7 +36,6 @@ interface LojaForm {
 }
 
 interface OpForm {
-  numeroBoxes:    string
   comissaoPadrao: string
   corPrimaria:    string
 }
@@ -59,7 +58,6 @@ export function Configuracoes() {
 
   // ── Operacional form ───────────────────────────────────────────
   const [op, setOp] = useState<OpForm>({
-    numeroBoxes:    String(configuracoes.numeroBoxes),
     comissaoPadrao: String(configuracoes.comissaoPadrao),
     corPrimaria:    configuracoes.corPrimaria,
   })
@@ -84,7 +82,7 @@ export function Configuracoes() {
 
   const handleSalvarOp = () => {
     atualizarConfiguracoes({
-      numeroBoxes:    Math.max(1, Math.min(10, parseInt(op.numeroBoxes) || 1)),
+      numeroBoxes:    configuracoes.numeroBoxes ?? 1,
       comissaoPadrao: Math.max(0, Math.min(100, parseFloat(op.comissaoPadrao) || 0)),
       corPrimaria:    op.corPrimaria,
     })
@@ -102,7 +100,7 @@ export function Configuracoes() {
 
   const abrirEditarServico = (s: Servico) => {
     setServEditId(s.id)
-    setServForm({ nome: s.nome, preco: String(s.preco), tempEstimado: String(s.tempEstimado) })
+    setServForm({ nome: s.nome, preco: String(s.preco), tempEstimado: String(s.tempEstimado), duracaoDias: String(s.duracaoDias ?? 0) })
     setServModalOpen(true)
   }
 
@@ -111,11 +109,12 @@ export function Configuracoes() {
     const preco = parseFloat(servForm.preco)
     if (!preco || preco <= 0) { toast.error('Informe um preço válido.'); return }
     const tempEstimado = parseFloat(servForm.tempEstimado) || 0
+    const duracaoDias = parseInt(servForm.duracaoDias, 10) || 0
     if (servEditId) {
-      editarServico(servEditId, { nome: servForm.nome.trim(), preco, tempEstimado })
+      editarServico(servEditId, { nome: servForm.nome.trim(), preco, tempEstimado, duracaoDias })
       toast.success('Serviço atualizado!')
     } else {
-      adicionarServico({ nome: servForm.nome.trim(), preco, tempEstimado })
+      adicionarServico({ nome: servForm.nome.trim(), preco, tempEstimado, duracaoDias })
       toast.success('Serviço adicionado!')
     }
     setServModalOpen(false)
@@ -222,18 +221,7 @@ export function Configuracoes() {
             <p className="text-[11px] text-gray-600">Capacidade da loja e configurações de comissão</p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Número de Boxes</label>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={op.numeroBoxes}
-              onChange={e => setOp(p => ({ ...p, numeroBoxes: e.target.value }))}
-              className={inputCls}
-            />
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Comissão Padrão (%)</label>
             <input
@@ -327,7 +315,7 @@ export function Configuracoes() {
                   <div key={s.id} className="group px-5 py-3 flex items-center gap-3 hover:bg-surface-600/30 border-b border-ui-border last:border-0 transition-colors">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-ui-text truncate">{s.nome}</p>
-                      <p className="text-[11px] text-gray-600 mt-0.5">{s.tempEstimado}h estimadas</p>
+                      <p className="text-[11px] text-gray-600 mt-0.5">{s.tempEstimado}h estimadas{s.duracaoDias ? ` · ${s.duracaoDias}d na loja` : ''}</p>
                     </div>
                     <p className="text-sm font-bold text-emerald-400">{fmtPreco(s.preco)}</p>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -363,7 +351,7 @@ export function Configuracoes() {
               className={inputCls}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div>
               <label className={labelCls}>Preço (R$) <span className="text-accent">*</span></label>
               <input
@@ -384,6 +372,18 @@ export function Configuracoes() {
                 step={0.5}
                 value={servForm.tempEstimado}
                 onChange={e => setServForm(p => ({ ...p, tempEstimado: e.target.value }))}
+                placeholder="0"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Duração na loja (dias)</label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={servForm.duracaoDias}
+                onChange={e => setServForm(p => ({ ...p, duracaoDias: e.target.value }))}
                 placeholder="0"
                 className={inputCls}
               />

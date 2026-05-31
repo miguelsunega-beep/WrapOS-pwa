@@ -55,7 +55,7 @@ interface MaterialEntry {
 }
 
 export function OSDrawer({
-  os, cliente, veiculo, instaladores, numeroBoxes, onClose, onConfirmarConcluir,
+  os, cliente, veiculo, instaladores, numeroBoxes: _numeroBoxes, onClose, onConfirmarConcluir,
 }: OSDrawerProps) {
   const { editarOS, produtos, lancamentos, deletarLancamento } = useApp()
 
@@ -360,20 +360,7 @@ export function OSDrawer({
                   Operacional
                 </p>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] mb-1.5" style={{ color: '#5a6070' }}>Box</label>
-                      <select
-                        value={form.box}
-                        onChange={e => setForm(p => ({ ...p, box: Number(e.target.value) }))}
-                        className={inputCls}
-                      >
-                        <option value={0}>Sem box</option>
-                        {Array.from({ length: numeroBoxes }, (_, i) => i + 1).map(n => (
-                          <option key={n} value={n}>Box {n}</option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className="grid grid-cols-1 gap-3">
                     <div>
                       <label className="block text-[11px] mb-1.5" style={{ color: '#5a6070' }}>Responsável</label>
                       <select

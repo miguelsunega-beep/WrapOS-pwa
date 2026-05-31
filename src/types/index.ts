@@ -41,6 +41,7 @@ export interface Servico {
   nome: string
   preco: number
   tempEstimado: number
+  duracaoDias?: number
 }
 
 export interface ItemOS {

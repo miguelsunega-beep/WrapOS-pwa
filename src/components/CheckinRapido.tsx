@@ -512,6 +512,7 @@ function StepPeriodo({
           type="date"
           value={dataEntrada}
           onChange={e => { setDataEntrada(e.target.value); if (mesmoDia) setDataSaida(e.target.value) }}
+          onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
           className={`${inputCls} cursor-pointer`}
         />
       </div>
@@ -542,6 +543,7 @@ function StepPeriodo({
             value={dataSaida}
             min={dataEntrada}
             onChange={e => setDataSaida(e.target.value)}
+            onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
             className={`${inputCls} cursor-pointer`}
           />
         </div>
@@ -912,14 +914,6 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
               </button>
 
               <div className="flex items-center gap-2">
-                {step === 4 && (
-                  <button
-                    onClick={() => confirmar(0, '')}
-                    className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-gray-200 border border-ui-border hover:border-gray-500 transition-colors"
-                  >
-                    Pular — alocar depois
-                  </button>
-                )}
                 <button
                   onClick={step === 4 ? () => confirmar() : goNext}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent/90 transition-colors"

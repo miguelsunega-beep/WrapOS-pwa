@@ -162,14 +162,8 @@ export function BoxCard({
       <div style={{ width: 5, backgroundColor: corVeic, flexShrink: 0 }} />
 
       <div className="flex-1 min-w-0 px-4 py-3 flex flex-col">
-        {/* Topo: BOX + badge de tempo */}
-        <div className="flex items-center gap-2 min-w-0">
-          <span
-            className="text-[10px] font-semibold tracking-widest uppercase shrink-0"
-            style={{ color: '#5a6070' }}
-          >
-            BOX {boxNum}
-          </span>
+        {/* Topo: badge de tempo */}
+        <div className="flex items-center min-w-0">
           <span
             className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full ml-auto shrink-0"
             style={{ color: statusColor, backgroundColor: `${statusColor}1f` }}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Calendar, User, Wrench, TrendingUp, LayoutGrid, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Calendar, User, TrendingUp, LayoutGrid, AlertTriangle, CheckCircle2, Car } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
 import { BoxCard } from '../components/BoxCard'
@@ -53,38 +53,10 @@ export function Patio() {
   const {
     ordens, clientes, veiculos, agendamentos, instaladores, servicos,
     lancamentos, configuracoes,
-    concluirOS, editarOS,
+    concluirOS,
   } = useApp()
 
   const todayStr = toDateStr(new Date())
-
-  // ── Maintenance state (persisted per profile) ─────────────────
-  const perfilId = sessionStorage.getItem('wrapos_perfil_ativo') ?? '_'
-  const manutKey = `wrapos_perfil_${perfilId}_boxes_manutencao`
-
-  const [boxesManutencao, setBoxesManutencao] = useState<number[]>(() => {
-    try {
-      const stored = localStorage.getItem(manutKey)
-      return stored ? (JSON.parse(stored) as number[]) : []
-    } catch { return [] }
-  })
-
-  useEffect(() => {
-    try { localStorage.setItem(manutKey, JSON.stringify(boxesManutencao)) } catch {}
-  }, [boxesManutencao, manutKey])
-
-  // Manutenção confirm modal
-  const [manutModal, setManutModal] = useState<number | null>(null)
-
-  const handleConfirmarManut = () => {
-    if (manutModal === null) return
-    setBoxesManutencao(prev =>
-      prev.includes(manutModal)
-        ? prev.filter(n => n !== manutModal)
-        : [...prev, manutModal]
-    )
-    setManutModal(null)
-  }
 
   // ── Live status refresh (atrasados counter) ───────────────────
   const [, forceUpdate] = useState(0)
@@ -94,24 +66,15 @@ export function Patio() {
   }, [])
 
   // ── Derived data ──────────────────────────────────────────────
-  const activeOS = ordens.filter(o => ACTIVE_STATUSES.includes(o.status) && o.box > 0)
+  // Carros no pátio = todas as OS ativas (sem distinção de box)
+  const carrosNoPatio = ordens
+    .filter(o => ACTIVE_STATUSES.includes(o.status))
+    .sort((a, b) => new Date(a.dataCriacao).getTime() - new Date(b.dataCriacao).getTime())
 
-  const aguardandoAlocacao = ordens.filter(o =>
-    ACTIVE_STATUSES.includes(o.status) && o.box === 0
-  )
-
-  const boxMap = new Map<number, OrdemServico>()
-  for (const os of activeOS) {
-    const cur = boxMap.get(os.box)
-    if (!cur || os.dataCriacao > cur.dataCriacao) boxMap.set(os.box, os)
-  }
-
-  const boxes         = Array.from({ length: configuracoes.numeroBoxes }, (_, i) => i + 1)
-  const occupiedCount = boxMap.size
-  const livresCount   = boxes.length - occupiedCount - boxesManutencao.length
+  const noPatioCount = carrosNoPatio.length
 
   const nowMs = Date.now()
-  const atrasadosCount = activeOS.filter(
+  const atrasadosCount = carrosNoPatio.filter(
     os => nowMs - new Date(os.dataCriacao).getTime() > 6 * 3_600_000
   ).length
 
@@ -128,10 +91,10 @@ export function Patio() {
   )
 
   // ── Lookups ───────────────────────────────────────────────────
-  const getCliente  = (id: string) => clientes.find(c => c.id === id) ?? null
-  const getVeiculo  = (id: string) => veiculos.find(v => v.id === id) ?? null
+  const getCliente    = (id: string) => clientes.find(c => c.id === id) ?? null
+  const getVeiculo    = (id: string) => veiculos.find(v => v.id === id) ?? null
   const getInstalador = (id: string) => instaladores.find(i => i.id === id) ?? null
-  const getServico  = (id: string) => servicos.find(s => s.id === id)
+  const getServico    = (id: string) => servicos.find(s => s.id === id)
 
   // ── Confirm concluir modal ────────────────────────────────────
   const [confirmOS, setConfirmOS]       = useState<OrdemServico | null>(null)
@@ -162,24 +125,6 @@ export function Patio() {
       if (updated) setDrawerOS(updated)
     }
   }, [ordens])
-
-  // ── Alocar modal state ────────────────────────────────────────
-  const [alocandoOS, setAlocandoOS] = useState<OrdemServico | null>(null)
-  const [alocBox,    setAlocBox]    = useState(0)
-  const [alocInst,   setAlocInst]   = useState('')
-
-  const abrirAlocar = (os: OrdemServico) => {
-    setAlocandoOS(os)
-    setAlocBox(0)
-    setAlocInst(os.instaladorId)
-  }
-
-  const confirmarAlocacao = () => {
-    if (!alocandoOS || alocBox === 0) { toast.error('Selecione um box.'); return }
-    editarOS(alocandoOS.id, { box: alocBox, instaladorId: alocInst })
-    toast.success('OS alocada com sucesso!')
-    setAlocandoOS(null)
-  }
 
   // ── Render ────────────────────────────────────────────────────
   return (
@@ -212,96 +157,39 @@ export function Patio() {
         </div>
       </div>
 
-      {/* ── Status bar (Mobile Carrossel) ── */}
+      {/* ── Status bar ── */}
       <div className="hidden md:flex overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 gap-3 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:hidden">
-        <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="No Pátio" value={occupiedCount} color="#f0f0f4" icon={LayoutGrid} /></div>
-        <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="Livres" value={livresCount < 0 ? 0 : livresCount} color="#34d399" icon={LayoutGrid} /></div>
+        <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="No Pátio" value={noPatioCount} color="#f0f0f4" icon={LayoutGrid} /></div>
         <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="Atrasados" value={atrasadosCount} color={atrasadosCount > 0 ? '#e8304a' : '#5a6070'} icon={AlertTriangle} /></div>
         <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Faturado" value={fmt(faturamentoHoje)} color="#34d399" icon={TrendingUp} /></div>
         <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Agenda" value={`${todayAgendamentos.length} hoje`} color={todayAgendamentos.length > 0 ? 'var(--wrap-accent)' : '#5a6070'} icon={Calendar} /></div>
       </div>
 
-      {/* ── Boxes grid ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {boxes.map(boxNum => {
-          const os = boxMap.get(boxNum) ?? null
-          return (
+      {/* ── Carros no pátio ── */}
+      {carrosNoPatio.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Car size={32} style={{ color: '#2a3040' }} />
+          <p className="mt-3 text-[14px] font-medium text-slate-400">Nenhum carro no pátio</p>
+          <p className="text-[12px] text-slate-600 mt-1">Use o Check-in para registrar a entrada de um veículo.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {carrosNoPatio.map(os => (
             <BoxCard
-              key={boxNum}
-              boxNum={boxNum}
+              key={os.id}
+              boxNum={0}
               os={os}
-              cliente={os ? getCliente(os.clienteId) : null}
-              veiculo={os ? getVeiculo(os.veiculoId) : null}
-              instalador={os ? getInstalador(os.instaladorId) : null}
-              leaving={leavingBoxId === os?.id}
+              cliente={getCliente(os.clienteId)}
+              veiculo={getVeiculo(os.veiculoId)}
+              instalador={getInstalador(os.instaladorId)}
+              leaving={leavingBoxId === os.id}
               onConcluir={() => setLeavingBoxId(null)}
               onConfirmarConcluir={handleOpenConfirm}
-              onOpenDrawer={os ? () => setDrawerOS(os) : undefined}
-              emManutencao={boxesManutencao.includes(boxNum)}
-              onToggleManutencao={() => setManutModal(boxNum)}
+              onOpenDrawer={() => setDrawerOS(os)}
             />
-          )
-        })}
-      </div>
-
-      {/* ── Aguardando alocação ── */}
-      <AnimatePresence>
-        {aguardandoAlocacao.length > 0 && (
-          <motion.section
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="space-y-3"
-          >
-            <h2 className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2 text-slate-500">
-              Aguardando Alocação
-              <span
-                className="px-1.5 py-0.5 rounded text-[11px] font-bold"
-                style={{ backgroundColor: 'rgba(232,48,74,0.14)', color: '#e8304a' }}
-              >
-                {aguardandoAlocacao.length}
-              </span>
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {aguardandoAlocacao.map(os => {
-                const cliente = getCliente(os.clienteId)
-                const veiculo = getVeiculo(os.veiculoId)
-                return (
-                  <div
-                    key={os.id}
-                    className="flex items-center justify-between rounded-xl p-5 sm:px-4 sm:py-3"
-                    style={{
-                      backgroundColor: 'rgba(232,48,74,0.05)',
-                      border: '1px solid rgba(232,48,74,0.18)',
-                    }}
-                  >
-                    <div className="min-w-0">
-                      <div className="text-[13px] sm:text-[12px] font-semibold text-ui-text truncate">
-                        OS #{os.numero}
-                      </div>
-                      <div className="text-[12px] sm:text-[11px] truncate text-slate-500 mt-0.5">
-                        {cliente?.nome ?? '—'} · {veiculo?.modelo ?? '—'}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => abrirAlocar(os)}
-                      className="ml-3 shrink-0 min-h-12 sm:min-h-0 px-4 sm:px-3 py-2.5 sm:py-1.5 rounded-lg text-[12px] sm:text-[11px] font-semibold transition-opacity hover:opacity-80 inline-flex items-center justify-center"
-                      style={{
-                        backgroundColor: 'rgba(232,48,74,0.14)',
-                        color: '#e8304a',
-                        border: '1px solid rgba(232,48,74,0.28)',
-                      }}
-                    >
-                      Alocar
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </motion.section>
-        )}
-      </AnimatePresence>
+          ))}
+        </div>
+      )}
 
       {/* ── Concluídas hoje ── */}
       <AnimatePresence>
@@ -441,7 +329,7 @@ export function Patio() {
               </p>
             </div>
             <p className="text-[12px] text-slate-500">
-              Isso lançará o valor no financeiro e liberará o box.
+              Isso lançará o valor no financeiro e concluirá a OS.
             </p>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={() => setConfirmOS(null)} className="flex-1">
@@ -454,97 +342,6 @@ export function Patio() {
               >
                 <CheckCircle2 size={14} />
                 Confirmar conclusão
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* ── Modal: Alocar OS ── */}
-      <Modal isOpen={alocandoOS !== null} onClose={() => setAlocandoOS(null)} title="Alocar OS" size="sm">
-        {alocandoOS && (
-          <div className="space-y-5">
-            <p className="text-[13px] text-slate-500">
-              OS #{alocandoOS.numero} —{' '}
-              <span className="text-ui-text font-medium">{getCliente(alocandoOS.clienteId)?.nome}</span>
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[12px] block mb-1.5 text-slate-500">Box</label>
-                <select
-                  value={alocBox}
-                  onChange={e => setAlocBox(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-lg text-[13px] outline-none bg-white/5 border border-white/10 text-ui-text"
-                >
-                  <option value={0}>Selecione um box…</option>
-                  {Array.from({ length: configuracoes.numeroBoxes }, (_, i) => i + 1).map(n => (
-                    <option key={n} value={n}>Box {n}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-[12px] block mb-1.5 text-slate-500">Técnico</label>
-                <select
-                  value={alocInst}
-                  onChange={e => setAlocInst(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-[13px] outline-none bg-white/5 border border-white/10 text-ui-text"
-                >
-                  <option value="">Sem técnico definido</option>
-                  {instaladores.filter(i => i.ativo).map(i => (
-                    <option key={i.id} value={i.id}>{i.nome}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <button
-              onClick={confirmarAlocacao}
-              className="w-full min-h-12 sm:min-h-0 py-2.5 rounded-lg text-[13px] font-semibold transition-opacity hover:opacity-90 inline-flex items-center justify-center"
-              style={{ backgroundColor: 'var(--wrap-accent)', color: 'white' }}
-            >
-              Confirmar Alocação
-            </button>
-          </div>
-        )}
-      </Modal>
-
-      {/* ── Modal: Manutenção ── */}
-      <Modal
-        isOpen={manutModal !== null}
-        onClose={() => setManutModal(null)}
-        title={
-          manutModal !== null && boxesManutencao.includes(manutModal)
-            ? `Liberar Box ${manutModal}`
-            : `Box ${manutModal} — Manutenção`
-        }
-        size="sm"
-      >
-        {manutModal !== null && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'rgba(255,107,53,0.08)', border: '1px solid rgba(255,107,53,0.20)' }}>
-              <Wrench size={16} className="text-[#ff6b35] shrink-0" />
-              <p className="text-[13px] text-ui-text">
-                {boxesManutencao.includes(manutModal)
-                  ? `Liberar Box ${manutModal} e marcar como disponível?`
-                  : `Colocar Box ${manutModal} em manutenção? O box ficará indisponível.`}
-              </p>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setManutModal(null)}>Cancelar</Button>
-              <button
-                onClick={handleConfirmarManut}
-                className="min-h-12 sm:min-h-0 px-4 py-2 rounded-lg text-[13px] font-semibold transition-opacity hover:opacity-90 inline-flex items-center justify-center"
-                style={{
-                  backgroundColor: boxesManutencao.includes(manutModal)
-                    ? 'rgba(52,211,153,0.15)'
-                    : 'rgba(255,107,53,0.15)',
-                  color: boxesManutencao.includes(manutModal) ? '#34d399' : '#ff6b35',
-                  border: boxesManutencao.includes(manutModal)
-                    ? '1px solid rgba(52,211,153,0.30)'
-                    : '1px solid rgba(255,107,53,0.30)',
-                }}
-              >
-                <Wrench size={13} className="inline mr-1.5" />
-                {boxesManutencao.includes(manutModal) ? 'Liberar Box' : 'Entrar em Manutenção'}
               </button>
             </div>
           </div>
