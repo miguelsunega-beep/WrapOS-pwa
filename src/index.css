@@ -72,17 +72,17 @@ textarea {
 .wrapos-daypicker .rdp {
   --rdp-cell-size: 32px;
   --rdp-accent-color: var(--wrap-accent);
-  --rdp-background-color: rgba(255,255,255,0.06);
+  --rdp-background-color: var(--wrap-border2);
   margin: 0;
   font-size: 13px;
 }
 .wrapos-daypicker .rdp-caption_label,
 .wrapos-daypicker .rdp-head_cell,
 .wrapos-daypicker .rdp-day {
-  color: var(--wrap-text, #f0f0f4);
+  color: var(--wrap-text);
 }
 .wrapos-daypicker .rdp-head_cell {
-  color: #5a6070;
+  color: var(--wrap-muted);
   font-size: 11px;
   text-transform: uppercase;
 }
@@ -96,6 +96,6 @@ textarea {
   font-weight: 700;
 }
 .wrapos-daypicker .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
-  background-color: rgba(255,255,255,0.08);
+  background-color: var(--wrap-border2);
 }
-.wrapos-daypicker .rdp-nav_button { color: var(--wrap-text, #f0f0f4); }
+.wrapos-daypicker .rdp-nav_button { color: var(--wrap-text); }

@@ -55,6 +55,7 @@ src/components/Button.tsx
 src/components/Card.tsx
 src/components/CarSilhouette.tsx
 src/components/CheckinRapido.tsx
+src/components/DateField.tsx
 src/components/Modal.tsx
 src/components/OSDrawer.tsx
 src/components/SearchSpotlight.tsx
@@ -325,9 +326,11 @@ mock.ts
     "preview": "vite preview"
   },
   "dependencies": {
+    "date-fns": "^4.4.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.316.0",
     "react": "^18.2.0",
+    "react-day-picker": "^10.0.1",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0",
     "recharts": "^2.10.0",
@@ -541,9 +544,21 @@ export function Badge({ label, variant = 'default' }: BadgeProps) {
 <file path="src/components/BoxCard.tsx">
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { CheckCircle2, Clock, Wrench, ChevronRight } from 'lucide-react'
+import { CheckCircle2, Clock, Wrench, AlertTriangle, LayoutGrid } from 'lucide-react'
 import type { OrdemServico, Cliente, Veiculo, Instalador } from '../types'
-import { CarSilhouette } from './CarSilhouette'
+
+const COR_VEICULO: Record<string, string> = {
+  preto: '#1a1a1a', branco: '#e5e5e5', prata: '#c4c8cc', prateado: '#c4c8cc',
+  cinza: '#6b7280', vermelho: '#c0392b', azul: '#2563eb', verde: '#16a34a',
+  amarelo: '#eab308', laranja: '#ea580c', marrom: '#78350f', bege: '#d6c7a1',
+  dourado: '#c8a44d', vinho: '#7b1e3a', grafite: '#3a3f44',
+}
+
+function corDoVeiculo(cor?: string): string {
+  if (!cor) return '#3a4050'
+  const key = cor.trim().toLowerCase()
+  return COR_VEICULO[key] ?? '#3a4050'
+}
 
 const STATUS_COLOR = {
   ok:   '#34d399',
@@ -618,15 +633,18 @@ export function BoxCard({
           backgroundColor: inManut ? 'rgba(255,107,53,0.04)' : 'rgba(19,22,30,0.5)',
         }}
       >
+        <LayoutGrid
+          size={22}
+          style={{ color: inManut ? '#ff6b35' : '#2a3040' }}
+        />
         <span
-          className="text-[10px] font-semibold tracking-widest uppercase mb-3"
+          className="text-[10px] font-semibold tracking-widest uppercase mt-3"
           style={{ color: inManut ? 'rgba(255,107,53,0.5)' : '#2a3040' }}
         >
           Box {boxNum}
         </span>
-        <CarSilhouette color={inManut ? 'rgba(255,107,53,0.25)' : '#1e2330'} size={88} />
         <span
-          className="mt-4 text-[12px] font-medium flex items-center gap-1.5"
+          className="mt-1 text-[12px] font-medium flex items-center gap-1.5"
           style={{ color: inManut ? '#ff6b35' : '#2a3040' }}
         >
           {inManut && <Wrench size={12} />}
@@ -653,6 +671,13 @@ export function BoxCard({
   // ── Occupied box ────────────────────────────────────────────────
   const status      = getBoxStatus(elapsed)
   const statusColor = STATUS_COLOR[status]
+  const corVeic     = corDoVeiculo(veiculo?.cor)
+
+  const servicoLabel = os.servicos.length
+    ? os.servicos[0].nome + (os.servicos.length > 1 ? ` +${os.servicos.length - 1}` : '')
+    : 'Sem serviço'
+
+  const primeiroNomeInst = instalador?.nome.split(' ')[0]
 
   const handleConcluirClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -671,63 +696,61 @@ export function BoxCard({
         if (leaving) onConcluir(os.id)
       }}
       onClick={onOpenDrawer}
-      className="group relative flex flex-col rounded-xl h-full overflow-hidden cursor-pointer"
-      style={{ border: `1px solid ${statusColor}28`, backgroundColor: 'var(--wrap-surface)' }}
+      className="group relative flex rounded-xl h-full overflow-hidden cursor-pointer"
+      style={{
+        border: `1px solid ${status === 'late' ? `${STATUS_COLOR.late}40` : 'var(--wrap-border)'}`,
+        backgroundColor: 'var(--wrap-surface)',
+      }}
     >
-      {/* Status accent bar */}
-      <div className="h-[2px] w-full shrink-0" style={{ backgroundColor: statusColor }} />
+      {/* Barra lateral — cor do veículo */}
+      <div style={{ width: 5, backgroundColor: corVeic, flexShrink: 0 }} />
 
-      {/* Header */}
-      <div className="flex items-center px-4 pt-3 pb-1">
-        <span className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: '#3a4050' }}>
-          Box {boxNum}
-        </span>
-      </div>
-
-      {/* Silhouette + timer */}
-      <div className="relative flex-1 flex items-center justify-center py-2">
-        <div
-          className="absolute top-2 right-4 flex items-center gap-1 text-[11px] font-mono font-semibold"
-          style={{ color: statusColor }}
-        >
-          <Clock size={11} />
-          {formatElapsed(elapsed)}
+      <div className="flex-1 min-w-0 px-4 py-3 flex flex-col">
+        {/* Topo: badge de tempo */}
+        <div className="flex items-center min-w-0">
+          <span
+            className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full ml-auto shrink-0"
+            style={{ color: statusColor, backgroundColor: `${statusColor}1f` }}
+          >
+            {status === 'late' ? <AlertTriangle size={11} /> : <Clock size={11} />}
+            {formatElapsed(elapsed)}
+          </span>
         </div>
 
-        <motion.div
-          whileHover={{ filter: `drop-shadow(0 0 14px ${statusColor}88)` }}
-          transition={{ duration: 0.25 }}
-        >
-          <CarSilhouette color={statusColor} size={88} />
-        </motion.div>
+        {/* Modelo */}
+        <p className="text-[15px] font-semibold text-ui-text truncate mt-2">
+          {veiculo ? `${veiculo.marca} ${veiculo.modelo}` : '—'}
+        </p>
 
-        {/* "Ver detalhes" hint on hover */}
-        <div
-          className="absolute bottom-1 inset-x-3 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none flex items-center justify-center gap-1"
-          style={{ color: '#5a6070' }}
-        >
-          <span className="text-[10px]">Ver detalhes</span>
-          <ChevronRight size={11} />
-        </div>
-      </div>
+        {/* Serviço principal */}
+        <p className="text-[12px] text-slate-400 truncate mt-0.5">
+          {servicoLabel}
+        </p>
 
-      {/* Footer */}
-      <div className="px-4 pb-4 space-y-3">
-        <div>
-          <div className="text-[13px] font-semibold text-ui-text truncate">
-            {cliente?.nome ?? '—'}
-          </div>
-          <div className="text-[11px] truncate text-slate-500">
-            {veiculo ? `${veiculo.marca} ${veiculo.modelo}` : '—'}
-            {veiculo?.placa ? ` · ${veiculo.placa}` : ''}
-            {instalador ? ` · ${instalador.nome.split(' ')[0]}` : ''}
-          </div>
+        {/* Cor + cliente */}
+        <div className="flex items-center gap-1.5 mt-1.5 min-w-0">
+          <span
+            className="shrink-0"
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: corVeic,
+              border: '1px solid rgba(255,255,255,0.25)',
+            }}
+          />
+          <p className="text-[11px] text-slate-500 truncate">
+            {(veiculo?.cor ?? '—')}
+            {' · '}
+            {(cliente?.nome ?? '—')}
+            {primeiroNomeInst ? ` · ${primeiroNomeInst}` : ''}
+          </p>
         </div>
 
         <button
           onClick={handleConcluirClick}
           disabled={leaving}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:opacity-40"
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:opacity-40 mt-3"
           style={{
             backgroundColor: `${STATUS_COLOR.ok}18`,
             color: STATUS_COLOR.ok,
@@ -876,26 +899,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   Search, X, Check, Zap, Loader2, Car, ChevronRight,
-  Plus, AlertCircle, Wrench,
+  Plus, AlertCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { DateField } from './DateField'
 import { usePlacaLookup } from '../hooks/usePlacaLookup'
-import type { Cliente, Veiculo, Instalador } from '../types'
-
-// ── Types ────────────────────────────────────────────────────────
-
-interface ServicoManual {
-  categoria: string
-  descricao: string
-  valor: string
-}
+import type { Cliente, Veiculo, Instalador, OrdemServico } from '../types'
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
-
-const CATEGORIAS_SERVICO = ['PPF', 'Envelopamento', 'Insulfilm', 'Lavagem', 'Pintura', 'Outros']
 
 const inputCls =
   'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 outline-none transition-colors placeholder-gray-500'
@@ -1250,21 +1262,14 @@ function StepVeiculo({
 }
 
 function StepServicos({
-  servicosMan, setServicosMan, obsOS, setObsOS, errors,
+  servicos, servicoSel, setServicoSel, servicoValor, setServicoValor, obsOS, setObsOS, errors,
 }: {
-  servicosMan: ServicoManual[]
-  setServicosMan: React.Dispatch<React.SetStateAction<ServicoManual[]>>
+  servicos: { id: string; nome: string }[]
+  servicoSel: string; setServicoSel: (v: string) => void
+  servicoValor: string; setServicoValor: (v: string) => void
   obsOS: string; setObsOS: (v: string) => void
   errors: Record<string, string>
 }) {
-  const subtotal = servicosMan.reduce((s, m) => s + (parseFloat(m.valor) || 0), 0)
-
-  const update = (i: number, field: keyof ServicoManual, value: string) =>
-    setServicosMan(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
-
-  const remove = (i: number) =>
-    setServicosMan(prev => prev.filter((_, idx) => idx !== i))
-
   return (
     <div className="space-y-4">
       {errors.servicos && (
@@ -1272,87 +1277,29 @@ function StepServicos({
           <AlertCircle size={11} />{errors.servicos}
         </p>
       )}
-
-      <div className="space-y-3">
-        {servicosMan.map((s, i) => (
-          <div
-            key={i}
-            className="p-3 rounded-xl space-y-2"
-            style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#5a6070' }}>
-                Serviço {i + 1}
-              </span>
-              {servicosMan.length > 1 && (
-                <button
-                  onClick={() => remove(i)}
-                  className="text-gray-600 hover:text-red-400 transition-colors"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-            <select
-              value={s.categoria}
-              onChange={e => update(i, 'categoria', e.target.value)}
-              className={inputCls}
-            >
-              {CATEGORIAS_SERVICO.map(c => <option key={c}>{c}</option>)}
-            </select>
-            <input
-              type="text"
-              placeholder="Descrição do serviço..."
-              value={s.descricao}
-              onChange={e => update(i, 'descricao', e.target.value)}
-              className={inputCls}
-            />
-            <div className="relative">
-              <span
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] select-none"
-                style={{ color: '#5a6070' }}
-              >
-                R$
-              </span>
-              <input
-                type="number"
-                min={0}
-                step={10}
-                placeholder="0"
-                value={s.valor}
-                onChange={e => update(i, 'valor', e.target.value)}
-                className={`${inputCls} pl-8`}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={() => setServicosMan(prev => [...prev, { categoria: 'PPF', descricao: '', valor: '' }])}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed text-sm font-medium transition-all hover:border-accent/40 hover:text-accent"
-        style={{ borderColor: 'rgba(255,255,255,0.12)', color: '#5a6070' }}
-      >
-        <Plus size={14} />
-        Adicionar serviço
-      </button>
-
-      {subtotal > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between px-4 py-3 rounded-xl"
-          style={{ backgroundColor: 'rgba(232,48,74,0.08)', border: '1px solid rgba(232,48,74,0.20)' }}
+      <div>
+        <label className="text-[11px] text-gray-500 block mb-1.5">Serviço</label>
+        <select
+          value={servicoSel}
+          onChange={e => setServicoSel(e.target.value)}
+          className={inputCls}
         >
-          <p className="text-xs" style={{ color: '#5a6070' }}>
-            {servicosMan.filter(s => parseFloat(s.valor) > 0).length} serviço(s)
-          </p>
-          <p className="text-sm font-bold" style={{ color: 'var(--wrap-accent)' }}>
-            {fmt(subtotal)}
-          </p>
-        </motion.div>
-      )}
-
+          <option value="">Selecionar serviço…</option>
+          {servicos.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="text-[11px] text-gray-500 block mb-1.5">Valor (R$)</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] select-none" style={{ color: '#5a6070' }}>R$</span>
+          <input
+            type="number" min={0} step={10} placeholder="0"
+            value={servicoValor}
+            onChange={e => setServicoValor(e.target.value)}
+            className={`${inputCls} pl-8`}
+          />
+        </div>
+      </div>
       <div>
         <label className="text-[11px] text-gray-500 block mb-1">Observações (opcional)</label>
         <textarea
@@ -1367,53 +1314,54 @@ function StepServicos({
   )
 }
 
-function StepAlocacao({
-  numeroBoxes, instaladores, boxSel, setBoxSel, instSel, setInstSel,
+function StepPeriodo({
+  instaladores, instSel, setInstSel,
+  mesmoDia, setMesmoDia, dataEntrada, setDataEntrada, dataSaida, setDataSaida,
 }: {
-  numeroBoxes: number
   instaladores: Instalador[]
-  boxSel: number; setBoxSel: (v: number) => void
   instSel: string; setInstSel: (v: string) => void
+  mesmoDia: boolean; setMesmoDia: (v: boolean) => void
+  dataEntrada: string; setDataEntrada: (v: string) => void
+  dataSaida: string; setDataSaida: (v: string) => void
 }) {
   return (
     <div className="space-y-4">
-      <div className="p-3 bg-surface-700/50 border border-ui-border/50 rounded-xl text-xs text-gray-500">
-        Esta etapa é totalmente opcional. A OS pode ser criada e alocada depois pelo Operacional.
-      </div>
+      {mesmoDia ? (
+        <div>
+          <label className="text-[11px] text-gray-500 block mb-1.5">Data de entrada</label>
+          <DateField value={dataEntrada} onChange={(iso) => { setDataEntrada(iso); setDataSaida(iso) }} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-[11px] text-gray-500 block mb-1.5">Entrada</label>
+            <DateField value={dataEntrada} onChange={(iso) => setDataEntrada(iso)} />
+          </div>
+          <div>
+            <label className="text-[11px] text-gray-500 block mb-1.5">Saída prevista</label>
+            <DateField value={dataSaida} min={dataEntrada} onChange={(iso) => setDataSaida(iso)} />
+          </div>
+        </div>
+      )}
 
-      <div>
-        <label className="text-[11px] text-gray-500 block mb-1.5">Box</label>
-        <select
-          value={boxSel}
-          onChange={e => setBoxSel(Number(e.target.value))}
-          className={`${inputCls} cursor-pointer`}
-        >
-          <option value={0}>— Selecionar box —</option>
-          {Array.from({ length: numeroBoxes }, (_, i) => i + 1).map(n => (
-            <option key={n} value={n}>Box {n}</option>
-          ))}
-        </select>
-      </div>
+      <button
+        type="button"
+        onClick={() => { const v = !mesmoDia; setMesmoDia(v); if (v) setDataSaida(dataEntrada) }}
+        className="flex items-center gap-2 text-sm font-medium transition-colors"
+        style={{ color: mesmoDia ? 'var(--wrap-accent)' : '#5a6070' }}
+      >
+        <span className="relative rounded-full transition-colors" style={{ height: 22, width: 40, background: mesmoDia ? 'var(--wrap-accent)' : 'var(--surface-500)' }}>
+          <span className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform" style={{ width: 18, height: 18, transform: mesmoDia ? 'translateX(18px)' : 'translateX(0)' }} />
+        </span>
+        Entra e sai no mesmo dia
+      </button>
 
       <div>
         <label className="text-[11px] text-gray-500 block mb-1.5">Responsável</label>
-        <select
-          value={instSel}
-          onChange={e => setInstSel(e.target.value)}
-          className={`${inputCls} cursor-pointer`}
-        >
+        <select value={instSel} onChange={e => setInstSel(e.target.value)} className={`${inputCls} cursor-pointer`}>
           <option value="">— Selecionar responsável —</option>
-          {instaladores.map(i => (
-            <option key={i.id} value={i.id}>{i.nome}</option>
-          ))}
+          {instaladores.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
         </select>
-      </div>
-
-      <div className="flex items-center gap-2 p-3 bg-amber-500/8 border border-amber-500/20 rounded-xl">
-        <Wrench size={13} className="text-amber-400 shrink-0" />
-        <p className="text-xs text-gray-400">
-          Se pular, a OS aparecerá em <span className="text-ui-text font-medium">Operacional › Aguardando Alocação</span> para ser alocada quando conveniente.
-        </p>
       </div>
     </div>
   )
@@ -1423,9 +1371,11 @@ function StepAlocacao({
 
 export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () => void }) {
   const {
-    clientes, veiculos, instaladores, configuracoes,
+    clientes, veiculos, instaladores, servicos,
     adicionarCliente, adicionarVeiculo, adicionarOS,
   } = useApp()
+
+  const hoje = new Date().toISOString().split('T')[0]
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const stepDir = useRef<1 | -1>(1)
@@ -1459,13 +1409,16 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
     }
   }, [placaData, veiculoSel])
 
-  // Step 3: Serviços (manual)
-  const [servicosMan, setServicosMan] = useState<ServicoManual[]>([{ categoria: 'PPF', descricao: '', valor: '' }])
+  // Step 3: Serviços
+  const [servicoSel, setServicoSel]   = useState('')
+  const [servicoValor, setServicoValor] = useState('')
   const [obsOS, setObsOS]             = useState('')
 
-  // Step 4: Alocação
-  const [boxSel, setBoxSel]   = useState(0)
-  const [instSel, setInstSel] = useState('')
+  // Step 4: Período
+  const [mesmoDia, setMesmoDia]         = useState(true)
+  const [dataEntrada, setDataEntrada]   = useState(hoje)
+  const [dataSaida, setDataSaida]       = useState(hoje)
+  const [instSel, setInstSel]           = useState('')
 
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -1476,8 +1429,10 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
     setPlacaRaw(''); setVeiculoSel(null)
     setNovaMarca(''); setNovoModelo(''); setNovoAno(new Date().getFullYear()); setNovaCor('')
     setShowExtras(false)
-    setServicosMan([{ categoria: 'PPF', descricao: '', valor: '' }]); setObsOS('')
-    setBoxSel(0); setInstSel('')
+    setServicoSel(''); setServicoValor(''); setObsOS('')
+    const today = new Date().toISOString().split('T')[0]
+    setMesmoDia(true); setDataEntrada(today); setDataSaida(today)
+    setInstSel('')
     setErrors({})
   }, [])
 
@@ -1520,8 +1475,8 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
       if (!novoModelo.trim()) errs.modelo = 'Modelo obrigatório.'
     }
     if (step === 3) {
-      const hasValid = servicosMan.some(s => parseFloat(s.valor) > 0)
-      if (!hasValid) errs.servicos = 'Informe ao menos um serviço com valor.'
+      if (!servicoSel) errs.servicos = 'Selecione um serviço.'
+      else if (!(parseFloat(servicoValor) > 0)) errs.servicos = 'Informe o valor cobrado.'
     }
 
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
@@ -1544,8 +1499,8 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   const confirmar = (overrideBox?: number, overrideInst?: string) => {
-    const finalBox  = overrideBox  !== undefined ? overrideBox  : boxSel
-    const finalInst = overrideInst !== undefined ? overrideInst : instSel
+    const finalBox  = overrideBox ?? 0
+    const finalInst = overrideInst ?? instSel
 
     // 1. Resolve clienteId
     let clienteId = clienteSel?.id ?? ''
@@ -1572,16 +1527,11 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
       })
     }
 
-    // 3. Build items from manual services
-    const itens = servicosMan
-      .filter(s => parseFloat(s.valor) > 0)
-      .map(s => ({
-        servicoId: '',
-        nome: s.descricao.trim() ? `${s.categoria} — ${s.descricao.trim()}` : s.categoria,
-        preco: parseFloat(s.valor),
-      }))
-
-    const valorTotal = itens.reduce((sum, item) => sum + item.preco, 0)
+    // 3. Build item from catalog service
+    const serv = servicos.find(s => s.id === servicoSel)
+    const valorNum = parseFloat(servicoValor) || 0
+    const itens = serv ? [{ servicoId: serv.id, nome: serv.nome, preco: valorNum }] : []
+    const valorTotal = valorNum
     const nomeCliente  = criando ? novoNome.trim() : (clienteSel?.nome ?? '')
     const labelVeiculo = veiculoSel
       ? `${veiculoSel.marca} ${veiculoSel.modelo}`
@@ -1597,13 +1547,15 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
       comissao: 0,
       observacoes: obsOS,
       status: 'em_andamento',
-    })
+      dataEntrada,
+      dataSaidaPrevista: mesmoDia ? dataEntrada : dataSaida,
+    } as Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>)
 
     toast.success(`OS #${numero} criada — ${nomeCliente} · ${labelVeiculo}`)
     onClose()
   }
 
-  const STEPS = ['Cliente', 'Veículo', 'Serviços', 'Alocação'] as const
+  const STEPS = ['Cliente', 'Veículo', 'Serviços', 'Período'] as const
 
   return (
     <AnimatePresence>
@@ -1731,21 +1683,27 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
                   )}
                   {step === 3 && (
                     <StepServicos
-                      servicosMan={servicosMan}
-                      setServicosMan={setServicosMan}
+                      servicos={servicos}
+                      servicoSel={servicoSel}
+                      setServicoSel={setServicoSel}
+                      servicoValor={servicoValor}
+                      setServicoValor={setServicoValor}
                       obsOS={obsOS}
                       setObsOS={setObsOS}
                       errors={errors}
                     />
                   )}
                   {step === 4 && (
-                    <StepAlocacao
-                      numeroBoxes={configuracoes.numeroBoxes}
+                    <StepPeriodo
                       instaladores={instaladores.filter(i => i.ativo)}
-                      boxSel={boxSel}
-                      setBoxSel={setBoxSel}
                       instSel={instSel}
                       setInstSel={setInstSel}
+                      mesmoDia={mesmoDia}
+                      setMesmoDia={setMesmoDia}
+                      dataEntrada={dataEntrada}
+                      setDataEntrada={setDataEntrada}
+                      dataSaida={dataSaida}
+                      setDataSaida={setDataSaida}
                     />
                   )}
                 </motion.div>
@@ -1762,14 +1720,6 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
               </button>
 
               <div className="flex items-center gap-2">
-                {step === 4 && (
-                  <button
-                    onClick={() => confirmar(0, '')}
-                    className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-gray-200 border border-ui-border hover:border-gray-500 transition-colors"
-                  >
-                    Pular — alocar depois
-                  </button>
-                )}
                 <button
                   onClick={step === 4 ? () => confirmar() : goNext}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent/90 transition-colors"
@@ -1785,6 +1735,122 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
         </motion.div>
       )}
     </AnimatePresence>
+  )
+}
+</file>
+
+<file path="src/components/DateField.tsx">
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { DayPicker } from 'react-day-picker'
+import { ptBR } from 'date-fns/locale'
+import { format, parse, isValid } from 'date-fns'
+import { Calendar as CalendarIcon } from 'lucide-react'
+import 'react-day-picker/dist/style.css'
+
+interface DateFieldProps {
+  value: string
+  onChange: (iso: string) => void
+  min?: string
+  placeholder?: string
+}
+
+const toDate = (iso: string): Date | undefined => {
+  if (!iso) return undefined
+  const d = parse(iso, 'yyyy-MM-dd', new Date())
+  return isValid(d) ? d : undefined
+}
+
+export function DateField({ value, onChange, min, placeholder = 'Selecione a data' }: DateFieldProps) {
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
+
+  const selected = toDate(value)
+  const minDate = min ? toDate(min) : undefined
+  const label = selected ? format(selected, 'dd/MM/yyyy') : placeholder
+
+  const POP_HEIGHT = 340
+  const POP_WIDTH = 300
+
+  const reposition = () => {
+    const btn = btnRef.current
+    if (!btn) return
+    const r = btn.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - r.bottom
+    const openUp = spaceBelow < POP_HEIGHT && r.top > spaceBelow
+    const top = openUp ? r.top - POP_HEIGHT - 6 : r.bottom + 6
+    let left = r.left
+    if (left + POP_WIDTH > window.innerWidth - 8) left = window.innerWidth - POP_WIDTH - 8
+    if (left < 8) left = 8
+    setCoords({ top, left, width: r.width })
+  }
+
+  useLayoutEffect(() => {
+    if (open) reposition()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (popRef.current && !popRef.current.contains(t) && btnRef.current && !btnRef.current.contains(t)) {
+        setOpen(false)
+      }
+    }
+    const onScrollResize = () => reposition()
+    document.addEventListener('mousedown', onDown)
+    window.addEventListener('resize', onScrollResize)
+    window.addEventListener('scroll', onScrollResize, true)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('resize', onScrollResize)
+      window.removeEventListener('scroll', onScrollResize, true)
+    }
+  }, [open])
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-left transition-colors hover:border-accent/40 focus:border-accent/50 outline-none"
+        style={{ color: selected ? 'var(--wrap-text, #f0f0f4)' : '#5a6070' }}
+      >
+        <span>{label}</span>
+        <CalendarIcon size={14} style={{ color: '#5a6070' }} />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={popRef}
+          className="rounded-xl shadow-2xl p-2 wrapos-daypicker"
+          style={{
+            position: 'fixed',
+            top: coords.top,
+            left: coords.left,
+            zIndex: 9999,
+            background: 'var(--wrap-surface)',
+            border: '1px solid var(--wrap-border2)',
+          }}
+        >
+          <DayPicker
+            mode="single"
+            locale={ptBR}
+            selected={selected}
+            defaultMonth={selected ?? new Date()}
+            disabled={minDate ? { before: minDate } : undefined}
+            onSelect={(d) => {
+              if (d) { onChange(format(d, 'yyyy-MM-dd')); setOpen(false) }
+            }}
+          />
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 </file>
@@ -1918,7 +1984,7 @@ interface MaterialEntry {
 }
 
 export function OSDrawer({
-  os, cliente, veiculo, instaladores, numeroBoxes, onClose, onConfirmarConcluir,
+  os, cliente, veiculo, instaladores, numeroBoxes: _numeroBoxes, onClose, onConfirmarConcluir,
 }: OSDrawerProps) {
   const { editarOS, produtos, lancamentos, deletarLancamento } = useApp()
 
@@ -2223,20 +2289,7 @@ export function OSDrawer({
                   Operacional
                 </p>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] mb-1.5" style={{ color: '#5a6070' }}>Box</label>
-                      <select
-                        value={form.box}
-                        onChange={e => setForm(p => ({ ...p, box: Number(e.target.value) }))}
-                        className={inputCls}
-                      >
-                        <option value={0}>Sem box</option>
-                        {Array.from({ length: numeroBoxes }, (_, i) => i + 1).map(n => (
-                          <option key={n} value={n}>Box {n}</option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className="grid grid-cols-1 gap-3">
                     <div>
                       <label className="block text-[11px] mb-1.5" style={{ color: '#5a6070' }}>Responsável</label>
                       <select
@@ -3818,10 +3871,42 @@ textarea {
   animation: shimmer 1.5s infinite linear;
   border-radius: 0.5rem;
 }
+
+/* ── DateField (react-day-picker) ─────────────────────────────── */
+.wrapos-daypicker .rdp {
+  --rdp-cell-size: 32px;
+  --rdp-accent-color: var(--wrap-accent);
+  --rdp-background-color: rgba(255,255,255,0.06);
+  margin: 0;
+  font-size: 13px;
+}
+.wrapos-daypicker .rdp-caption_label,
+.wrapos-daypicker .rdp-head_cell,
+.wrapos-daypicker .rdp-day {
+  color: var(--wrap-text, #f0f0f4);
+}
+.wrapos-daypicker .rdp-head_cell {
+  color: #5a6070;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.wrapos-daypicker .rdp-day_selected,
+.wrapos-daypicker .rdp-day_selected:hover {
+  background-color: var(--wrap-accent);
+  color: #fff;
+}
+.wrapos-daypicker .rdp-day_today {
+  color: var(--wrap-accent);
+  font-weight: 700;
+}
+.wrapos-daypicker .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
+  background-color: rgba(255,255,255,0.08);
+}
+.wrapos-daypicker .rdp-nav_button { color: var(--wrap-text, #f0f0f4); }
 </file>
 
 <file path="src/layouts/MainLayout.tsx">
-import { useState, useEffect, useRef, CSSProperties } from 'react'
+import { useState, useEffect, CSSProperties } from 'react'
 import { hexToRgb } from '../utils/colors'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -3829,32 +3914,39 @@ import {
   ClipboardList, Calendar, Users,
   DollarSign, Package, UserCheck, Settings,
   LogOut, Bell, Sun, Moon, ChevronLeft, ChevronRight, Car,
-  Search, Zap, AlertCircle,
+  Search, Zap, AlertCircle, MoreVertical, Plus,
 } from 'lucide-react'
 import { useApp }   from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CheckinRapido }    from '../components/CheckinRapido'
 import { SearchSpotlight }  from '../components/SearchSpotlight'
 
-// ── Mudança 1: hook de breakpoint mobile com Debounce ────────────
+// ── breakpoint com 3 faixas: mobile / tablet / desktop ──────────
+type Breakpoint = 'mobile' | 'tablet' | 'desktop'
 
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth < 768,
+function getBreakpoint(w: number): Breakpoint {
+  if (w < 768) return 'mobile'
+  if (w < 1024) return 'tablet'
+  return 'desktop'
+}
+
+function useBreakpoint(): Breakpoint {
+  const [bp, setBp] = useState<Breakpoint>(
+    () => (typeof window !== 'undefined' ? getBreakpoint(window.innerWidth) : 'desktop'),
   )
   useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout>;
+    let timeoutId: ReturnType<typeof setTimeout>
     const onResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => setIsMobile(window.innerWidth < 768), 150);
-    };
-    window.addEventListener('resize', onResize);
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => setBp(getBreakpoint(window.innerWidth)), 150)
+    }
+    window.addEventListener('resize', onResize)
     return () => {
-      window.removeEventListener('resize', onResize);
-      clearTimeout(timeoutId);
-    };
+      window.removeEventListener('resize', onResize)
+      clearTimeout(timeoutId)
+    }
   }, [])
-  return isMobile
+  return bp
 }
 
 // ── Nav structure ────────────────────────────────────────────────
@@ -3914,14 +4006,22 @@ const ROUTE_LABELS: Record<string, string> = {
   '/configuracoes': 'Configurações',
 }
 
-// ── Mudança 2: itens da bottom nav ───────────────────────────────
+// Bottom nav: 4 rotas + botão central de ação (Registrar Carro)
+const BOTTOM_NAV_LEFT: NavItem[] = [
+  { to: '/patio',       label: 'Pátio',  icon: Car,      end: true },
+  { to: '/agendamento', label: 'Agenda', icon: Calendar           },
+]
+const BOTTOM_NAV_RIGHT: NavItem[] = [
+  { to: '/estoque',       label: 'Estoque', icon: Package,  badgeKey: 'estoque' },
+  { to: '/configuracoes', label: 'Config',  icon: Settings              },
+]
 
-const BOTTOM_NAV: NavItem[] = [
-  { to: '/patio',         label: 'Pátio',   icon: Car,           end: true        },
-  { to: '/agendamento',   label: 'Agenda',  icon: Calendar                        },
-  { to: '/ordens',        label: 'OS',      icon: ClipboardList                   },
-  { to: '/estoque',       label: 'Estoque', icon: Package, badgeKey: 'estoque'    },
-  { to: '/configuracoes', label: 'Config',  icon: Settings                        },
+// Itens do menu "⋮" (features que não estão na bottom nav)
+const DRAWER_ITEMS: NavItem[] = [
+  { to: '/ordens',     label: 'Ordens de Serviço', icon: ClipboardList },
+  { to: '/clientes',   label: 'Clientes',          icon: Users         },
+  { to: '/financeiro', label: 'Financeiro',        icon: DollarSign    },
+  { to: '/equipe',     label: 'Equipe',            icon: UserCheck     },
 ]
 
 const handleLogout = () => {
@@ -3956,16 +4056,20 @@ export function MainLayout() {
   const location  = useLocation()
   const navigate  = useNavigate()
 
-  // ── Mudança 3: detectar mobile ───────────────────────────────
-  const isMobile = useIsMobile()
+  const breakpoint = useBreakpoint()
+  const isMobile  = breakpoint === 'mobile'
+  const isTablet  = breakpoint === 'tablet'
 
   const [collapsed,     setCollapsed]     = useState(() =>
     localStorage.getItem('wrapos_sidebar_collapsed') === 'true',
   )
+
+  // tablet: sidebar sempre colapsada (desktop reduzido)
+  const sidebarCollapsed = isTablet || collapsed
   const [checkinOpen,   setCheckinOpen]   = useState(false)
   const [bellOpen,      setBellOpen]      = useState(false)
   const [spotlightOpen, setSpotlightOpen] = useState(false)
-  const bellRef = useRef<HTMLDivElement>(null)
+  const [drawerOpen,    setDrawerOpen]    = useState(false)
 
   // ── Inject dynamic accent color ──────────────────────────────
   useEffect(() => {
@@ -3985,16 +4089,7 @@ export function MainLayout() {
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
-  // ── Close bell on outside click ───────────────────────────────
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
-        setBellOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [])
+  useEffect(() => { setDrawerOpen(false) }, [location.pathname])
 
   // ── Alerts ────────────────────────────────────────────────────
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -4045,7 +4140,7 @@ export function MainLayout() {
       {/* Mudança 4: sidebar só no desktop */}
       {!isMobile && (
         <aside
-          style={{ ...sidebarBg, width: collapsed ? 56 : 220 }}
+          style={{ ...sidebarBg, width: sidebarCollapsed ? 56 : 220 }}
           className="flex flex-col shrink-0 transition-[width] duration-200 ease-in-out overflow-hidden"
         >
           {/* Logo */}
@@ -4060,7 +4155,7 @@ export function MainLayout() {
             >
               <Car size={14} style={accentText} />
             </div>
-            {!collapsed && (
+            {!sidebarCollapsed && (
               <span className="flex items-baseline gap-0 font-display font-bold text-[17px] tracking-tight whitespace-nowrap">
                 <span style={wrapText}>Wrap</span>
                 <span style={accentText}>OS</span>
@@ -4072,7 +4167,7 @@ export function MainLayout() {
           <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2">
             {NAV_GROUPS.map((group, gi) => (
               <div key={gi} className={gi > 0 ? 'mt-3' : ''}>
-                {group.label && !collapsed && (
+                {group.label && !sidebarCollapsed && (
                   <p
                     className="px-3 py-1 text-[10px] font-semibold tracking-widest uppercase"
                     style={mutedText}
@@ -4080,7 +4175,7 @@ export function MainLayout() {
                     {group.label}
                   </p>
                 )}
-                {group.label && collapsed && <div className="my-1.5 mx-2.5 h-px" style={{ background: 'var(--wrap-border)' }} />}
+                {group.label && sidebarCollapsed && <div className="my-1.5 mx-2.5 h-px" style={{ background: 'var(--wrap-border)' }} />}
 
                 <div className="space-y-0.5 px-1.5">
                   {group.items.map(item => {
@@ -4090,14 +4185,14 @@ export function MainLayout() {
                         key={item.to}
                         to={item.to}
                         end={!!item.end}
-                        title={collapsed ? item.label : undefined}
+                        title={sidebarCollapsed ? item.label : undefined}
                         style={({ isActive }) =>
                           isActive ? activeItemStyle() : inactiveItemStyle()
                         }
                         className={({ isActive }) =>
                           [
                             'flex items-center py-1.5 text-[13px] font-medium transition-colors border-l-2 rounded-r-lg',
-                            collapsed ? 'justify-center px-0 w-full' : 'gap-2.5 px-2.5',
+                            sidebarCollapsed ? 'justify-center px-0 w-full' : 'gap-2.5 px-2.5',
                             isActive
                               ? ''
                               : 'hover:bg-[var(--wrap-surface2)] hover:text-[var(--wrap-text)] text-[var(--wrap-muted)]',
@@ -4105,7 +4200,7 @@ export function MainLayout() {
                         }
                       >
                         <item.icon size={15} className="shrink-0" />
-                        {!collapsed && (
+                        {!sidebarCollapsed && (
                           <>
                             <span className="truncate flex-1">{item.label}</span>
                             {badge > 0 && (
@@ -4115,7 +4210,7 @@ export function MainLayout() {
                             )}
                           </>
                         )}
-                        {collapsed && badge > 0 && (
+                        {sidebarCollapsed && badge > 0 && (
                           <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-red-500" />
                         )}
                       </NavLink>
@@ -4128,7 +4223,7 @@ export function MainLayout() {
 
           {/* Footer */}
           <div style={{ borderTop: '1px solid var(--wrap-border)' }}>
-            {!collapsed ? (
+            {!sidebarCollapsed ? (
               <div className="p-3 flex items-center gap-2">
                 <div
                   className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold"
@@ -4177,14 +4272,16 @@ export function MainLayout() {
             )}
 
             {/* Collapse toggle */}
-            <button
-              onClick={toggleCollapsed}
-              className="w-full flex items-center justify-center py-2 hover:bg-[var(--wrap-surface2)] transition-colors"
-              style={{ ...mutedText, borderTop: '1px solid var(--wrap-border)' }}
-              title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-            >
-              {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-            </button>
+            {!isTablet && (
+              <button
+                onClick={toggleCollapsed}
+                className="w-full flex items-center justify-center py-2 hover:bg-[var(--wrap-surface2)] transition-colors"
+                style={{ ...mutedText, borderTop: '1px solid var(--wrap-border)' }}
+                title={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
+              >
+                {sidebarCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+              </button>
+            )}
           </div>
         </aside>
       )}
@@ -4230,65 +4327,17 @@ export function MainLayout() {
               </button>
 
               {/* Bell */}
-              <div className="relative" ref={bellRef}>
-                <button
-                  onClick={() => setBellOpen(b => !b)}
-                  className="relative p-2 rounded-lg hover:bg-[var(--wrap-surface2)] transition-colors"
-                  style={mutedText}
-                  title="Alertas"
-                >
-                  <Bell size={16} />
-                  {totalAlertas > 0 && (
-                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
-                  )}
-                </button>
-
-                {/* Bell dropdown */}
-                <AnimatePresence>
-                  {bellOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                      transition={{ duration: 0.14 }}
-                      style={{ background: 'var(--wrap-surface)', border: '1px solid var(--wrap-border2)' }}
-                      className="absolute right-0 top-full mt-2 w-72 rounded-xl shadow-2xl z-50 overflow-hidden"
-                    >
-                      <div className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--wrap-border)' }}>
-                        <p className="text-[11px] font-semibold" style={wrapText}>Alertas do sistema</p>
-                      </div>
-                      {allAlerts.length === 0 ? (
-                        <div className="px-4 py-4 text-center">
-                          <p className="text-xs" style={mutedText}>Nenhum alerta ativo</p>
-                        </div>
-                      ) : (
-                        <div>
-                          {allAlerts.slice(0, 5).map(a => (
-                            <button
-                              key={a.id}
-                              onClick={() => { navigate(a.to); setBellOpen(false) }}
-                              className="w-full flex items-start gap-2.5 px-4 py-2.5 text-left hover:bg-[var(--wrap-surface2)] transition-colors"
-                              style={{ borderBottom: '1px solid var(--wrap-border)' }}
-                            >
-                              <AlertCircle size={13} className="text-amber-400 mt-0.5 shrink-0" />
-                              <p className="text-[12px]" style={wrapText}>{a.text}</p>
-                            </button>
-                          ))}
-                          {allAlerts.length > 5 && (
-                            <button
-                              onClick={() => { navigate('/'); setBellOpen(false) }}
-                              className="w-full px-4 py-2 text-center text-[11px] hover:bg-[var(--wrap-surface2)] transition-colors"
-                              style={accentText}
-                            >
-                              Ver todos os {allAlerts.length} alertas →
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <button
+                onClick={() => setBellOpen(b => !b)}
+                className="relative p-2 rounded-lg hover:bg-[var(--wrap-surface2)] transition-colors"
+                style={mutedText}
+                title="Alertas"
+              >
+                <Bell size={16} />
+                {totalAlertas > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+                )}
+              </button>
 
               {/* Theme toggle */}
               <button
@@ -4300,6 +4349,38 @@ export function MainLayout() {
                 {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
               </button>
             </div>
+          </header>
+        )}
+
+        {/* ─────────── TOPBAR MOBILE (só mobile) ─────────── */}
+        {isMobile && (
+          <header
+            style={topbarStyle}
+            className="flex items-center gap-2 px-3 shrink-0"
+          >
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="p-2 rounded-lg hover:bg-[var(--wrap-surface2)] transition-colors"
+              style={mutedText}
+              title="Mais opções"
+            >
+              <MoreVertical size={20} />
+            </button>
+            <span className="flex items-baseline gap-0 font-display font-bold text-[16px] tracking-tight">
+              <span style={wrapText}>Wrap</span>
+              <span style={accentText}>OS</span>
+            </span>
+            <button
+              onClick={() => setBellOpen(b => !b)}
+              className="relative p-2 rounded-lg hover:bg-[var(--wrap-surface2)] transition-colors ml-auto"
+              style={mutedText}
+              title="Alertas"
+            >
+              <Bell size={18} />
+              {totalAlertas > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+              )}
+            </button>
           </header>
         )}
 
@@ -4318,13 +4399,50 @@ export function MainLayout() {
           </motion.main>
         </AnimatePresence>
 
-        {/* Mudança 6: bottom nav (mobile only) */}
+        {/* Bottom nav (mobile) com botão central de ação */}
         {isMobile && (
           <nav
             style={{ background: 'var(--wrap-surface)', borderTop: '1px solid var(--wrap-border)' }}
-            className="flex items-stretch justify-around shrink-0"
+            className="flex items-stretch justify-around shrink-0 relative"
           >
-            {BOTTOM_NAV.map(item => {
+            {BOTTOM_NAV_LEFT.map(item => {
+              const badge = item.badgeKey ? (navBadges[item.to] ?? 0) : 0
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={!!item.end}
+                  className="relative flex flex-col items-center justify-center gap-0.5 flex-1 py-2 text-[10px] font-medium"
+                  style={({ isActive }) =>
+                    isActive
+                      ? { color: 'var(--wrap-accent)' }
+                      : { color: 'var(--wrap-muted)' }
+                  }
+                >
+                  <item.icon size={20} />
+                  <span>{item.label}</span>
+                  {badge > 0 && (
+                    <span className="absolute top-1 right-1/4 min-w-[15px] h-[15px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-1">
+                      {badge}
+                    </span>
+                  )}
+                </NavLink>
+              )
+            })}
+
+            {/* Botão central: Registrar Carro (Check-in) */}
+            <div className="flex-1 flex items-center justify-center">
+              <button
+                onClick={() => setCheckinOpen(true)}
+                className="flex items-center justify-center rounded-full shadow-lg -translate-y-3 text-white transition-transform active:scale-95"
+                style={{ background: 'var(--wrap-accent)', width: 52, height: 52 }}
+                title="Registrar carro"
+              >
+                <Plus size={26} />
+              </button>
+            </div>
+
+            {BOTTOM_NAV_RIGHT.map(item => {
               const badge = item.badgeKey ? (navBadges[item.to] ?? 0) : 0
               return (
                 <NavLink
@@ -4351,6 +4469,154 @@ export function MainLayout() {
           </nav>
         )}
       </div>
+
+      {/* ─────────── DRAWER MOBILE (menu ⋮) ─────────── */}
+      <AnimatePresence>
+        {drawerOpen && isMobile && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 z-40 bg-black/50"
+              onClick={() => setDrawerOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: 'tween', duration: 0.22, ease: 'easeOut' }}
+              style={sidebarBg}
+              className="fixed left-0 top-0 bottom-0 z-50 w-[260px] flex flex-col"
+            >
+              <div
+                className="flex items-center gap-2.5 px-4"
+                style={{ borderBottom: '1px solid var(--wrap-border)', minHeight: 52 }}
+              >
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'rgb(var(--wrap-accent-rgb) / 0.15)' }}
+                >
+                  <Car size={14} style={accentText} />
+                </div>
+                <span className="flex items-baseline gap-0 font-display font-bold text-[17px] tracking-tight">
+                  <span style={wrapText}>Wrap</span>
+                  <span style={accentText}>OS</span>
+                </span>
+              </div>
+              <nav className="flex-1 overflow-y-auto py-2 px-1.5 space-y-0.5">
+                {DRAWER_ITEMS.map(item => {
+                  const badge = item.badgeKey ? (navBadges[item.to] ?? 0) : 0
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={!!item.end}
+                      style={({ isActive }) =>
+                        isActive ? activeItemStyle() : inactiveItemStyle()
+                      }
+                      className={({ isActive }) =>
+                        [
+                          'flex items-center gap-2.5 px-2.5 py-2.5 text-[14px] font-medium transition-colors border-l-2 rounded-r-lg',
+                          isActive
+                            ? ''
+                            : 'hover:bg-[var(--wrap-surface2)] hover:text-[var(--wrap-text)] text-[var(--wrap-muted)]',
+                        ].join(' ')
+                      }
+                    >
+                      <item.icon size={17} className="shrink-0" />
+                      <span className="flex-1">{item.label}</span>
+                      {badge > 0 && (
+                        <span className="ml-auto min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-1">
+                          {badge}
+                        </span>
+                      )}
+                    </NavLink>
+                  )
+                })}
+              </nav>
+              <div style={{ borderTop: '1px solid var(--wrap-border)' }} className="p-3 flex items-center gap-2">
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold"
+                  style={{ background: 'rgb(var(--wrap-accent-rgb) / 0.18)', color: 'var(--wrap-accent)' }}
+                >
+                  {avatar}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold truncate" style={wrapText}>{configuracoes.nomeLoja}</p>
+                  <p className="text-[10px] truncate" style={mutedText}>{configuracoes.cidade}</p>
+                </div>
+                <button
+                  onClick={toggleTheme}
+                  className="p-1 rounded hover:bg-[var(--wrap-surface2)] transition-colors shrink-0"
+                  style={mutedText}
+                  title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+                >
+                  {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="p-1 rounded hover:bg-[var(--wrap-surface2)] transition-colors shrink-0"
+                  style={mutedText}
+                  title="Trocar perfil"
+                >
+                  <LogOut size={13} />
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ─────────── PAINEL DE ALERTAS (overlay único) ─────────── */}
+      <AnimatePresence>
+        {bellOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -6, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.97 }}
+              transition={{ duration: 0.14 }}
+              style={{ background: 'var(--wrap-surface)', border: '1px solid var(--wrap-border2)' }}
+              className="fixed z-50 right-3 top-14 w-[min(20rem,calc(100vw-1.5rem))] rounded-xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--wrap-border)' }}>
+                <p className="text-[11px] font-semibold" style={wrapText}>Alertas do sistema</p>
+              </div>
+              {allAlerts.length === 0 ? (
+                <div className="px-4 py-4 text-center">
+                  <p className="text-xs" style={mutedText}>Nenhum alerta ativo</p>
+                </div>
+              ) : (
+                <div>
+                  {allAlerts.slice(0, 5).map(a => (
+                    <button
+                      key={a.id}
+                      onClick={() => { navigate(a.to); setBellOpen(false) }}
+                      className="w-full flex items-start gap-2.5 px-4 py-2.5 text-left hover:bg-[var(--wrap-surface2)] transition-colors"
+                      style={{ borderBottom: '1px solid var(--wrap-border)' }}
+                    >
+                      <AlertCircle size={13} className="text-amber-400 mt-0.5 shrink-0" />
+                      <p className="text-[12px]" style={wrapText}>{a.text}</p>
+                    </button>
+                  ))}
+                  {allAlerts.length > 5 && (
+                    <button
+                      onClick={() => { navigate('/'); setBellOpen(false) }}
+                      className="w-full px-4 py-2 text-center text-[11px] hover:bg-[var(--wrap-surface2)] transition-colors"
+                      style={accentText}
+                    >
+                      Ver todos os {allAlerts.length} alertas →
+                    </button>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Check-in Rápido global */}
       <CheckinRapido open={checkinOpen} onClose={() => setCheckinOpen(false)} />
@@ -4391,12 +4657,12 @@ import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
 import { useApp } from '../context/AppContext'
+import { DateField } from '../components/DateField'
 import type { Agendamento, StatusAgendamento, BadgeVariant } from '../types'
 
 // ── Module-level constants ────────────────────────────────────────
 const todayISO = new Date().toISOString().slice(0, 10)
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-const DURACOES = [1, 2, 3, 4, 6, 8, 12, 16, 24]
 
 const statusConfig: Record<StatusAgendamento, { label: string; variant: BadgeVariant }> = {
   agendado:   { label: 'Agendado',   variant: 'info'    },
@@ -4425,33 +4691,33 @@ interface EditForm {
   veiculoId:    string
   servicoId:    string
   instaladorId: string
-  box:          number
+  valor:        string
   data:         string
   horario:      string
-  duracao:      number
+  dataSaida:    string
+  mesmoDia:     boolean
 }
 
 interface AgForm {
   clienteSearch: string
-  clienteId: string
-  veiculoId: string
-  servicoId: string
-  instaladorId: string
-  box: number
-  data: string
-  horario: string
-  duracao: number
+  clienteId:     string
+  veiculoId:     string
+  servicoId:     string
+  instaladorId:  string
+  valor:         string
+  data:          string
+  horario:       string
+  dataSaida:     string
+  mesmoDia:      boolean
 }
 
 // ── Component ─────────────────────────────────────────────────────
 export function Agendamento() {
   const navigate = useNavigate()
   const {
-    agendamentos, clientes, veiculos, servicos, instaladores, configuracoes,
+    agendamentos, clientes, veiculos, servicos, instaladores,
     adicionarAgendamento, editarAgendamento, deletarAgendamento, adicionarOS,
   } = useApp()
-
-  const boxes = Array.from({ length: configuracoes.numeroBoxes }, (_, i) => i + 1)
 
   // ── Week navigation ───────────────────────────────────────────
   const [semanaOffset, setSemanaOffset] = useState(0)
@@ -4539,11 +4805,12 @@ export function Agendamento() {
   }
 
   // ── Edit modal ───────────────────────────────────────────────
-  const [editOpen,    setEditOpen]    = useState(false)
-  const [editandoId,  setEditandoId]  = useState<string | null>(null)
-  const [editForm,    setEditForm]    = useState<EditForm>({
+  const [editOpen,   setEditOpen]   = useState(false)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [editForm,   setEditForm]   = useState<EditForm>({
     clienteId: '', veiculoId: '', servicoId: '', instaladorId: '',
-    box: 1, data: todayISO, horario: '09:00', duracao: 3,
+    valor: '', data: todayISO, horario: '09:00',
+    dataSaida: todayISO, mesmoDia: true,
   })
 
   const abrirEditar = (ag: Agendamento) => {
@@ -4553,10 +4820,11 @@ export function Agendamento() {
       veiculoId:    ag.veiculoId,
       servicoId:    ag.servicoId,
       instaladorId: ag.instaladorId,
-      box:          ag.box,
+      valor:        ag.valor != null ? String(ag.valor) : '',
       data:         ag.data,
       horario:      ag.horario,
-      duracao:      ag.duracao,
+      dataSaida:    ag.data,
+      mesmoDia:     true,
     })
     setEditOpen(true)
   }
@@ -4567,14 +4835,14 @@ export function Agendamento() {
     if (!editForm.horario) { toast.error('Informe o horário.'); return }
     const conflito = agendamentos.some(a =>
       a.id !== editandoId &&
-      a.box === editForm.box &&
       a.data === editForm.data &&
       a.horario === editForm.horario &&
       (a.status === 'agendado' || a.status === 'confirmado')
     )
-    if (conflito) { toast.error(`Conflito: Box ${editForm.box} já está ocupado neste horário.`); return }
-    editarAgendamento(editandoId, editForm)
-    if (detalhes?.id === editandoId) setDetalhes(prev => prev ? { ...prev, ...editForm } : null)
+    if (conflito) { toast.error('Conflito: já existe agendamento neste horário.'); return }
+    const payload = { ...editForm, duracao: 0, valor: parseFloat(editForm.valor) || 0 }
+    editarAgendamento(editandoId, payload)
+    if (detalhes?.id === editandoId) setDetalhes(prev => prev ? { ...prev, ...payload } : null)
     toast.success('Agendamento atualizado!')
     setEditOpen(false)
   }
@@ -4585,8 +4853,8 @@ export function Agendamento() {
     adicionarOS({
       clienteId:      ag.clienteId,
       veiculoId:      ag.veiculoId,
-      servicos:       servico ? [{ servicoId: ag.servicoId, nome: servico.nome, preco: servico.preco }] : [],
-      valorTotal:     servico?.preco ?? 0,
+      servicos:       servico ? [{ servicoId: ag.servicoId, nome: servico.nome, preco: servico.preco ?? 0 }] : [],
+      valorTotal:     ag.valor ?? servico?.preco ?? 0,
       formaPagamento: 'A definir',
       instaladorId:   ag.instaladorId,
       box:            ag.box,
@@ -4608,14 +4876,15 @@ export function Agendamento() {
 
   const makeInitForm = (): AgForm => ({
     clienteSearch: '',
-    clienteId: '',
-    veiculoId: '',
-    servicoId: servicos[0]?.id ?? '',
-    instaladorId: instaladores.find(i => i.ativo)?.id ?? '',
-    box: 1,
-    data: diaSelecionado,
-    horario: '09:00',
-    duracao: 3,
+    clienteId:     '',
+    veiculoId:     '',
+    servicoId:     servicos[0]?.id ?? '',
+    instaladorId:  instaladores.find(i => i.ativo)?.id ?? '',
+    valor:         '',
+    data:          diaSelecionado,
+    horario:       '09:00',
+    dataSaida:     diaSelecionado,
+    mesmoDia:      true,
   })
 
   const [form, setForm] = useState<AgForm>(makeInitForm)
@@ -4648,21 +4917,21 @@ export function Agendamento() {
     if (!form.data)      { toast.error('Informe a data.'); return }
     if (!form.horario)   { toast.error('Informe o horário.'); return }
     const conflito = agendamentos.some(a =>
-      a.box === form.box &&
       a.data === form.data &&
       a.horario === form.horario &&
       (a.status === 'agendado' || a.status === 'confirmado')
     )
-    if (conflito) { toast.error(`Conflito: Box ${form.box} já está ocupado neste horário.`); return }
+    if (conflito) { toast.error('Conflito: já existe agendamento neste horário.'); return }
     adicionarAgendamento({
       clienteId:    form.clienteId,
       veiculoId:    form.veiculoId,
       servicoId:    form.servicoId,
       instaladorId: form.instaladorId,
-      box:          form.box,
+      box:          1,
       data:         form.data,
       horario:      form.horario,
-      duracao:      form.duracao,
+      duracao:      0,
+      valor:        parseFloat(form.valor) || 0,
       status:       'agendado',
     })
     toast.success('Agendamento criado com sucesso!')
@@ -4678,13 +4947,13 @@ export function Agendamento() {
   const labelCls = 'block text-xs font-medium text-gray-400 mb-1.5'
 
   // ── Details modal computed ────────────────────────────────────
-  const detCliente    = detalhes ? clientes.find(c => c.id === detalhes.clienteId)    : null
-  const detVeiculo    = detalhes ? veiculos.find(v => v.id === detalhes.veiculoId)    : null
-  const detServico    = detalhes ? servicos.find(s => s.id === detalhes.servicoId)    : null
+  const detCliente    = detalhes ? clientes.find(c => c.id === detalhes.clienteId)       : null
+  const detVeiculo    = detalhes ? veiculos.find(v => v.id === detalhes.veiculoId)       : null
+  const detServico    = detalhes ? servicos.find(s => s.id === detalhes.servicoId)       : null
   const detInstalador = detalhes ? instaladores.find(i => i.id === detalhes.instaladorId) : null
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-5">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -4796,12 +5065,10 @@ export function Agendamento() {
                 <div className="flex items-start md:items-center gap-3 md:gap-4 w-full md:w-auto">
                   <div className="w-14 text-center shrink-0 pt-1 md:pt-0">
                     <p className="text-sm font-bold text-accent">{ag.horario}</p>
-                    <p className="text-[10px] text-gray-600 mt-0.5">{ag.duracao}h</p>
                   </div>
                   <div className="w-px h-10 bg-ui-border shrink-0 hidden md:block" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 md:hidden mb-1.5">
-                      <Badge label={`Box ${ag.box}`} variant="info" />
                       <Badge label={statusConfig[ag.status].label} variant={statusConfig[ag.status].variant} />
                     </div>
                     <p className="text-sm font-semibold text-ui-text">{getNomeCliente(ag.clienteId)}</p>
@@ -4816,7 +5083,6 @@ export function Agendamento() {
                     <p className="text-[11px] text-gray-600 mt-0.5">{getInstalador(ag.instaladorId)}</p>
                   </div>
                   <div className="hidden md:flex items-center gap-2">
-                    <Badge label={`Box ${ag.box}`} variant="info" />
                     <Badge label={statusConfig[ag.status].label} variant={statusConfig[ag.status].variant} />
                     <div
                       className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2"
@@ -4893,7 +5159,7 @@ export function Agendamento() {
             </div>
 
             {/* Info grid 2x2 */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="bg-surface-700 rounded-xl p-3.5">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Cliente</p>
                 <p className="text-sm font-semibold text-ui-text">{detCliente?.nome ?? '—'}</p>
@@ -4912,7 +5178,7 @@ export function Agendamento() {
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Serviço</p>
                 <p className="text-sm font-semibold text-ui-text">{detServico?.nome ?? '—'}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {detServico ? `${fmtCurrency(detServico.preco)} · ${detServico.tempEstimado}h estimadas` : ''}
+                  {detalhes.valor != null ? fmtCurrency(detalhes.valor) : '—'}
                 </p>
               </div>
               <div className="bg-surface-700 rounded-xl p-3.5">
@@ -4924,13 +5190,11 @@ export function Agendamento() {
               </div>
             </div>
 
-            {/* Data/Horário/Duração/Box row */}
-            <div className="grid grid-cols-4 gap-3">
+            {/* Data/Horário row */}
+            <div className="grid grid-cols-2 gap-3">
               {([
                 { label: 'Data',    value: new Date(detalhes.data + 'T12:00:00').toLocaleDateString('pt-BR') },
                 { label: 'Horário', value: detalhes.horario },
-                { label: 'Duração', value: `${detalhes.duracao}h` },
-                { label: 'Box',     value: `Box ${detalhes.box}` },
               ] as const).map(item => (
                 <div key={item.label} className="bg-surface-700 rounded-xl p-3 text-center">
                   <p className="text-[10px] text-gray-600 uppercase tracking-wider">{item.label}</p>
@@ -5037,7 +5301,7 @@ export function Agendamento() {
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
               <Wrench size={12} /> Serviço &amp; Responsável
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className={labelCls}>Serviço</label>
                 <select
@@ -5047,11 +5311,21 @@ export function Agendamento() {
                 >
                   <option value="">Nenhum</option>
                   {servicos.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.nome} — {fmtCurrency(s.preco)}
-                    </option>
+                    <option key={s.id} value={s.id}>{s.nome}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className={labelCls}>Valor (R$)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={10}
+                  value={form.valor}
+                  onChange={e => setForm(p => ({ ...p, valor: e.target.value }))}
+                  placeholder="0"
+                  className={inputCls}
+                />
               </div>
               <div>
                 <label className={labelCls}>Instalador</label>
@@ -5072,48 +5346,64 @@ export function Agendamento() {
           {/* ── Seção 3: Quando ── */}
           <section className="space-y-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-              <CalendarClock size={12} /> Data, Box &amp; Duração
+              <CalendarClock size={12} /> Data &amp; Horário
             </p>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className={labelCls}>Box</label>
-                <select
-                  value={form.box}
-                  onChange={e => setForm(p => ({ ...p, box: Number(e.target.value) }))}
-                  className={inputCls}
-                >
-                  {boxes.map(b => <option key={b} value={b}>Box {b}</option>)}
-                </select>
+            {form.mesmoDia ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Data <span className="text-accent">*</span></label>
+                  <DateField value={form.data} onChange={(iso) => setForm(p => ({ ...p, data: iso, dataSaida: iso }))} />
+                </div>
+                <div>
+                  <label className={labelCls}>Horário <span className="text-accent">*</span></label>
+                  <input
+                    type="time"
+                    value={form.horario}
+                    onChange={e => setForm(p => ({ ...p, horario: e.target.value }))}
+                    className={inputCls}
+                  />
+                </div>
               </div>
-              <div>
-                <label className={labelCls}>Data <span className="text-accent">*</span></label>
-                <input
-                  type="date"
-                  value={form.data}
-                  onChange={e => setForm(p => ({ ...p, data: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Horário <span className="text-accent">*</span></label>
-                <input
-                  type="time"
-                  value={form.horario}
-                  onChange={e => setForm(p => ({ ...p, horario: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelCls}>Duração estimada</label>
-              <select
-                value={form.duracao}
-                onChange={e => setForm(p => ({ ...p, duracao: Number(e.target.value) }))}
-                className={inputCls}
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Entrada <span className="text-accent">*</span></label>
+                    <DateField value={form.data} onChange={(iso) => setForm(p => ({ ...p, data: iso }))} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Saída prevista</label>
+                    <DateField value={form.dataSaida} min={form.data} onChange={(iso) => setForm(p => ({ ...p, dataSaida: iso }))} />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>Horário <span className="text-accent">*</span></label>
+                  <input
+                    type="time"
+                    value={form.horario}
+                    onChange={e => setForm(p => ({ ...p, horario: e.target.value }))}
+                    className={inputCls}
+                  />
+                </div>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setForm(p => ({ ...p, mesmoDia: !p.mesmoDia, dataSaida: !p.mesmoDia ? p.data : p.dataSaida }))}
+              className="flex items-center gap-2 text-sm font-medium transition-colors mt-1"
+              style={{ color: form.mesmoDia ? 'var(--wrap-accent)' : '#6b7280' }}
+            >
+              <span
+                className="relative rounded-full transition-colors"
+                style={{ height: 22, width: 40, background: form.mesmoDia ? 'var(--wrap-accent)' : 'var(--surface-500)' }}
               >
-                {DURACOES.map(d => <option key={d} value={d}>{d}h</option>)}
-              </select>
-            </div>
+                <span
+                  className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform"
+                  style={{ width: 18, height: 18, transform: form.mesmoDia ? 'translateX(18px)' : 'translateX(0)' }}
+                />
+              </span>
+              Entra e sai no mesmo dia
+            </button>
           </section>
 
           {/* Actions */}
@@ -5161,8 +5451,8 @@ export function Agendamento() {
             </div>
           )}
 
-          {/* Serviço + Instalador */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Serviço + Valor + Instalador */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className={labelCls}>Serviço</label>
               <select
@@ -5172,9 +5462,21 @@ export function Agendamento() {
               >
                 <option value="">Nenhum</option>
                 {servicos.map(s => (
-                  <option key={s.id} value={s.id}>{s.nome} — {fmtCurrency(s.preco)}</option>
+                  <option key={s.id} value={s.id}>{s.nome}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className={labelCls}>Valor (R$)</label>
+              <input
+                type="number"
+                min={0}
+                step={10}
+                value={editForm.valor}
+                onChange={e => setEditForm(p => ({ ...p, valor: e.target.value }))}
+                placeholder="0"
+                className={inputCls}
+              />
             </div>
             <div>
               <label className={labelCls}>Instalador</label>
@@ -5191,49 +5493,63 @@ export function Agendamento() {
             </div>
           </div>
 
-          {/* Box + Data + Horário */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={labelCls}>Box</label>
-              <select
-                value={editForm.box}
-                onChange={e => setEditForm(p => ({ ...p, box: Number(e.target.value) }))}
-                className={inputCls}
-              >
-                {boxes.map(b => <option key={b} value={b}>Box {b}</option>)}
-              </select>
+          {/* Data & Horário */}
+          {editForm.mesmoDia ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Data <span className="text-accent">*</span></label>
+                <DateField value={editForm.data} onChange={(iso) => setEditForm(p => ({ ...p, data: iso, dataSaida: iso }))} />
+              </div>
+              <div>
+                <label className={labelCls}>Horário <span className="text-accent">*</span></label>
+                <input
+                  type="time"
+                  value={editForm.horario}
+                  onChange={e => setEditForm(p => ({ ...p, horario: e.target.value }))}
+                  className={inputCls}
+                />
+              </div>
             </div>
-            <div>
-              <label className={labelCls}>Data <span className="text-accent">*</span></label>
-              <input
-                type="date"
-                value={editForm.data}
-                onChange={e => setEditForm(p => ({ ...p, data: e.target.value }))}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Horário <span className="text-accent">*</span></label>
-              <input
-                type="time"
-                value={editForm.horario}
-                onChange={e => setEditForm(p => ({ ...p, horario: e.target.value }))}
-                className={inputCls}
-              />
-            </div>
-          </div>
-
-          {/* Duração */}
-          <div>
-            <label className={labelCls}>Duração estimada</label>
-            <select
-              value={editForm.duracao}
-              onChange={e => setEditForm(p => ({ ...p, duracao: Number(e.target.value) }))}
-              className={inputCls}
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Entrada <span className="text-accent">*</span></label>
+                  <DateField value={editForm.data} onChange={(iso) => setEditForm(p => ({ ...p, data: iso }))} />
+                </div>
+                <div>
+                  <label className={labelCls}>Saída prevista</label>
+                  <DateField value={editForm.dataSaida} min={editForm.data} onChange={(iso) => setEditForm(p => ({ ...p, dataSaida: iso }))} />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Horário <span className="text-accent">*</span></label>
+                <input
+                  type="time"
+                  value={editForm.horario}
+                  onChange={e => setEditForm(p => ({ ...p, horario: e.target.value }))}
+                  className={inputCls}
+                />
+              </div>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setEditForm(p => ({ ...p, mesmoDia: !p.mesmoDia, dataSaida: !p.mesmoDia ? p.data : p.dataSaida }))}
+            className="flex items-center gap-2 text-sm font-medium transition-colors mt-1"
+            style={{ color: editForm.mesmoDia ? 'var(--wrap-accent)' : '#6b7280' }}
+          >
+            <span
+              className="relative rounded-full transition-colors"
+              style={{ height: 22, width: 40, background: editForm.mesmoDia ? 'var(--wrap-accent)' : 'var(--surface-500)' }}
             >
-              {DURACOES.map(d => <option key={d} value={d}>{d}h</option>)}
-            </select>
-          </div>
+              <span
+                className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform"
+                style={{ width: 18, height: 18, transform: editForm.mesmoDia ? 'translateX(18px)' : 'translateX(0)' }}
+              />
+            </span>
+            Entra e sai no mesmo dia
+          </button>
 
           <div className="flex justify-end gap-2 pt-1 border-t border-ui-border">
             <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancelar</Button>
@@ -6409,9 +6725,6 @@ import { useTheme } from '../context/ThemeContext'
 import type { Servico } from '../types'
 
 // ── Helpers ───────────────────────────────────────────────────────
-const fmtPreco = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
-
 const inferirCategoria = (nome: string): string => {
   const n = nome.toLowerCase()
   if (n.includes('ppf'))           return 'PPF'
@@ -6422,8 +6735,8 @@ const inferirCategoria = (nome: string): string => {
   return 'Outros'
 }
 
-interface ServicoForm { nome: string; preco: string; tempEstimado: string }
-const blankServico = (): ServicoForm => ({ nome: '', preco: '', tempEstimado: '' })
+interface ServicoForm { nome: string }
+const blankServico = (): ServicoForm => ({ nome: '' })
 
 // ── Types ─────────────────────────────────────────────────────────
 interface LojaForm {
@@ -6434,7 +6747,6 @@ interface LojaForm {
 }
 
 interface OpForm {
-  numeroBoxes:    string
   comissaoPadrao: string
   corPrimaria:    string
 }
@@ -6457,7 +6769,6 @@ export function Configuracoes() {
 
   // ── Operacional form ───────────────────────────────────────────
   const [op, setOp] = useState<OpForm>({
-    numeroBoxes:    String(configuracoes.numeroBoxes),
     comissaoPadrao: String(configuracoes.comissaoPadrao),
     corPrimaria:    configuracoes.corPrimaria,
   })
@@ -6482,7 +6793,7 @@ export function Configuracoes() {
 
   const handleSalvarOp = () => {
     atualizarConfiguracoes({
-      numeroBoxes:    Math.max(1, Math.min(10, parseInt(op.numeroBoxes) || 1)),
+      numeroBoxes:    configuracoes.numeroBoxes ?? 1,
       comissaoPadrao: Math.max(0, Math.min(100, parseFloat(op.comissaoPadrao) || 0)),
       corPrimaria:    op.corPrimaria,
     })
@@ -6500,20 +6811,17 @@ export function Configuracoes() {
 
   const abrirEditarServico = (s: Servico) => {
     setServEditId(s.id)
-    setServForm({ nome: s.nome, preco: String(s.preco), tempEstimado: String(s.tempEstimado) })
+    setServForm({ nome: s.nome })
     setServModalOpen(true)
   }
 
   const handleSalvarServico = () => {
     if (!servForm.nome.trim()) { toast.error('Nome é obrigatório.'); return }
-    const preco = parseFloat(servForm.preco)
-    if (!preco || preco <= 0) { toast.error('Informe um preço válido.'); return }
-    const tempEstimado = parseFloat(servForm.tempEstimado) || 0
     if (servEditId) {
-      editarServico(servEditId, { nome: servForm.nome.trim(), preco, tempEstimado })
+      editarServico(servEditId, { nome: servForm.nome.trim() })
       toast.success('Serviço atualizado!')
     } else {
-      adicionarServico({ nome: servForm.nome.trim(), preco, tempEstimado })
+      adicionarServico({ nome: servForm.nome.trim() })
       toast.success('Serviço adicionado!')
     }
     setServModalOpen(false)
@@ -6620,18 +6928,7 @@ export function Configuracoes() {
             <p className="text-[11px] text-gray-600">Capacidade da loja e configurações de comissão</p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Número de Boxes</label>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={op.numeroBoxes}
-              onChange={e => setOp(p => ({ ...p, numeroBoxes: e.target.value }))}
-              className={inputCls}
-            />
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Comissão Padrão (%)</label>
             <input
@@ -6725,9 +7022,7 @@ export function Configuracoes() {
                   <div key={s.id} className="group px-5 py-3 flex items-center gap-3 hover:bg-surface-600/30 border-b border-ui-border last:border-0 transition-colors">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-ui-text truncate">{s.nome}</p>
-                      <p className="text-[11px] text-gray-600 mt-0.5">{s.tempEstimado}h estimadas</p>
                     </div>
-                    <p className="text-sm font-bold text-emerald-400">{fmtPreco(s.preco)}</p>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button onClick={() => abrirEditarServico(s)} className="p-1.5 rounded-lg hover:bg-surface-500 text-gray-500 hover:text-ui-text transition-colors">
                         <Pencil size={13} />
@@ -6760,32 +7055,6 @@ export function Configuracoes() {
               placeholder="Ex: PPF Full Body"
               className={inputCls}
             />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Preço (R$) <span className="text-accent">*</span></label>
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={servForm.preco}
-                onChange={e => setServForm(p => ({ ...p, preco: e.target.value }))}
-                placeholder="0,00"
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Tempo (horas)</label>
-              <input
-                type="number"
-                min={0}
-                step={0.5}
-                value={servForm.tempEstimado}
-                onChange={e => setServForm(p => ({ ...p, tempEstimado: e.target.value }))}
-                placeholder="0"
-                className={inputCls}
-              />
-            </div>
           </div>
           <div className="flex justify-end gap-2 pt-1 border-t border-ui-border">
             <Button variant="secondary" onClick={() => { setServModalOpen(false); setServForm(blankServico()) }}>Cancelar</Button>
@@ -7383,7 +7652,7 @@ export function Estoque() {
   const labelCls = 'block text-xs font-medium text-gray-400 mb-1.5'
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="px-6 py-5 space-y-5 md:p-6">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -7511,13 +7780,16 @@ export function Estoque() {
         </div>
 
         {/* Visão Mobile */}
-        <div className="md:hidden flex flex-col divide-y divide-ui-border">
+        <div className="md:hidden flex flex-col gap-6 p-4">
           {filtrados.length === 0 ? (
             <div className="py-10 text-center text-gray-600 text-sm">Nenhum produto encontrado.</div>
           ) : filtrados.map((produto) => {
             const critico = produto.quantidade <= produto.minimo
             return (
-              <div key={produto.id} className="p-4 flex flex-col gap-3 hover:bg-surface-600/40 transition-colors">
+              <div
+                key={produto.id}
+                className="p-4 flex flex-col gap-3 rounded-xl border border-ui-border shadow-sm hover:bg-surface-600/40 transition-colors"
+              >
                 <div className="flex justify-between items-start w-full">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${critico ? 'bg-accent/10' : 'bg-surface-600'}`}>
@@ -8514,7 +8786,7 @@ import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   Plus, Search, Trash2, Check, X, PlayCircle, CheckCheck, PackageSearch,
-  Clock, DollarSign, Car, User, Wrench, MessageSquare, Edit2,
+  DollarSign, Car, User, Wrench, MessageSquare, Edit2,
   XCircle, Zap,
 } from 'lucide-react'
 import { Card } from '../components/Card'
@@ -8554,14 +8826,17 @@ const fmtDate = (d: string) =>
 
 type FiltroStatus = StatusOS | 'todos' | 'abertos'
 
+// ── Serviço selecionado ───────────────────────────────────────
+
+interface ServicoSelecionado { servicoId: string; valor: number }
+
 // ── Form state ────────────────────────────────────────────────
 
 interface FormState {
   clienteSearch: string
   clienteId: string
   veiculoId: string
-  servicosSel: string[]
-  valorOverride: number | null
+  servicosSel: ServicoSelecionado[]
   formaPagamento: string
   instaladorId: string
   box: number
@@ -8577,7 +8852,6 @@ const blankForm: FormState = {
   clienteId: '',
   veiculoId: '',
   servicosSel: [],
-  valorOverride: null,
   formaPagamento: 'PIX',
   instaladorId: '',
   box: 1,
@@ -8591,8 +8865,7 @@ const blankForm: FormState = {
 // ── Edit form state ───────────────────────────────────────────
 
 interface EditFormState {
-  servicosSel: string[]
-  valorManual: number
+  servicosSel: ServicoSelecionado[]
   formaPagamento: string
   instaladorId: string
   box: number
@@ -8621,12 +8894,9 @@ const selectCls = `${inputCls} cursor-pointer`
 export function OrdemServico() {
   const {
     ordens, clientes, veiculos, servicos, instaladores, produtos,
-    adicionarOS, editarOS, mudarStatusOS, deletarOS, concluirOS, cancelarOS, configuracoes,
+    adicionarOS, editarOS, mudarStatusOS, deletarOS, concluirOS, cancelarOS,
   } = useApp()
   const location = useLocation()
-
-  // Gerando os boxes dinamicamente baseados nas configurações da loja
-  const BOXES = Array.from({ length: configuracoes?.numeroBoxes || 6 }, (_, i) => i + 1);
 
   // ── UI state ─────────────────────────────────────────────────
   const [search, setSearch]                 = useState('')
@@ -8642,9 +8912,9 @@ export function OrdemServico() {
   const [checkinOpen, setCheckinOpen]       = useState(false)
 
   // ── Form state ────────────────────────────────────────────────
-  const [form, setForm]           = useState<FormState>(blankForm)
-  const [editForm, setEditForm]   = useState<EditFormState>({
-    servicosSel: [], valorManual: 0, formaPagamento: 'PIX', instaladorId: '', box: 1, observacoes: '',
+  const [form, setForm]         = useState<FormState>(blankForm)
+  const [editForm, setEditForm] = useState<EditFormState>({
+    servicosSel: [], formaPagamento: 'PIX', instaladorId: '', box: 1, observacoes: '',
   })
   const [dropdownOpen, setDropdown] = useState(false)
   const dropdownRef               = useRef<HTMLDivElement>(null)
@@ -8702,30 +8972,22 @@ export function OrdemServico() {
   }, {} as Record<StatusOS, number>)
 
   // ── Form derived ──────────────────────────────────────────────
-  const clientesFiltrados  = clientes.filter(c =>
+  const clientesFiltrados = clientes.filter(c =>
     c.nome.toLowerCase().includes(form.clienteSearch.toLowerCase()) ||
     c.cpf.includes(form.clienteSearch),
   )
-  const veiculosDoCliente  = veiculos.filter(v => v.clienteId === form.clienteId)
+  const veiculosDoCliente = veiculos.filter(v => v.clienteId === form.clienteId)
 
-  const valorAutoNova = form.servicosSel.reduce((sum, id) => {
-    return sum + (servicos.find(s => s.id === id)?.preco ?? 0)
-  }, 0)
-
-  const valorFinalNova = form.valorOverride !== null ? form.valorOverride : valorAutoNova
+  const valorTotalNova = form.servicosSel.reduce((sum, s) => sum + (s.valor || 0), 0)
 
   const comissaoValor = form.comissaoAtiva
     ? form.comissaoTipo === 'percentual'
-      ? +(valorFinalNova * form.comissaoPerc / 100).toFixed(2)
+      ? +(valorTotalNova * form.comissaoPerc / 100).toFixed(2)
       : form.comissaoFixo
     : 0
 
   // ── Edit form derived ─────────────────────────────────────────
-  const editValorAuto = editForm.servicosSel.reduce((sum, id) => {
-    const existing = editandoOS?.servicos.find(s => s.servicoId === id)
-    const preco    = existing?.preco ?? servicos.find(s => s.id === id)?.preco ?? 0
-    return sum + preco
-  }, 0)
+  const editValorTotal = editForm.servicosSel.reduce((sum, s) => sum + (s.valor || 0), 0)
 
   // ── Form handlers ─────────────────────────────────────────────
   const resetForm = () => { setForm({ ...blankForm, servicosSel: [] }); setDropdown(false) }
@@ -8736,21 +8998,32 @@ export function OrdemServico() {
   }
 
   const toggleServico = (id: string) =>
-    setForm(f => ({
-      ...f,
-      servicosSel: f.servicosSel.includes(id)
-        ? f.servicosSel.filter(x => x !== id)
-        : [...f.servicosSel, id],
-      valorOverride: null,
-    }))
+    setForm(f => {
+      const existe = f.servicosSel.some(s => s.servicoId === id)
+      return {
+        ...f,
+        servicosSel: existe
+          ? f.servicosSel.filter(s => s.servicoId !== id)
+          : [...f.servicosSel, { servicoId: id, valor: 0 }],
+      }
+    })
+
+  const setValorServico = (id: string, valor: number) =>
+    setForm(f => ({ ...f, servicosSel: f.servicosSel.map(s => s.servicoId === id ? { ...s, valor } : s) }))
 
   const toggleServicoEdit = (id: string) =>
-    setEditForm(f => ({
-      ...f,
-      servicosSel: f.servicosSel.includes(id)
-        ? f.servicosSel.filter(x => x !== id)
-        : [...f.servicosSel, id],
-    }))
+    setEditForm(f => {
+      const existe = f.servicosSel.some(s => s.servicoId === id)
+      return {
+        ...f,
+        servicosSel: existe
+          ? f.servicosSel.filter(s => s.servicoId !== id)
+          : [...f.servicosSel, { servicoId: id, valor: 0 }],
+      }
+    })
+
+  const setValorServicoEdit = (id: string, valor: number) =>
+    setEditForm(f => ({ ...f, servicosSel: f.servicosSel.map(s => s.servicoId === id ? { ...s, valor } : s) }))
 
   const handleInstaladorChange = (id: string) => {
     const padrao = instaladores.find(i => i.id === id)?.comissaoPadrao ?? 12
@@ -8760,15 +9033,16 @@ export function OrdemServico() {
   const handleSalvar = () => {
     if (!form.clienteId) { toast.error('Selecione um cliente.'); return }
     if (form.servicosSel.length === 0) { toast.error('Selecione ao menos um serviço.'); return }
+    if (!form.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return }
 
     adicionarOS({
       clienteId:      form.clienteId,
       veiculoId:      form.veiculoId,
-      servicos:       form.servicosSel.map(id => {
-        const s = servicos.find(x => x.id === id)!
-        return { servicoId: id, nome: s.nome, preco: s.preco }
+      servicos:       form.servicosSel.map(sel => {
+        const s = servicos.find(x => x.id === sel.servicoId)!
+        return { servicoId: sel.servicoId, nome: s.nome, preco: sel.valor }
       }),
-      valorTotal:     valorFinalNova,
+      valorTotal:     valorTotalNova,
       formaPagamento: form.formaPagamento,
       instaladorId:   form.instaladorId,
       box:            form.box,
@@ -8785,8 +9059,7 @@ export function OrdemServico() {
   const abrirEdicao = (os: OrdemServico) => {
     setEditandoOS(os)
     setEditForm({
-      servicosSel:    os.servicos.map(s => s.servicoId),
-      valorManual:    os.valorTotal,
+      servicosSel:    os.servicos.map(s => ({ servicoId: s.servicoId, valor: s.preco ?? 0 })),
       formaPagamento: os.formaPagamento,
       instaladorId:   os.instaladorId,
       box:            os.box,
@@ -8798,17 +9071,17 @@ export function OrdemServico() {
   const handleSalvarEdicao = () => {
     if (!editandoOS) return
     if (editForm.servicosSel.length === 0) { toast.error('Selecione ao menos um serviço.'); return }
+    if (!editForm.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return }
 
-    const servicosAtualizados = editForm.servicosSel.map(id => {
-      const existing = editandoOS.servicos.find(s => s.servicoId === id)
-      if (existing) return { ...existing }
-      const cat = servicos.find(s => s.id === id)!
-      return { servicoId: id, nome: cat.nome, preco: cat.preco }
+    const servicosAtualizados = editForm.servicosSel.map(sel => {
+      const cat = servicos.find(s => s.id === sel.servicoId)
+      const nomeExistente = editandoOS.servicos.find(s => s.servicoId === sel.servicoId)?.nome
+      return { servicoId: sel.servicoId, nome: nomeExistente ?? cat?.nome ?? 'Serviço', preco: sel.valor }
     })
 
     const updates = {
       servicos:       servicosAtualizados,
-      valorTotal:     editForm.valorManual,
+      valorTotal:     editValorTotal,
       formaPagamento: editForm.formaPagamento,
       instaladorId:   editForm.instaladorId,
       box:            editForm.box,
@@ -8868,10 +9141,10 @@ export function OrdemServico() {
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-5">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ui-text">Ordens de Serviço</h1>
           <p className="text-gray-500 text-xs mt-0.5">
@@ -8892,7 +9165,7 @@ export function OrdemServico() {
       </div>
 
       {/* Status cards (filtro clicável) */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {([
           { s: 'em_andamento',         label: 'Em Andamento',      color: 'text-amber-400',   ring: 'ring-amber-500/30'   },
           { s: 'aguardando_material',  label: 'Aguard. Material',  color: 'text-blue-400',    ring: 'ring-blue-500/30'    },
@@ -8946,7 +9219,7 @@ export function OrdemServico() {
             <p className="text-gray-600 text-xs mt-0.5">{filtered.length} encontradas</p>
           </div>
         </div>
-        
+
         {/* Visão Desktop: Tabela */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
@@ -9028,7 +9301,7 @@ export function OrdemServico() {
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
               <User size={12} /> Cliente &amp; Veículo
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
               {/* Busca de cliente com autocomplete */}
               <div className="relative" ref={dropdownRef}>
@@ -9110,49 +9383,48 @@ export function OrdemServico() {
               <Wrench size={12} /> Serviços<span className="text-accent">*</span>
             </p>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {servicos.map(s => {
-                const sel = form.servicosSel.includes(s.id)
+                const selObj = form.servicosSel.find(x => x.servicoId === s.id)
+                const sel = !!selObj
                 return (
-                  <button
+                  <div
                     key={s.id}
-                    type="button"
-                    onClick={() => toggleServico(s.id)}
-                    className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
-                      sel
-                        ? 'border-accent/60 bg-accent/8 ring-1 ring-accent/20'
-                        : 'border-ui-border bg-surface-700 hover:border-gray-500'
+                    className={`flex items-center justify-between gap-2 p-3 rounded-xl border transition-all ${
+                      sel ? 'border-accent/60 bg-accent/8 ring-1 ring-accent/20' : 'border-ui-border bg-surface-700 hover:border-gray-500'
                     }`}
                   >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-ui-text truncate">{s.nome}</p>
-                      <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
-                        <Clock size={10} />{s.tempEstimado}h estimado
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                      <span className={`text-sm font-bold ${sel ? 'text-accent' : 'text-gray-400'}`}>
-                        {fmt(s.preco)}
-                      </span>
-                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                        sel ? 'bg-accent border-accent' : 'border-gray-600'
-                      }`}>
+                    <button type="button" onClick={() => toggleServico(s.id)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all shrink-0 ${sel ? 'bg-accent border-accent' : 'border-gray-600'}`}>
                         {sel && <Check size={12} className="text-white" />}
                       </span>
-                    </div>
-                  </button>
+                      <span className="text-sm font-medium text-ui-text truncate">{s.nome}</span>
+                    </button>
+                    {sel && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[12px] text-gray-500">R$</span>
+                        <input
+                          type="number" min={0} step={10}
+                          value={selObj!.valor || ''}
+                          onChange={e => setValorServico(s.id, parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                          className="w-24 bg-surface-600 border border-ui-border rounded-lg px-2 py-1.5 text-sm text-right text-ui-text focus:border-accent/50 outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>
           </section>
 
-          {/* ── Seção 3: Pagamento, Instalador, Box ── */}
+          {/* ── Seção 3: Pagamento e Instalador ── */}
           <section className="space-y-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
               <DollarSign size={12} /> Financeiro &amp; Logística
             </p>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <FieldWrap>
                 <Label>Forma de Pagamento</Label>
                 <select
@@ -9174,19 +9446,6 @@ export function OrdemServico() {
                   <option value="">— Selecionar —</option>
                   {instaladores.filter(i => i.ativo).map(i => (
                     <option key={i.id} value={i.id}>{i.nome}</option>
-                  ))}
-                </select>
-              </FieldWrap>
-
-              <FieldWrap>
-                <Label>Box</Label>
-                <select
-                  value={form.box}
-                  onChange={e => setForm(f => ({ ...f, box: Number(e.target.value) }))}
-                  className={selectCls}
-                >
-                  {BOXES.map(n => (
-                    <option key={n} value={n}>Box {n}</option>
                   ))}
                 </select>
               </FieldWrap>
@@ -9245,7 +9504,7 @@ export function OrdemServico() {
                         onChange={e => setForm(f => ({ ...f, comissaoPerc: +e.target.value }))}
                         className="w-20 bg-surface-600 border border-ui-border rounded-lg px-3 py-1.5 text-sm text-ui-text text-center focus:border-accent/50 outline-none"
                       />
-                      <span className="text-sm text-gray-500">% sobre {fmt(valorFinalNova)}</span>
+                      <span className="text-sm text-gray-500">% sobre {fmt(valorTotalNova)}</span>
                       <span className="ml-auto text-sm font-bold text-ui-text">{fmt(comissaoValor)}</span>
                     </div>
                   ) : (
@@ -9282,34 +9541,11 @@ export function OrdemServico() {
           </section>
         </div>
 
-        {/* Footer fixo: valor editável + botões */}
+        {/* Footer fixo: total + botões */}
         <div className="pt-5 mt-5 border-t border-ui-border space-y-3">
-          {/* Valor editável */}
-          <div className="flex items-center gap-3 p-3 bg-surface-700 rounded-xl border border-ui-border">
-            <div className="flex-1">
-              <Label>Valor Final da OS</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  step={10}
-                  value={form.valorOverride !== null ? form.valorOverride : valorAutoNova}
-                  onChange={e => setForm(f => ({ ...f, valorOverride: +e.target.value }))}
-                  className="w-36 bg-surface-600 border border-ui-border rounded-lg px-3 py-1.5 text-sm font-bold text-ui-text focus:border-accent/50 outline-none"
-                />
-                {form.valorOverride !== null && (
-                  <button
-                    onClick={() => setForm(f => ({ ...f, valorOverride: null }))}
-                    className="text-[11px] text-accent hover:text-ui-text transition-colors"
-                  >
-                    Recalcular (auto: {fmt(valorAutoNova)})
-                  </button>
-                )}
-                {form.valorOverride === null && valorAutoNova > 0 && (
-                  <span className="text-[11px] text-gray-500">calculado automaticamente pelos serviços</span>
-                )}
-              </div>
-            </div>
+          <div className="flex items-center justify-between p-3 bg-surface-700 rounded-xl border border-ui-border">
+            <Label>Valor Total da OS</Label>
+            <span className="text-lg font-bold text-ui-text">{fmt(valorTotalNova)}</span>
           </div>
           <div className="flex items-center justify-end gap-3">
             <Button variant="secondary" onClick={() => { setNovaOSOpen(false); resetForm() }}>
@@ -9380,7 +9616,7 @@ export function OrdemServico() {
                 </div>
 
                 {/* Info */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
                     <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><User size={11} />Cliente</p>
                     <p className="text-sm font-semibold text-ui-text">{clienteNome(os.clienteId)}</p>
@@ -9391,7 +9627,7 @@ export function OrdemServico() {
                     {v && <p className="text-[11px] font-mono text-gray-500 mt-0.5">{v.placa} · {v.cor}</p>}
                   </div>
                   <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                    <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><Wrench size={11} />Instalador · Box {os.box}</p>
+                    <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><Wrench size={11} />Instalador</p>
                     <p className="text-sm font-semibold text-ui-text">{instNome(os.instaladorId)}</p>
                   </div>
                 </div>
@@ -9421,7 +9657,7 @@ export function OrdemServico() {
                 </div>
 
                 {/* Dados financeiros */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
                     <p className="text-[11px] text-gray-600 mb-1">Pagamento</p>
                     <p className="text-sm font-semibold text-ui-text">{os.formaPagamento}</p>
@@ -9473,39 +9709,36 @@ export function OrdemServico() {
               <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                 <Wrench size={12} /> Serviços<span className="text-accent">*</span>
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {servicos.map(s => {
-                  const sel = editForm.servicosSel.includes(s.id)
-                  const existingPreco = editandoOS.servicos.find(x => x.servicoId === s.id)?.preco
-                  const displayPreco = existingPreco ?? s.preco
+                  const selObj = editForm.servicosSel.find(x => x.servicoId === s.id)
+                  const sel = !!selObj
                   return (
-                    <button
+                    <div
                       key={s.id}
-                      type="button"
-                      onClick={() => toggleServicoEdit(s.id)}
-                      className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
-                        sel
-                          ? 'border-accent/60 bg-accent/8 ring-1 ring-accent/20'
-                          : 'border-ui-border bg-surface-700 hover:border-gray-500'
+                      className={`flex items-center justify-between gap-2 p-3 rounded-xl border transition-all ${
+                        sel ? 'border-accent/60 bg-accent/8 ring-1 ring-accent/20' : 'border-ui-border bg-surface-700 hover:border-gray-500'
                       }`}
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-ui-text truncate">{s.nome}</p>
-                        <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
-                          <Clock size={10} />{s.tempEstimado}h estimado
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                        <span className={`text-sm font-bold ${sel ? 'text-accent' : 'text-gray-400'}`}>
-                          {fmt(displayPreco)}
-                        </span>
-                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                          sel ? 'bg-accent border-accent' : 'border-gray-600'
-                        }`}>
+                      <button type="button" onClick={() => toggleServicoEdit(s.id)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all shrink-0 ${sel ? 'bg-accent border-accent' : 'border-gray-600'}`}>
                           {sel && <Check size={12} className="text-white" />}
                         </span>
-                      </div>
-                    </button>
+                        <span className="text-sm font-medium text-ui-text truncate">{s.nome}</span>
+                      </button>
+                      {sel && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-[12px] text-gray-500">R$</span>
+                          <input
+                            type="number" min={0} step={10}
+                            value={selObj!.valor || ''}
+                            onChange={e => setValorServicoEdit(s.id, parseFloat(e.target.value) || 0)}
+                            placeholder="0"
+                            className="w-24 bg-surface-600 border border-ui-border rounded-lg px-2 py-1.5 text-sm text-right text-ui-text focus:border-accent/50 outline-none"
+                          />
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -9516,7 +9749,7 @@ export function OrdemServico() {
               <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                 <DollarSign size={12} /> Financeiro &amp; Logística
               </p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FieldWrap>
                   <Label>Forma de Pagamento</Label>
                   <select
@@ -9541,40 +9774,12 @@ export function OrdemServico() {
                     ))}
                   </select>
                 </FieldWrap>
-
-                <FieldWrap>
-                  <Label>Box</Label>
-                  <select
-                    value={editForm.box}
-                    onChange={e => setEditForm(f => ({ ...f, box: Number(e.target.value) }))}
-                    className={selectCls}
-                  >
-                    {BOXES.map(n => (
-                      <option key={n} value={n}>Box {n}</option>
-                    ))}
-                  </select>
-                </FieldWrap>
               </div>
 
-              {/* Valor editável */}
-              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+              {/* Valor total */}
+              <div className="flex items-center justify-between p-3 bg-surface-700 rounded-xl border border-ui-border">
                 <Label>Valor Total da OS</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    min={0}
-                    step={10}
-                    value={editForm.valorManual}
-                    onChange={e => setEditForm(f => ({ ...f, valorManual: +e.target.value }))}
-                    className="w-36 bg-surface-600 border border-ui-border rounded-lg px-3 py-2 text-sm font-bold text-ui-text focus:border-accent/50 outline-none"
-                  />
-                  <button
-                    onClick={() => setEditForm(f => ({ ...f, valorManual: editValorAuto }))}
-                    className="text-[11px] text-accent hover:text-ui-text transition-colors"
-                  >
-                    Recalcular pelos serviços ({fmt(editValorAuto)})
-                  </button>
-                </div>
+                <span className="text-lg font-bold text-ui-text">{fmt(editValorTotal)}</span>
               </div>
             </section>
 
@@ -9697,7 +9902,7 @@ export function OrdemServico() {
 <file path="src/pages/Patio.tsx">
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Calendar, User, Wrench, TrendingUp, LayoutGrid, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Calendar, User, TrendingUp, LayoutGrid, AlertTriangle, CheckCircle2, Car } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
 import { BoxCard } from '../components/BoxCard'
@@ -9717,75 +9922,7 @@ function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function getWeekDays(): Date[] {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const dow = today.getDay()
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1))
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    return d
-  })
-}
-
-const DAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-
 const ACTIVE_STATUSES: StatusOS[] = ['em_andamento', 'aguardando_material', 'aguardando_aprovacao']
-
-// ── WeekStrip ────────────────────────────────────────────────────
-
-function WeekStrip({ agendamentoDates }: { agendamentoDates: Set<string> }) {
-  const days     = getWeekDays()
-  const todayStr = toDateStr(new Date())
-
-  return (
-    <div className="flex flex-wrap sm:flex-nowrap gap-2">
-      {days.map((day, i) => {
-        const dateStr = toDateStr(day)
-        const isToday = dateStr === todayStr
-        const hasAppt = agendamentoDates.has(dateStr)
-
-        return (
-          <div
-            key={dateStr}
-            className="flex-1 min-w-[40px] flex flex-col items-center py-2.5 rounded-xl"
-            style={{
-              backgroundColor: isToday
-                ? 'rgb(var(--wrap-accent-rgb) / 0.10)'
-                : 'rgba(255,255,255,0.025)',
-              border: isToday
-                ? '1px solid rgb(var(--wrap-accent-rgb) / 0.30)'
-                : '1px solid rgba(255,255,255,0.05)',
-            }}
-          >
-            <span
-              className="text-[10px] font-semibold uppercase tracking-wider mb-1"
-              style={{ color: isToday ? 'var(--wrap-accent)' : '#5a6070' }}
-            >
-              {DAY_LABELS[i]}
-            </span>
-            <span
-              className="text-[17px] font-bold leading-tight"
-              style={{ color: isToday ? 'var(--wrap-accent)' : '#f0f0f4' }}
-            >
-              {day.getDate()}
-            </span>
-            <span
-              className="mt-1.5 w-1.5 h-1.5 rounded-full"
-              style={{
-                backgroundColor: hasAppt
-                  ? (isToday ? 'var(--wrap-accent)' : '#4a5060')
-                  : 'transparent',
-              }}
-            />
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 // ── StatusBar ────────────────────────────────────────────────────
 
@@ -9818,38 +9955,10 @@ export function Patio() {
   const {
     ordens, clientes, veiculos, agendamentos, instaladores, servicos,
     lancamentos, configuracoes,
-    concluirOS, editarOS,
+    concluirOS,
   } = useApp()
 
   const todayStr = toDateStr(new Date())
-
-  // ── Maintenance state (persisted per profile) ─────────────────
-  const perfilId = sessionStorage.getItem('wrapos_perfil_ativo') ?? '_'
-  const manutKey = `wrapos_perfil_${perfilId}_boxes_manutencao`
-
-  const [boxesManutencao, setBoxesManutencao] = useState<number[]>(() => {
-    try {
-      const stored = localStorage.getItem(manutKey)
-      return stored ? (JSON.parse(stored) as number[]) : []
-    } catch { return [] }
-  })
-
-  useEffect(() => {
-    try { localStorage.setItem(manutKey, JSON.stringify(boxesManutencao)) } catch {}
-  }, [boxesManutencao, manutKey])
-
-  // Manutenção confirm modal
-  const [manutModal, setManutModal] = useState<number | null>(null)
-
-  const handleConfirmarManut = () => {
-    if (manutModal === null) return
-    setBoxesManutencao(prev =>
-      prev.includes(manutModal)
-        ? prev.filter(n => n !== manutModal)
-        : [...prev, manutModal]
-    )
-    setManutModal(null)
-  }
 
   // ── Live status refresh (atrasados counter) ───────────────────
   const [, forceUpdate] = useState(0)
@@ -9859,36 +9968,21 @@ export function Patio() {
   }, [])
 
   // ── Derived data ──────────────────────────────────────────────
-  const activeOS = ordens.filter(o => ACTIVE_STATUSES.includes(o.status) && o.box > 0)
+  // Carros no pátio = todas as OS ativas (sem distinção de box)
+  const carrosNoPatio = ordens
+    .filter(o => ACTIVE_STATUSES.includes(o.status))
+    .sort((a, b) => new Date(a.dataCriacao).getTime() - new Date(b.dataCriacao).getTime())
 
-  const aguardandoAlocacao = ordens.filter(o =>
-    ACTIVE_STATUSES.includes(o.status) && o.box === 0
-  )
-
-  const boxMap = new Map<number, OrdemServico>()
-  for (const os of activeOS) {
-    const cur = boxMap.get(os.box)
-    if (!cur || os.dataCriacao > cur.dataCriacao) boxMap.set(os.box, os)
-  }
-
-  const boxes         = Array.from({ length: configuracoes.numeroBoxes }, (_, i) => i + 1)
-  const occupiedCount = boxMap.size
-  const livresCount   = boxes.length - occupiedCount - boxesManutencao.length
+  const noPatioCount = carrosNoPatio.length
 
   const nowMs = Date.now()
-  const atrasadosCount = activeOS.filter(
+  const atrasadosCount = carrosNoPatio.filter(
     os => nowMs - new Date(os.dataCriacao).getTime() > 6 * 3_600_000
   ).length
 
   const faturamentoHoje = lancamentos
     .filter(l => l.tipo === 'entrada' && l.data === todayStr)
     .reduce((s, l) => s + l.valor, 0)
-
-  const agendamentoDates = new Set(
-    agendamentos
-      .filter(a => a.status !== 'concluido' && a.status !== 'cancelado')
-      .map(a => a.data)
-  )
 
   const todayAgendamentos = agendamentos
     .filter(a => a.data === todayStr && a.status !== 'concluido' && a.status !== 'cancelado')
@@ -9899,10 +9993,10 @@ export function Patio() {
   )
 
   // ── Lookups ───────────────────────────────────────────────────
-  const getCliente  = (id: string) => clientes.find(c => c.id === id) ?? null
-  const getVeiculo  = (id: string) => veiculos.find(v => v.id === id) ?? null
+  const getCliente    = (id: string) => clientes.find(c => c.id === id) ?? null
+  const getVeiculo    = (id: string) => veiculos.find(v => v.id === id) ?? null
   const getInstalador = (id: string) => instaladores.find(i => i.id === id) ?? null
-  const getServico  = (id: string) => servicos.find(s => s.id === id)
+  const getServico    = (id: string) => servicos.find(s => s.id === id)
 
   // ── Confirm concluir modal ────────────────────────────────────
   const [confirmOS, setConfirmOS]       = useState<OrdemServico | null>(null)
@@ -9934,33 +10028,15 @@ export function Patio() {
     }
   }, [ordens])
 
-  // ── Alocar modal state ────────────────────────────────────────
-  const [alocandoOS, setAlocandoOS] = useState<OrdemServico | null>(null)
-  const [alocBox,    setAlocBox]    = useState(0)
-  const [alocInst,   setAlocInst]   = useState('')
-
-  const abrirAlocar = (os: OrdemServico) => {
-    setAlocandoOS(os)
-    setAlocBox(0)
-    setAlocInst(os.instaladorId)
-  }
-
-  const confirmarAlocacao = () => {
-    if (!alocandoOS || alocBox === 0) { toast.error('Selecione um box.'); return }
-    editarOS(alocandoOS.id, { box: alocBox, instaladorId: alocInst })
-    toast.success('OS alocada com sucesso!')
-    setAlocandoOS(null)
-  }
-
   // ── Render ────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-6 min-h-full" style={{ backgroundColor: 'var(--wrap-bg)' }}>
+    <div className="p-4 md:p-6 space-y-6 min-h-full" style={{ backgroundColor: 'var(--wrap-bg)' }}>
 
       {/* ── Header + live indicator ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-ui-text font-display">Pátio Ao Vivo</h1>
-          <div className="flex items-center gap-2 mt-1">
+          <h1 className="text-lg sm:text-xl font-bold text-ui-text font-display leading-tight">Pátio Ao Vivo</h1>
+          <div className="flex items-center gap-1.5 mt-0.5">
             <span className="relative flex h-2 w-2">
               <span
                 className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
@@ -9971,106 +10047,51 @@ export function Patio() {
                 style={{ backgroundColor: '#34d399' }}
               />
             </span>
-            <span className="text-[13px] text-slate-500">
+            <span className="text-[12px] sm:text-[13px] text-slate-500">
               Atualizado em tempo real
             </span>
           </div>
+          <p className="text-[13px] mt-1.5 capitalize" style={{ color: 'var(--wrap-muted)' }}>
+            {new Date().toLocaleDateString('pt-BR', {
+              weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+            })}
+          </p>
         </div>
       </div>
 
-      {/* ── Status bar (Mobile Carrossel) ── */}
-      <div className="flex overflow-x-auto pb-2 -mx-6 px-6 gap-3 snap-x [&::-webkit-scrollbar]:hidden">
-        <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="No Pátio" value={occupiedCount} color="#f0f0f4" icon={LayoutGrid} /></div>
-        <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="Livres" value={livresCount < 0 ? 0 : livresCount} color="#34d399" icon={LayoutGrid} /></div>
+      {/* ── Status bar ── */}
+      <div className="hidden md:flex overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 gap-3 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:hidden">
+        <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="No Pátio" value={noPatioCount} color="#f0f0f4" icon={LayoutGrid} /></div>
         <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="Atrasados" value={atrasadosCount} color={atrasadosCount > 0 ? '#e8304a' : '#5a6070'} icon={AlertTriangle} /></div>
         <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Faturado" value={fmt(faturamentoHoje)} color="#34d399" icon={TrendingUp} /></div>
         <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Agenda" value={`${todayAgendamentos.length} hoje`} color={todayAgendamentos.length > 0 ? 'var(--wrap-accent)' : '#5a6070'} icon={Calendar} /></div>
       </div>
 
-      {/* ── Weekly calendar strip ── */}
-      <WeekStrip agendamentoDates={agendamentoDates} />
-
-      {/* ── Boxes grid ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {boxes.map(boxNum => {
-          const os = boxMap.get(boxNum) ?? null
-          return (
+      {/* ── Carros no pátio ── */}
+      {carrosNoPatio.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Car size={32} style={{ color: '#2a3040' }} />
+          <p className="mt-3 text-[14px] font-medium text-slate-400">Nenhum carro no pátio</p>
+          <p className="text-[12px] text-slate-600 mt-1">Use o Check-in para registrar a entrada de um veículo.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {carrosNoPatio.map(os => (
             <BoxCard
-              key={boxNum}
-              boxNum={boxNum}
+              key={os.id}
+              boxNum={0}
               os={os}
-              cliente={os ? getCliente(os.clienteId) : null}
-              veiculo={os ? getVeiculo(os.veiculoId) : null}
-              instalador={os ? getInstalador(os.instaladorId) : null}
-              leaving={leavingBoxId === os?.id}
+              cliente={getCliente(os.clienteId)}
+              veiculo={getVeiculo(os.veiculoId)}
+              instalador={getInstalador(os.instaladorId)}
+              leaving={leavingBoxId === os.id}
               onConcluir={() => setLeavingBoxId(null)}
               onConfirmarConcluir={handleOpenConfirm}
-              onOpenDrawer={os ? () => setDrawerOS(os) : undefined}
-              emManutencao={boxesManutencao.includes(boxNum)}
-              onToggleManutencao={() => setManutModal(boxNum)}
+              onOpenDrawer={() => setDrawerOS(os)}
             />
-          )
-        })}
-      </div>
-
-      {/* ── Aguardando alocação ── */}
-      <AnimatePresence>
-        {aguardandoAlocacao.length > 0 && (
-          <motion.section
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="space-y-3"
-          >
-            <h2 className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2 text-slate-500">
-              Aguardando Alocação
-              <span
-                className="px-1.5 py-0.5 rounded text-[11px] font-bold"
-                style={{ backgroundColor: 'rgba(232,48,74,0.14)', color: '#e8304a' }}
-              >
-                {aguardandoAlocacao.length}
-              </span>
-            </h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {aguardandoAlocacao.map(os => {
-                const cliente = getCliente(os.clienteId)
-                const veiculo = getVeiculo(os.veiculoId)
-                return (
-                  <div
-                    key={os.id}
-                    className="flex items-center justify-between rounded-xl px-4 py-3"
-                    style={{
-                      backgroundColor: 'rgba(232,48,74,0.05)',
-                      border: '1px solid rgba(232,48,74,0.18)',
-                    }}
-                  >
-                    <div className="min-w-0">
-                      <div className="text-[12px] font-semibold text-ui-text truncate">
-                        OS #{os.numero}
-                      </div>
-                      <div className="text-[11px] truncate text-slate-500">
-                        {cliente?.nome ?? '—'} · {veiculo?.modelo ?? '—'}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => abrirAlocar(os)}
-                      className="ml-3 shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-opacity hover:opacity-80"
-                      style={{
-                        backgroundColor: 'rgba(232,48,74,0.14)',
-                        color: '#e8304a',
-                        border: '1px solid rgba(232,48,74,0.28)',
-                      }}
-                    >
-                      Alocar
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </motion.section>
-        )}
-      </AnimatePresence>
+          ))}
+        </div>
+      )}
 
       {/* ── Concluídas hoje ── */}
       <AnimatePresence>
@@ -10092,7 +10113,7 @@ export function Patio() {
               </span>
             </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {concluidasHoje.map(os => {
                 const cliente = getCliente(os.clienteId)
                 const veiculo = getVeiculo(os.veiculoId)
@@ -10100,21 +10121,21 @@ export function Patio() {
                   <button
                     key={os.id}
                     onClick={() => setDrawerOS(os)}
-                    className="flex items-center justify-between rounded-xl px-4 py-3 text-left transition-opacity hover:opacity-80"
+                    className="flex min-h-12 items-center justify-between rounded-xl p-5 sm:px-4 sm:py-3 text-left transition-opacity hover:opacity-80 w-full"
                     style={{
                       backgroundColor: 'rgba(52,211,153,0.04)',
                       border: '1px solid rgba(52,211,153,0.15)',
                     }}
                   >
                     <div className="min-w-0">
-                      <div className="text-[12px] font-semibold text-ui-text truncate">
+                      <div className="text-[13px] sm:text-[12px] font-semibold text-ui-text truncate">
                         OS #{os.numero}
                       </div>
-                      <div className="text-[11px] truncate text-slate-500">
+                      <div className="text-[12px] sm:text-[11px] truncate text-slate-500 mt-0.5">
                         {cliente?.nome ?? '—'} · {veiculo?.modelo ?? '—'}
                       </div>
                     </div>
-                    <div className="ml-3 shrink-0 text-[11px] font-semibold" style={{ color: '#34d399' }}>
+                    <div className="ml-3 shrink-0 text-[12px] sm:text-[11px] font-semibold" style={{ color: '#34d399' }}>
                       {fmt(os.valorTotal)}
                     </div>
                   </button>
@@ -10210,7 +10231,7 @@ export function Patio() {
               </p>
             </div>
             <p className="text-[12px] text-slate-500">
-              Isso lançará o valor no financeiro e liberará o box.
+              Isso lançará o valor no financeiro e concluirá a OS.
             </p>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={() => setConfirmOS(null)} className="flex-1">
@@ -10218,102 +10239,11 @@ export function Patio() {
               </Button>
               <button
                 onClick={handleConfirmar}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold transition-opacity hover:opacity-90"
+                className="flex-1 flex min-h-12 sm:min-h-0 items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold transition-opacity hover:opacity-90"
                 style={{ backgroundColor: '#34d399', color: '#0a0c12' }}
               >
                 <CheckCircle2 size={14} />
                 Confirmar conclusão
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* ── Modal: Alocar OS ── */}
-      <Modal isOpen={alocandoOS !== null} onClose={() => setAlocandoOS(null)} title="Alocar OS" size="sm">
-        {alocandoOS && (
-          <div className="space-y-5">
-            <p className="text-[13px] text-slate-500">
-              OS #{alocandoOS.numero} —{' '}
-              <span className="text-ui-text font-medium">{getCliente(alocandoOS.clienteId)?.nome}</span>
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[12px] block mb-1.5 text-slate-500">Box</label>
-                <select
-                  value={alocBox}
-                  onChange={e => setAlocBox(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-lg text-[13px] outline-none bg-white/5 border border-white/10 text-ui-text"
-                >
-                  <option value={0}>Selecione um box…</option>
-                  {Array.from({ length: configuracoes.numeroBoxes }, (_, i) => i + 1).map(n => (
-                    <option key={n} value={n}>Box {n}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-[12px] block mb-1.5 text-slate-500">Técnico</label>
-                <select
-                  value={alocInst}
-                  onChange={e => setAlocInst(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-[13px] outline-none bg-white/5 border border-white/10 text-ui-text"
-                >
-                  <option value="">Sem técnico definido</option>
-                  {instaladores.filter(i => i.ativo).map(i => (
-                    <option key={i.id} value={i.id}>{i.nome}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <button
-              onClick={confirmarAlocacao}
-              className="w-full py-2.5 rounded-lg text-[13px] font-semibold transition-opacity hover:opacity-90"
-              style={{ backgroundColor: 'var(--wrap-accent)', color: 'white' }}
-            >
-              Confirmar Alocação
-            </button>
-          </div>
-        )}
-      </Modal>
-
-      {/* ── Modal: Manutenção ── */}
-      <Modal
-        isOpen={manutModal !== null}
-        onClose={() => setManutModal(null)}
-        title={
-          manutModal !== null && boxesManutencao.includes(manutModal)
-            ? `Liberar Box ${manutModal}`
-            : `Box ${manutModal} — Manutenção`
-        }
-        size="sm"
-      >
-        {manutModal !== null && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'rgba(255,107,53,0.08)', border: '1px solid rgba(255,107,53,0.20)' }}>
-              <Wrench size={16} className="text-[#ff6b35] shrink-0" />
-              <p className="text-[13px] text-ui-text">
-                {boxesManutencao.includes(manutModal)
-                  ? `Liberar Box ${manutModal} e marcar como disponível?`
-                  : `Colocar Box ${manutModal} em manutenção? O box ficará indisponível.`}
-              </p>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setManutModal(null)}>Cancelar</Button>
-              <button
-                onClick={handleConfirmarManut}
-                className="px-4 py-2 rounded-lg text-[13px] font-semibold transition-opacity hover:opacity-90"
-                style={{
-                  backgroundColor: boxesManutencao.includes(manutModal)
-                    ? 'rgba(52,211,153,0.15)'
-                    : 'rgba(255,107,53,0.15)',
-                  color: boxesManutencao.includes(manutModal) ? '#34d399' : '#ff6b35',
-                  border: boxesManutencao.includes(manutModal)
-                    ? '1px solid rgba(52,211,153,0.30)'
-                    : '1px solid rgba(255,107,53,0.30)',
-                }}
-              >
-                <Wrench size={13} className="inline mr-1.5" />
-                {boxesManutencao.includes(manutModal) ? 'Liberar Box' : 'Entrar em Manutenção'}
               </button>
             </div>
           </div>
@@ -11426,8 +11356,9 @@ export interface Veiculo {
 export interface Servico {
   id: string
   nome: string
-  preco: number
-  tempEstimado: number
+  preco?: number
+  tempEstimado?: number
+  duracaoDias?: number
 }
 
 export interface ItemOS {
@@ -11466,6 +11397,7 @@ export interface Agendamento {
   horario: string
   duracao: number
   status: StatusAgendamento
+  valor?: number
 }
 
 export interface Instalador {

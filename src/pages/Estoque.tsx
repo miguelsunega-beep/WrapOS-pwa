@@ -406,8 +406,8 @@ export function Estoque() {
           {CATEGORIAS_ROLO.includes(form.categoria) ? (
             <div className="space-y-3">
               <div
-                className="px-3.5 py-2.5 rounded-xl text-xs"
-                style={{ backgroundColor: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.18)', color: '#5a6070' }}
+                className="px-3.5 py-2.5 rounded-xl text-xs text-gray-500"
+                style={{ backgroundColor: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.18)' }}
               >
                 Para filmes vendidos por metro, informe a metragem e o custo total do rolo. O custo por metro é calculado automaticamente.
               </div>
@@ -442,7 +442,7 @@ export function Estoque() {
                   className="flex items-center justify-between px-3.5 py-2.5 rounded-xl"
                   style={{ backgroundColor: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.18)' }}
                 >
-                  <span className="text-xs" style={{ color: '#5a6070' }}>Custo por metro calculado</span>
+                  <span className="text-xs text-gray-500">Custo por metro calculado</span>
                   <span className="text-sm font-bold" style={{ color: '#34d399' }}>
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
                       parseFloat(form.valorRolo) / parseFloat(form.metragemRolo)

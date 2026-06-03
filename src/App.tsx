@@ -15,6 +15,7 @@ const Estoque       = lazy(() => import('./pages/Estoque').then(m => ({ default:
 const Equipe        = lazy(() => import('./pages/Equipe').then(m => ({ default: m.Equipe })))
 const Configuracoes = lazy(() => import('./pages/Configuracoes').then(m => ({ default: m.Configuracoes })))
 const Patio         = lazy(() => import('./pages/Patio').then(m => ({ default: m.Patio })))
+const Home          = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
 
 export default function App() {
   const [perfilAtivo, setPerfilAtivo] = useState<string | null>(null)
@@ -40,7 +41,7 @@ export default function App() {
             <Suspense fallback={<div className="flex h-screen items-center justify-center text-ui-text font-medium text-sm">Carregando módulo...</div>}>
               <Routes>
                 <Route path="/" element={<MainLayout />}>
-                  <Route index               element={<Navigate to="/patio" replace />} />
+                  <Route index               element={<Home />} />
                   <Route path="patio"        element={<Patio />}         />
                   <Route path="ordens"       element={<OrdemServico />}  />
                   <Route path="agendamento"  element={<Agendamento />}   />

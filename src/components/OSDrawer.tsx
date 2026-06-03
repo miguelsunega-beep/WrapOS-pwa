@@ -78,7 +78,7 @@ export function OSDrawer({
         formaPagamento: os.formaPagamento,
       })
       setMateriais(
-        os.materiaisUsados?.map(m => ({ produtoId: m.produtoId, metros: m.quantidade })) ?? []
+        os.materiaisUsados?.map(m => ({ produtoId: m.produtoId ?? '', metros: m.quantidade })) ?? []
       )
       setVoltarConfirm(false)
     }
@@ -93,7 +93,7 @@ export function OSDrawer({
       formaPagamento: form.formaPagamento,
       materiaisUsados: materiais
         .filter(m => m.metros > 0 && m.produtoId)
-        .map(m => ({ produtoId: m.produtoId, quantidade: m.metros })),
+        .map(m => ({ origem: 'estoque' as const, produtoId: m.produtoId, quantidade: m.metros })),
     })
   }
 
@@ -125,7 +125,7 @@ export function OSDrawer({
   }, 0)
 
   const inputCls =
-    'w-full px-3 py-2 rounded-lg text-[13px] outline-none transition-colors bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.10)] text-[#f0f0f4] placeholder-[#3a4050]'
+    'w-full px-3 py-2 rounded-lg text-[13px] outline-none transition-colors bg-surface-700 border border-ui-border text-ui-text placeholder-gray-600'
 
   return (
     <AnimatePresence>
@@ -138,23 +138,25 @@ export function OSDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-40"
-            style={{ backgroundColor: 'rgba(0,0,0,0.50)' }}
+            className="fixed inset-0 z-40 backdrop-blur-[2px]"
+            style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
           />
 
-          {/* Drawer panel */}
+          {/* Centered modal wrapper */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <motion.div
-            key="drawer"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', stiffness: 340, damping: 36 }}
-            className="fixed top-0 right-0 h-full z-50 flex flex-col"
+            key="editor"
+            initial={{ opacity: 0, scale: 0.97, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: 8 }}
+            transition={{ type: 'spring', stiffness: 340, damping: 32 }}
+            className="flex flex-col rounded-2xl overflow-hidden"
             style={{
-              width: 440,
+              width: 'min(70vw, 920px)',
+              height: 'min(70vh, 760px)',
               backgroundColor: 'var(--wrap-surface)',
-              borderLeft: '1px solid var(--wrap-border2)',
-              boxShadow: '-12px 0 40px rgba(0,0,0,0.45)',
+              border: '1px solid var(--wrap-border2)',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
             }}
           >
             {/* Inline confirm overlay for "Voltar ao pátio" */}
@@ -164,15 +166,14 @@ export function OSDrawer({
                   className="rounded-xl p-5 space-y-4 w-full"
                   style={{ backgroundColor: 'var(--wrap-surface)', border: '1px solid var(--wrap-border2)' }}
                 >
-                  <p className="text-[14px] font-bold text-white">Voltar OS ao pátio?</p>
-                  <p className="text-[12px]" style={{ color: '#5a6070' }}>
+                  <p className="text-[14px] font-bold text-ui-text">Voltar OS ao pátio?</p>
+                  <p className="text-[12px] text-gray-500">
                     O lançamento financeiro vinculado será removido e a OS retornará ao status "Em Andamento".
                   </p>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setVoltarConfirm(false)}
-                      className="flex-1 py-2.5 rounded-lg text-[12px] font-semibold"
-                      style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: '#f0f0f4', border: '1px solid rgba(255,255,255,0.10)' }}
+                      className="flex-1 py-2.5 rounded-lg text-[12px] font-semibold bg-surface-600 text-ui-text border border-ui-border"
                     >
                       Cancelar
                     </button>
@@ -194,7 +195,7 @@ export function OSDrawer({
               style={{ borderBottom: '1px solid var(--wrap-border)' }}
             >
               <div className="flex items-center gap-3">
-                <span className="text-[17px] font-bold text-white font-display">
+                <span className="text-[17px] font-bold text-ui-text font-display">
                   OS #{os.numero}
                 </span>
                 <span
@@ -211,7 +212,7 @@ export function OSDrawer({
                 onClick={onClose}
                 title="Fechar (só fecha com X)"
                 className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.07)] transition-colors"
-                style={{ color: '#5a6070' }}
+                style={{ color: 'var(--wrap-muted)' }}
               >
                 <X size={16} />
               </button>
@@ -222,26 +223,23 @@ export function OSDrawer({
 
               {/* Veículo & Cliente */}
               <section>
-                <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#5a6070' }}>
+                <p className="text-[10px] font-semibold uppercase tracking-widest mb-3 text-gray-500">
                   Veículo &amp; Cliente
                 </p>
-                <div
-                  className="p-4 rounded-xl space-y-2"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)' }}
-                >
-                  <p className="text-[14px] font-semibold text-white">{cliente?.nome ?? '—'}</p>
+                <div className="p-4 rounded-xl space-y-2 bg-surface-700 border border-ui-border">
+                  <p className="text-[14px] font-semibold text-ui-text">{cliente?.nome ?? '—'}</p>
                   {cliente?.telefone && (
-                    <p className="text-[12px]" style={{ color: '#5a6070' }}>{cliente.telefone}</p>
+                    <p className="text-[12px] text-gray-500">{cliente.telefone}</p>
                   )}
                   {veiculo && (
-                    <p className="text-[12px]" style={{ color: '#7a8898' }}>
+                    <p className="text-[12px] text-gray-400">
                       {veiculo.marca} {veiculo.modelo} {veiculo.ano}
                       {veiculo.cor ? ` · ${veiculo.cor}` : ''}
                       {veiculo.placa ? ` · ` : ''}
                       {veiculo.placa && <span className="font-mono">{veiculo.placa}</span>}
                     </p>
                   )}
-                  <p className="text-[11px]" style={{ color: '#3a4050' }}>
+                  <p className="text-[11px] text-gray-600">
                     Aberta em {fmtDate(os.dataCriacao)}
                   </p>
                 </div>
@@ -249,29 +247,27 @@ export function OSDrawer({
 
               {/* Serviços */}
               <section>
-                <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#5a6070' }}>
+                <p className="text-[10px] font-semibold uppercase tracking-widest mb-3 text-gray-500">
                   Serviços
                 </p>
                 <div className="space-y-1.5">
                   {os.servicos.map((s, i) => (
                     <div
                       key={i}
-                      className="flex items-center justify-between px-3.5 py-2.5 rounded-lg"
-                      style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.09)' }}
+                      className="flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-surface-600 border border-ui-border"
                     >
-                      <span className="text-[13px] text-white">{s.nome}</span>
+                      <span className="text-[13px] text-ui-text">{s.nome}</span>
                       <span className="text-[13px] font-semibold" style={{ color: '#34d399' }}>
                         {fmt(s.preco)}
                       </span>
                     </div>
                   ))}
                   <div
-                    className="flex items-center justify-between px-3.5 py-2.5 mt-1"
-                    style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}
+                    className="flex items-center justify-between px-3.5 py-2.5 mt-1 border-t border-ui-border"
                   >
-                    <span className="text-[12px] font-medium" style={{ color: '#5a6070' }}>Total</span>
+                    <span className="text-[12px] font-medium text-gray-500">Total</span>
                     <span
-                      className="text-[16px] font-bold text-white"
+                      className="text-[16px] font-bold text-ui-text"
                       style={{ color: custoMateriais > os.valorTotal ? '#e8304a' : undefined }}
                     >{fmt(os.valorTotal)}</span>
                   </div>
@@ -282,7 +278,7 @@ export function OSDrawer({
               {produtosRolo.length > 0 && (
                 <section>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#5a6070' }}>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">
                       Materiais Utilizados
                     </p>
                     {custoMateriais > 0 && (
@@ -298,17 +294,16 @@ export function OSDrawer({
                       return (
                         <div
                           key={i}
-                          className="flex items-center gap-2 p-2.5 rounded-lg"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                          className="flex items-center gap-2 p-2.5 rounded-lg bg-surface-700 border border-ui-border"
                         >
-                          <Package size={13} style={{ color: '#5a6070' }} className="shrink-0" />
+                          <Package size={13} className="text-gray-500 shrink-0" />
                           <select
                             value={m.produtoId}
                             onChange={e => updateMaterial(i, 'produtoId', e.target.value)}
-                            className="flex-1 min-w-0 bg-transparent outline-none text-[12px] text-[#f0f0f4]"
+                            className="flex-1 min-w-0 bg-transparent outline-none text-[12px] text-ui-text"
                           >
                             {produtosRolo.map(p => (
-                              <option key={p.id} value={p.id} style={{ backgroundColor: '#13161e' }}>
+                              <option className="bg-surface-700 text-ui-text" key={p.id} value={p.id}>
                                 {p.nome}
                               </option>
                             ))}
@@ -321,9 +316,9 @@ export function OSDrawer({
                               value={m.metros || ''}
                               onChange={e => updateMaterial(i, 'metros', parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="w-14 bg-transparent outline-none text-[12px] text-[#f0f0f4] text-right"
+                              className="w-14 bg-transparent outline-none text-[12px] text-ui-text text-right"
                             />
-                            <span className="text-[11px]" style={{ color: '#5a6070' }}>m</span>
+                            <span className="text-[11px] text-gray-500">m</span>
                           </div>
                           {custo > 0 && (
                             <span className="text-[11px] font-semibold shrink-0" style={{ color: '#ff6b35' }}>
@@ -341,11 +336,7 @@ export function OSDrawer({
                     })}
                     <button
                       onClick={addMaterial}
-                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-medium transition-colors hover:text-white"
-                      style={{
-                        border: '1px dashed rgba(255,255,255,0.12)',
-                        color: '#5a6070',
-                      }}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-medium transition-colors text-gray-500 hover:text-ui-text border border-dashed border-ui-border"
                     >
                       <Plus size={12} />
                       Adicionar material
@@ -356,28 +347,28 @@ export function OSDrawer({
 
               {/* Operacional — form */}
               <section>
-                <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#5a6070' }}>
+                <p className="text-[10px] font-semibold uppercase tracking-widest mb-3 text-gray-500">
                   Operacional
                 </p>
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 gap-3">
                     <div>
-                      <label className="block text-[11px] mb-1.5" style={{ color: '#5a6070' }}>Responsável</label>
+                      <label className="block text-[11px] mb-1.5 text-gray-500">Responsável</label>
                       <select
                         value={form.instaladorId}
                         onChange={e => setForm(p => ({ ...p, instaladorId: e.target.value }))}
                         className={inputCls}
                       >
-                        <option value="">Não definido</option>
+                        <option className="bg-surface-700 text-ui-text" value="">Não definido</option>
                         {instaladores.filter(i => i.ativo).map(i => (
-                          <option key={i.id} value={i.id}>{i.nome.split(' ')[0]}</option>
+                          <option className="bg-surface-700 text-ui-text" key={i.id} value={i.id}>{i.nome.split(' ')[0]}</option>
                         ))}
                       </select>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] mb-1.5" style={{ color: '#5a6070' }}>
+                    <label className="block text-[11px] mb-1.5 text-gray-500">
                       Forma de Pagamento
                     </label>
                     <select
@@ -385,13 +376,13 @@ export function OSDrawer({
                       onChange={e => setForm(p => ({ ...p, formaPagamento: e.target.value }))}
                       className={inputCls}
                     >
-                      <option value="">Não definida</option>
-                      {FORMAS_PAGAMENTO.map(f => <option key={f}>{f}</option>)}
+                      <option className="bg-surface-700 text-ui-text" value="">Não definida</option>
+                      {FORMAS_PAGAMENTO.map(f => <option className="bg-surface-700 text-ui-text" key={f}>{f}</option>)}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] mb-1.5" style={{ color: '#5a6070' }}>
+                    <label className="block text-[11px] mb-1.5 text-gray-500">
                       Descrição do serviço
                     </label>
                     <textarea
@@ -442,24 +433,14 @@ export function OSDrawer({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleSalvar}
-                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-semibold transition-colors hover:bg-[rgba(255,255,255,0.09)]"
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.06)',
-                    color: '#f0f0f4',
-                    border: '1px solid rgba(255,255,255,0.10)',
-                  }}
+                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-semibold transition-colors bg-surface-600 text-ui-text border border-ui-border hover:bg-surface-500"
                 >
                   <Save size={13} />
                   Salvar
                 </button>
                 <button
                   onClick={() => window.print()}
-                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-semibold transition-colors hover:bg-[rgba(255,255,255,0.09)]"
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.06)',
-                    color: '#f0f0f4',
-                    border: '1px solid rgba(255,255,255,0.10)',
-                  }}
+                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-semibold transition-colors bg-surface-600 text-ui-text border border-ui-border hover:bg-surface-500"
                 >
                   <Printer size={13} />
                   Imprimir
@@ -467,6 +448,7 @@ export function OSDrawer({
               </div>
             </div>
           </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>

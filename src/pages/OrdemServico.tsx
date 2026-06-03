@@ -13,7 +13,7 @@ import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
 import { CheckinRapido } from '../components/CheckinRapido'
 import { useApp } from '../context/AppContext'
-import type { StatusOS, BadgeVariant, OrdemServico } from '../types'
+import type { StatusOS, BadgeVariant, OrdemServico, MaterialUsado } from '../types'
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -31,6 +31,16 @@ const STATUS_ORDER: StatusOS[] = [
 
 const FORMAS_PAGAMENTO = [
   'PIX', 'Dinheiro', 'Cartão de Débito', 'Cartão de Crédito', 'Parcelado',
+]
+
+const CORES_VEICULO_OS: { nome: string; hex: string }[] = [
+  { nome: 'Preto', hex: '#1a1a1a' }, { nome: 'Branco', hex: '#e5e5e5' },
+  { nome: 'Prata', hex: '#c4c8cc' }, { nome: 'Cinza', hex: '#6b7280' },
+  { nome: 'Vermelho', hex: '#c0392b' }, { nome: 'Azul', hex: '#2563eb' },
+  { nome: 'Verde', hex: '#16a34a' }, { nome: 'Amarelo', hex: '#eab308' },
+  { nome: 'Laranja', hex: '#ea580c' }, { nome: 'Marrom', hex: '#78350f' },
+  { nome: 'Bege', hex: '#d6c7a1' }, { nome: 'Dourado', hex: '#c8a44d' },
+  { nome: 'Vinho', hex: '#7b1e3a' }, { nome: 'Grafite', hex: '#3a3f44' },
 ]
 
 const fmt = (v: number) =>
@@ -112,6 +122,7 @@ export function OrdemServico() {
   const {
     ordens, clientes, veiculos, servicos, instaladores, produtos,
     adicionarOS, editarOS, mudarStatusOS, deletarOS, concluirOS, cancelarOS,
+    adicionarCliente, adicionarVeiculo, registrarPagamentoOS,
   } = useApp()
   const location = useLocation()
 
@@ -125,7 +136,8 @@ export function OrdemServico() {
   const [editandoOS, setEditandoOS]         = useState<OrdemServico | null>(null)
   const [concluirOpen, setConcluirOpen]     = useState(false)
   const [concluirOSData, setConcluirOSData] = useState<OrdemServico | null>(null)
-  const [materiaisModal, setMateriaisModal] = useState<{ produtoId: string; quantidade: number }[]>([])
+  const [materiaisModal, setMateriaisModal] = useState<MaterialUsado[]>([])
+  const [pagoNaConclusao, setPagoNaConclusao] = useState(true)
   const [checkinOpen, setCheckinOpen]       = useState(false)
 
   // ── Form state ────────────────────────────────────────────────
@@ -135,6 +147,11 @@ export function OrdemServico() {
   })
   const [dropdownOpen, setDropdown] = useState(false)
   const dropdownRef               = useRef<HTMLDivElement>(null)
+  const [criandoCliente, setCriandoCliente] = useState(false)
+  const [novoCli, setNovoCli] = useState({
+    nome: '', telefone: '',
+    marca: '', modelo: '', ano: new Date().getFullYear(), cor: '', placa: '',
+  })
 
   // ── Auto-open from navigation state (Dashboard click) ─────────
   useEffect(() => {
@@ -181,7 +198,11 @@ export function OrdemServico() {
           : os.status === statusFilter
       return matchQ && matchS
     })
-    .sort((a, b) => b.numero - a.numero)
+    .sort((a, b) => {
+      const ar = (o: typeof a) => o.status === 'concluido' && o.statusPagamento === 'a_receber' ? 1 : 0
+      if (ar(a) !== ar(b)) return ar(b) - ar(a)
+      return b.numero - a.numero
+    })
 
   const counts = STATUS_ORDER.reduce((acc, s) => {
     acc[s] = ordens.filter(o => o.status === s).length
@@ -207,11 +228,46 @@ export function OrdemServico() {
   const editValorTotal = editForm.servicosSel.reduce((sum, s) => sum + (s.valor || 0), 0)
 
   // ── Form handlers ─────────────────────────────────────────────
-  const resetForm = () => { setForm({ ...blankForm, servicosSel: [] }); setDropdown(false) }
+  const resetForm = () => {
+    setForm({ ...blankForm, servicosSel: [] })
+    setDropdown(false)
+    setCriandoCliente(false)
+    setNovoCli({ nome: '', telefone: '', marca: '', modelo: '', ano: new Date().getFullYear(), cor: '', placa: '' })
+  }
 
   const selecionarCliente = (id: string, nome: string) => {
     setForm(f => ({ ...f, clienteId: id, clienteSearch: nome, veiculoId: '' }))
     setDropdown(false)
+  }
+
+  const handleCriarClienteInline = () => {
+    if (!novoCli.nome.trim()) { toast.error('Informe o nome do cliente.'); return }
+    if (!novoCli.telefone.trim()) { toast.error('Informe o telefone.'); return }
+
+    const clienteId = adicionarCliente({
+      nome: novoCli.nome.trim(),
+      telefone: novoCli.telefone.trim(),
+      email: '', cpf: '',
+      comoConheceu: 'Cadastro via OS',
+      dataCadastro: new Date().toISOString().split('T')[0],
+      totalGasto: 0,
+    })
+
+    let veiculoId = ''
+    if (novoCli.placa.trim() || novoCli.marca.trim() || novoCli.modelo.trim()) {
+      const limpa = novoCli.placa.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      const placaFmt = limpa.length === 7 ? `${limpa.slice(0,3)}-${limpa.slice(3)}` : novoCli.placa.trim()
+      veiculoId = adicionarVeiculo({
+        clienteId,
+        marca: novoCli.marca.trim(), modelo: novoCli.modelo.trim(),
+        ano: novoCli.ano, cor: novoCli.cor.trim(), placa: placaFmt,
+      })
+    }
+
+    setForm(f => ({ ...f, clienteId, clienteSearch: novoCli.nome.trim(), veiculoId }))
+    setCriandoCliente(false)
+    setNovoCli({ nome: '', telefone: '', marca: '', modelo: '', ano: new Date().getFullYear(), cor: '', placa: '' })
+    toast.success('Cliente cadastrado e selecionado!')
   }
 
   const toggleServico = (id: string) =>
@@ -335,19 +391,33 @@ export function OrdemServico() {
 
   const confirmarConcluir = () => {
     if (!concluirOSData) return
-    const mats = materiaisModal.filter(m => m.produtoId && m.quantidade > 0)
-    const { created } = concluirOS(concluirOSData.id, mats)
+    const mats = materiaisModal.filter(m =>
+      m.quantidade > 0 && (
+        (m.origem === 'estoque' && m.produtoId) ||
+        (m.origem === 'compra'  && m.nome?.trim() && (m.custo ?? 0) > 0) ||
+        (m.origem === 'retalho' && m.nome?.trim())
+      )
+    )
+    const { created } = concluirOS(concluirOSData.id, mats, pagoNaConclusao)
     const parts: string[] = ['OS concluída!']
     if (created.includes('receita')) parts.push('Receita lançada')
+    if (created.includes('a_receber')) parts.push('Marcada como A RECEBER')
     if (created.includes('garantia')) parts.push('Garantia criada')
-    if (mats.length) parts.push(`${mats.length} material(is) baixado(s)`)
+    if (mats.some(m => m.origem === 'estoque')) parts.push('Estoque baixado')
+    if (created.includes('despesa_material')) parts.push('Despesa de material lançada')
     toast.success(parts.join(' · '))
     const today = new Date().toISOString().split('T')[0]
     if (detalhesOS?.id === concluirOSData.id)
-      setDetalhesOS(p => p ? { ...p, status: 'concluido' as StatusOS, dataFinalizacao: today } : null)
+      setDetalhesOS(p => p ? {
+        ...p,
+        status: 'concluido' as StatusOS,
+        statusPagamento: pagoNaConclusao ? 'pago' : 'a_receber',
+        dataFinalizacao: today,
+      } : null)
     setConcluirOpen(false)
     setConcluirOSData(null)
     setMateriaisModal([])
+    setPagoNaConclusao(true)
   }
 
   const nextAction: Partial<Record<StatusOS, { label: string; status: StatusOS; icon: typeof PlayCircle }>> = {
@@ -461,7 +531,14 @@ export function OrdemServico() {
                     </td>
                     <td className="py-3.5 px-4 text-sm text-gray-400 max-w-[180px] truncate">{os.servicos.map(s => s.nome).join(', ')}</td>
                     <td className="py-3.5 px-4 text-sm font-bold text-ui-text">{fmt(os.valorTotal)}</td>
-                    <td className="py-3.5 px-4"><Badge label={sc.label} variant={sc.variant} /></td>
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-1.5">
+                        <Badge label={sc.label} variant={sc.variant} />
+                        {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-3.5 px-4 text-right">
                       <button onClick={e => { e.stopPropagation(); setConfirmarDelete(os.id) }} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-600 hover:text-red-400 transition-all"><Trash2 size={14} /></button>
                     </td>
@@ -493,7 +570,12 @@ export function OrdemServico() {
                     <p className="text-xs text-gray-400">{veiculoLabel(os.veiculoId)} <span className="text-[10px] uppercase ml-1">({v?.placa ?? '—'})</span></p>
                     <p className="text-[11px] text-gray-500 mt-1 truncate max-w-[200px]">{os.servicos.map(s => s.nome).join(', ')}</p>
                   </div>
-                  <Badge label={sc.label} variant={sc.variant} />
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge label={sc.label} variant={sc.variant} />
+                    {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
+                    )}
+                  </div>
                 </div>
               </button>
             )
@@ -579,18 +661,93 @@ export function OrdemServico() {
                   disabled={!form.clienteId}
                   className={`${selectCls} disabled:opacity-40 disabled:cursor-not-allowed`}
                 >
-                  <option value="">
+                  <option className="bg-surface-700 text-ui-text" value="">
                     {form.clienteId
                       ? veiculosDoCliente.length === 0 ? 'Sem veículos cadastrados' : 'Selecionar veículo'
                       : 'Selecione o cliente primeiro'}
                   </option>
                   {veiculosDoCliente.map(v => (
-                    <option key={v.id} value={v.id}>
+                    <option className="bg-surface-700 text-ui-text" key={v.id} value={v.id}>
                       {v.marca} {v.modelo} {v.ano} · {v.placa}
                     </option>
                   ))}
                 </select>
               </FieldWrap>
+
+              {/* Criar cliente novo inline */}
+              {!form.clienteId && (
+                <div className="sm:col-span-2">
+                  {!criandoCliente ? (
+                    <button
+                      type="button"
+                      onClick={() => setCriandoCliente(true)}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-ui-border text-gray-500 hover:border-accent/40 hover:text-accent hover:bg-accent/5 transition-all text-sm font-medium"
+                    >
+                      <Plus size={14} /> Cadastrar cliente novo
+                    </button>
+                  ) : (
+                    <div className="space-y-3 p-4 bg-surface-700 rounded-xl border border-ui-border">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-ui-text">Novo cliente</p>
+                        <button type="button" onClick={() => setCriandoCliente(false)} className="text-gray-500 hover:text-ui-text"><X size={13} /></button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label required>Nome</Label>
+                          <input value={novoCli.nome} onChange={e => setNovoCli(p => ({ ...p, nome: e.target.value }))} placeholder="Nome completo" className={inputCls} />
+                        </div>
+                        <div>
+                          <Label required>Telefone</Label>
+                          <input value={novoCli.telefone} onChange={e => setNovoCli(p => ({ ...p, telefone: e.target.value }))} placeholder="(11) 99999-0000" className={inputCls} />
+                        </div>
+                      </div>
+                      <div className="pt-1 border-t border-ui-border/50">
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Veículo (opcional)</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Placa</Label>
+                            <input value={novoCli.placa} onChange={e => setNovoCli(p => ({ ...p, placa: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,8) }))} placeholder="ABC1D23" className={`${inputCls} font-mono tracking-widest`} />
+                          </div>
+                          <div>
+                            <Label>Ano</Label>
+                            <input type="number" value={novoCli.ano} onChange={e => setNovoCli(p => ({ ...p, ano: +e.target.value }))} min={1990} max={new Date().getFullYear()+1} className={inputCls} />
+                          </div>
+                          <div>
+                            <Label>Marca</Label>
+                            <input value={novoCli.marca} onChange={e => setNovoCli(p => ({ ...p, marca: e.target.value }))} placeholder="Ex: Toyota" className={inputCls} />
+                          </div>
+                          <div>
+                            <Label>Modelo</Label>
+                            <input value={novoCli.modelo} onChange={e => setNovoCli(p => ({ ...p, modelo: e.target.value }))} placeholder="Ex: Corolla" className={inputCls} />
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <Label>Cor</Label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {CORES_VEICULO_OS.map(c => {
+                              const sel = novoCli.cor.trim().toLowerCase() === c.nome.toLowerCase()
+                              return (
+                                <button key={c.nome} type="button" onClick={() => setNovoCli(p => ({ ...p, cor: c.nome }))} title={c.nome}
+                                  className={`flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all ${sel ? 'border-accent/50 bg-accent/10 text-ui-text' : 'border-ui-border bg-surface-600 text-gray-400 hover:border-gray-500'}`}>
+                                  <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: c.hex, border: '1px solid rgba(128,128,128,0.35)' }} />
+                                  {c.nome}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCriarClienteInline}
+                        className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[13px] font-bold bg-accent text-white hover:bg-accent/90 transition-colors"
+                      >
+                        <Check size={14} /> Cadastrar e selecionar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 
@@ -649,7 +806,7 @@ export function OrdemServico() {
                   onChange={e => setForm(f => ({ ...f, formaPagamento: e.target.value }))}
                   className={selectCls}
                 >
-                  {FORMAS_PAGAMENTO.map(fp => <option key={fp}>{fp}</option>)}
+                  {FORMAS_PAGAMENTO.map(fp => <option className="bg-surface-700 text-ui-text" key={fp}>{fp}</option>)}
                 </select>
               </FieldWrap>
 
@@ -660,9 +817,9 @@ export function OrdemServico() {
                   onChange={e => handleInstaladorChange(e.target.value)}
                   className={selectCls}
                 >
-                  <option value="">— Selecionar —</option>
+                  <option className="bg-surface-700 text-ui-text" value="">— Selecionar —</option>
                   {instaladores.filter(i => i.ativo).map(i => (
-                    <option key={i.id} value={i.id}>{i.nome}</option>
+                    <option className="bg-surface-700 text-ui-text" key={i.id} value={i.id}>{i.nome}</option>
                   ))}
                 </select>
               </FieldWrap>
@@ -793,20 +950,36 @@ export function OrdemServico() {
             const podeCancelar = os.status !== 'concluido' && os.status !== 'cancelado'
             const podeEditar   = os.status !== 'concluido' && os.status !== 'cancelado'
             const custoMateriais = (os.materiaisUsados ?? []).reduce((sum, m) => {
-              const p = produtos.find(x => x.id === m.produtoId)
-              return sum + (p ? p.valorUnitario * m.quantidade : 0)
+              const origem = (m as MaterialUsado).origem ?? 'estoque'
+              if (origem === 'estoque') {
+                const p = produtos.find(x => x.id === m.produtoId)
+                return sum + (p ? p.valorUnitario * m.quantidade : 0)
+              }
+              return sum + ((m as MaterialUsado).custo ?? 0)
             }, 0)
             return (
               <div className="space-y-5">
                 {/* Status + botões de ação */}
                 <div className="flex items-center justify-between p-3 bg-surface-700 rounded-xl border border-ui-border">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <Badge label={sc.label} variant={sc.variant} />
+                    {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
+                    )}
                     {os.dataFinalizacao && (
                       <span className="text-xs text-gray-600">Finalizada em {fmtDate(os.dataFinalizacao)}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
+                      <Button size="sm" onClick={() => {
+                        registrarPagamentoOS(os.id)
+                        toast.success('Pagamento registrado! Receita lançada no Financeiro.')
+                        setDetalhesOS(p => p ? { ...p, statusPagamento: 'pago' } : null)
+                      }} className="bg-emerald-600 hover:bg-emerald-500 border-emerald-600 text-white">
+                        <Check size={14} />Registrar pagamento
+                      </Button>
+                    )}
                     {podeEditar && (
                       <Button size="sm" variant="secondary" onClick={() => abrirEdicao(os)}>
                         <Edit2 size={14} />Editar OS
@@ -974,7 +1147,7 @@ export function OrdemServico() {
                     onChange={e => setEditForm(f => ({ ...f, formaPagamento: e.target.value }))}
                     className={selectCls}
                   >
-                    {FORMAS_PAGAMENTO.map(fp => <option key={fp}>{fp}</option>)}
+                    {FORMAS_PAGAMENTO.map(fp => <option className="bg-surface-700 text-ui-text" key={fp}>{fp}</option>)}
                   </select>
                 </FieldWrap>
 
@@ -985,9 +1158,9 @@ export function OrdemServico() {
                     onChange={e => setEditForm(f => ({ ...f, instaladorId: e.target.value }))}
                     className={selectCls}
                   >
-                    <option value="">— Selecionar —</option>
+                    <option className="bg-surface-700 text-ui-text" value="">— Selecionar —</option>
                     {instaladores.filter(i => i.ativo).map(i => (
-                      <option key={i.id} value={i.id}>{i.nome}</option>
+                      <option className="bg-surface-700 text-ui-text" key={i.id} value={i.id}>{i.nome}</option>
                     ))}
                   </select>
                 </FieldWrap>
@@ -1030,7 +1203,7 @@ export function OrdemServico() {
       ════════════════════════════════════════════════════════ */}
       <Modal
         isOpen={concluirOpen}
-        onClose={() => { setConcluirOpen(false); setConcluirOSData(null); setMateriaisModal([]) }}
+        onClose={() => { setConcluirOpen(false); setConcluirOSData(null); setMateriaisModal([]); setPagoNaConclusao(true) }}
         title={`Concluir OS #${concluirOSData?.numero ?? ''}`}
         size="lg"
       >
@@ -1044,7 +1217,7 @@ export function OrdemServico() {
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Materiais Utilizados (opcional)</p>
               <button
-                onClick={() => setMateriaisModal(p => [...p, { produtoId: '', quantidade: 1 }])}
+                onClick={() => setMateriaisModal(p => [...p, { origem: 'estoque', produtoId: '', quantidade: 1 }])}
                 className="text-xs text-accent hover:text-ui-text transition-colors font-medium"
               >
                 + Adicionar
@@ -1053,43 +1226,121 @@ export function OrdemServico() {
 
             {materiaisModal.length === 0 ? (
               <p className="text-xs text-gray-600 py-2 text-center border border-dashed border-ui-border rounded-xl">
-                Nenhum material registrado — clique em "+ Adicionar" para registrar baixa no estoque
+                Nenhum material registrado — clique em "+ Adicionar" para registrar
               </p>
             ) : (
               <div className="space-y-2">
                 {materiaisModal.map((m, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <select
-                      value={m.produtoId}
-                      onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, produtoId: e.target.value } : x))}
-                      className="flex-1 bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 outline-none"
-                    >
-                      <option value="">Selecionar produto...</option>
-                      {produtos.map(p => (
-                        <option key={p.id} value={p.id}>{p.nome} (em estoque: {p.quantidade} {p.unidade})</option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      min={1}
-                      value={m.quantidade}
-                      onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, quantidade: +e.target.value } : x))}
-                      className="w-20 bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text text-center focus:border-accent/50 outline-none"
-                    />
-                    <button
-                      onClick={() => setMateriaisModal(p => p.filter((_, j) => j !== i))}
-                      className="p-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                    >
-                      <X size={13} />
-                    </button>
+                  <div key={i} className="p-3 rounded-xl border border-ui-border bg-surface-700 space-y-2">
+                    {/* Seletor de origem */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1 flex-1">
+                        {([
+                          { v: 'estoque', label: 'Estoque' },
+                          { v: 'compra',  label: 'Compra' },
+                          { v: 'retalho', label: 'Retalho' },
+                        ] as const).map(opt => (
+                          <button
+                            key={opt.v}
+                            type="button"
+                            onClick={() => setMateriaisModal(p => p.map((x, j) => j === i
+                              ? { origem: opt.v, quantidade: x.quantidade, produtoId: '', nome: '', custo: undefined }
+                              : x))}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                              m.origem === opt.v
+                                ? 'bg-accent/10 border-accent/40 text-accent'
+                                : 'bg-surface-600 border-ui-border text-gray-500 hover:text-ui-text'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setMateriaisModal(p => p.filter((_, j) => j !== i))}
+                        className="p-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+
+                    {/* Campos condicionais por origem */}
+                    {m.origem === 'estoque' ? (
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={m.produtoId ?? ''}
+                          onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, produtoId: e.target.value } : x))}
+                          className="flex-1 bg-surface-600 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 outline-none"
+                        >
+                          <option className="bg-surface-700 text-ui-text" value="">Selecionar produto...</option>
+                          {produtos.map(p => (
+                            <option className="bg-surface-700 text-ui-text" key={p.id} value={p.id}>{p.nome} (em estoque: {p.quantidade} {p.unidade})</option>
+                          ))}
+                        </select>
+                        <input
+                          type="number" min={1}
+                          value={m.quantidade}
+                          onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, quantidade: +e.target.value } : x))}
+                          className="w-20 bg-surface-600 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text text-center focus:border-accent/50 outline-none"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder={m.origem === 'compra' ? 'Material comprado (ex: PPF cor X)' : 'Retalho/sobra usado'}
+                          value={m.nome ?? ''}
+                          onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, nome: e.target.value } : x))}
+                          className="flex-1 bg-surface-600 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text placeholder-gray-500 focus:border-accent/50 outline-none"
+                        />
+                        <input
+                          type="number" min={1}
+                          value={m.quantidade}
+                          onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, quantidade: +e.target.value } : x))}
+                          className="w-16 bg-surface-600 border border-ui-border rounded-lg px-2 py-2 text-sm text-ui-text text-center focus:border-accent/50 outline-none"
+                        />
+                        {m.origem === 'compra' && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[12px] text-gray-500">R$</span>
+                            <input
+                              type="number" min={0} step={10}
+                              placeholder="custo"
+                              value={m.custo ?? ''}
+                              onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, custo: parseFloat(e.target.value) || 0 } : x))}
+                              className="w-24 bg-surface-600 border border-ui-border rounded-lg px-2 py-2 text-sm text-ui-text text-right focus:border-accent/50 outline-none"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {m.origem === 'compra' && (
+                      <p className="text-[10px] text-amber-400/80">Será lançado como despesa no Financeiro.</p>
+                    )}
+                    {m.origem === 'retalho' && (
+                      <p className="text-[10px] text-gray-600">Retalho/sobra — não baixa estoque nem gera despesa.</p>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </div>
 
+          <div>
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Pagamento</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setPagoNaConclusao(true)}
+                className={`py-2 rounded-lg text-sm font-medium border transition-all ${pagoNaConclusao ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'border-ui-border text-gray-500 hover:text-gray-300'}`}>
+                ✓ Recebido agora
+              </button>
+              <button type="button" onClick={() => setPagoNaConclusao(false)}
+                className={`py-2 rounded-lg text-sm font-medium border transition-all ${!pagoNaConclusao ? 'bg-amber-500/15 border-amber-500/40 text-amber-400' : 'border-ui-border text-gray-500 hover:text-gray-300'}`}>
+                ⏳ A receber
+              </button>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-3 pt-4 border-t border-ui-border">
-            <Button variant="secondary" onClick={() => { setConcluirOpen(false); setConcluirOSData(null); setMateriaisModal([]) }}>
+            <Button variant="secondary" onClick={() => { setConcluirOpen(false); setConcluirOSData(null); setMateriaisModal([]); setPagoNaConclusao(true) }}>
               Cancelar
             </Button>
             <ActionButton onClick={confirmarConcluir}>

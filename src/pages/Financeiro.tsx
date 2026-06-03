@@ -72,6 +72,9 @@ export function Financeiro() {
   const ticketMedio = osConcluidas.length > 0
     ? osConcluidas.reduce((s, o) => s + o.valorTotal, 0) / osConcluidas.length
     : 0
+  const aReceber = ordens
+    .filter(o => o.status === 'concluido' && o.statusPagamento === 'a_receber')
+    .reduce((s, o) => s + o.valorTotal, 0)
 
   // ── Chart data (last 6 months, oldest → newest) ───────────────
   const chartData = Array.from({ length: 6 }, (_, i) => {
@@ -236,6 +239,21 @@ export function Financeiro() {
             )
           })}
         </div>
+
+        {aReceber > 0 && (
+          <div className="mt-3 flex items-center justify-between px-4 py-3 rounded-xl border border-amber-500/25 bg-amber-500/8">
+            <div className="flex items-center gap-2">
+              <ArrowDownRight size={15} className="text-amber-400" />
+              <div>
+                <p className="text-xs font-semibold text-amber-400">A Receber</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">valores entregues e ainda não recebidos</p>
+              </div>
+            </div>
+            <p className={`text-lg font-bold text-amber-400 ${kpisOcultos ? 'blur-md select-none pointer-events-none' : ''}`}>
+              {fmt(aReceber)}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Chart */}

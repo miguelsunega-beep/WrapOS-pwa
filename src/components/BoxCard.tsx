@@ -91,17 +91,17 @@ export function BoxCard({
       >
         <LayoutGrid
           size={22}
-          style={{ color: inManut ? '#ff6b35' : '#2a3040' }}
+          style={{ color: inManut ? '#ff6b35' : 'var(--wrap-muted)' }}
         />
         <span
           className="text-[10px] font-semibold tracking-widest uppercase mt-3"
-          style={{ color: inManut ? 'rgba(255,107,53,0.5)' : '#2a3040' }}
+          style={{ color: inManut ? 'rgba(255,107,53,0.5)' : 'var(--wrap-muted)' }}
         >
           Box {boxNum}
         </span>
         <span
           className="mt-1 text-[12px] font-medium flex items-center gap-1.5"
-          style={{ color: inManut ? '#ff6b35' : '#2a3040' }}
+          style={{ color: inManut ? '#ff6b35' : 'var(--wrap-muted)' }}
         >
           {inManut && <Wrench size={12} />}
           {inManut ? 'Em Manutenção' : 'Livre'}

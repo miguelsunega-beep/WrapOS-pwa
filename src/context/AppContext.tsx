@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import type {
   Cliente, Veiculo, OrdemServico, Servico, Agendamento, Instalador,
   LancamentoFinanceiro, Produto, Garantia, Meta, Configuracoes,
-  StatusOS, StatusGarantia,
+  StatusOS, StatusGarantia, StatusPagamento, MaterialUsado,
 } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
@@ -333,7 +333,8 @@ interface AppContextType {
   registrarAcionamento: (id: string) => void
 
   // Eventos centrais de OS
-  concluirOS: (id: string, materiaisUsados?: { produtoId: string; quantidade: number }[]) => { created: string[] }
+  concluirOS: (id: string, materiaisUsados?: MaterialUsado[], pago?: boolean) => { created: string[] }
+  registrarPagamentoOS: (id: string) => void
   cancelarOS: (id: string) => void
 
   // Meta & Configurações
@@ -471,7 +472,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setGarantias(prev => prev.filter(x => x.id !== id))
 
   // ── Eventos centrais de OS ────────────────────────────────────
-  const concluirOS = (id: string, materiaisUsados?: { produtoId: string; quantidade: number }[]): { created: string[] } => {
+  const concluirOS = (id: string, materiaisUsados?: MaterialUsado[], pago: boolean = true): { created: string[] } => {
     const os = ordens.find(x => x.id === id)
     if (!os || os.status === 'concluido') return { created: [] }
     const today = new Date().toISOString().split('T')[0]
@@ -479,16 +480,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const created: string[] = []
 
     setOrdens(prev => prev.map(x =>
-      x.id === id ? { ...x, status: 'concluido' as StatusOS, dataFinalizacao: today } : x
+      x.id === id ? {
+        ...x,
+        status: 'concluido' as StatusOS,
+        dataFinalizacao: today,
+        statusPagamento: (pago ? 'pago' : 'a_receber') as StatusPagamento,
+        materiaisUsados: materiaisUsados ?? x.materiaisUsados,
+      } : x
     ))
 
-    if (!lancamentos.some(l => l.osId === id)) {
+    if (pago && !lancamentos.some(l => l.osId === id && l.tipo === 'entrada')) {
       setLancamentos(prev => [...prev, {
         id: uid(), tipo: 'entrada' as const, categoria: 'OS',
         descricao: `OS #${os.numero} — ${nomeCliente}`,
         valor: os.valorTotal, data: today, formaPagamento: os.formaPagamento, osId: id,
       }])
       created.push('receita')
+    } else if (!pago) {
+      created.push('a_receber')
     }
 
     if (!garantias.some(g => g.osId === id)) {
@@ -510,11 +519,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMeta(prev => ({ ...prev, numeroOS: prev.numeroOS + 1 }))
 
     if (materiaisUsados?.length) {
-      materiaisUsados.forEach(({ produtoId, quantidade }) => {
-        setProdutos(prev => prev.map(p =>
-          p.id === produtoId ? { ...p, quantidade: Math.max(0, p.quantidade - quantidade) } : p
-        ))
+      materiaisUsados.forEach(m => {
+        const origem = m.origem ?? 'estoque'
+        if (origem === 'estoque' && m.produtoId) {
+          setProdutos(prev => prev.map(p =>
+            p.id === m.produtoId ? { ...p, quantidade: Math.max(0, p.quantidade - m.quantidade) } : p
+          ))
+        }
       })
+      const custoCompras = materiaisUsados
+        .filter(m => m.origem === 'compra')
+        .reduce((s, m) => s + (m.custo ?? 0), 0)
+      if (custoCompras > 0) {
+        setLancamentos(prev => [...prev, {
+          id: uid(), tipo: 'saida' as const, categoria: 'Material',
+          descricao: `Material exclusivo OS #${os.numero} — ${nomeCliente}`,
+          valor: custoCompras, data: today, formaPagamento: os.formaPagamento, osId: id,
+        }])
+        created.push('despesa_material')
+      }
     }
 
     if (os.agendamentoId) {
@@ -524,6 +547,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     return { created }
+  }
+
+  const registrarPagamentoOS = (id: string): void => {
+    const os = ordens.find(x => x.id === id)
+    if (!os) return
+    const today = new Date().toISOString().split('T')[0]
+    const nomeCliente = clientes.find(c => c.id === os.clienteId)?.nome ?? ''
+    if (!lancamentos.some(l => l.osId === id && l.tipo === 'entrada')) {
+      setLancamentos(prev => [...prev, {
+        id: uid(), tipo: 'entrada' as const, categoria: 'OS',
+        descricao: `OS #${os.numero} — ${nomeCliente} (pagamento)`,
+        valor: os.valorTotal, data: today, formaPagamento: os.formaPagamento, osId: id,
+      }])
+    }
+    setOrdens(prev => prev.map(x => x.id === id ? { ...x, statusPagamento: 'pago' as StatusPagamento } : x))
   }
 
   const cancelarOS = (id: string): void => {
@@ -559,7 +597,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       adicionarProduto, editarProduto, deletarProduto, registrarEntradaEstoque, baixarEstoque,
       adicionarLancamento, deletarLancamento,
       adicionarGarantia, editarGarantia, deletarGarantia, registrarAcionamento,
-      concluirOS, cancelarOS,
+      concluirOS, registrarPagamentoOS, cancelarOS,
       atualizarMeta, atualizarConfiguracoes,
     }}>
       {children}

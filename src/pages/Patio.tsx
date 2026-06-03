@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Calendar, User, TrendingUp, LayoutGrid, AlertTriangle, CheckCircle2, Car } from 'lucide-react'
 import { toast } from 'sonner'
+import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { BoxCard } from '../components/BoxCard'
 import { OSDrawer } from '../components/OSDrawer'
@@ -29,27 +30,36 @@ interface StatChipProps {
   value: string | number
   color?: string
   icon: React.ElementType
+  onClick?: () => void
 }
 
-function StatChip({ label, value, color, icon: Icon }: StatChipProps) {
-  return (
-    <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/[0.07]">
-      <Icon size={14} style={{ color: color ?? '#5a6070' }} />
+function StatChip({ label, value, color, icon: Icon, onClick }: StatChipProps) {
+  const inner = (
+    <>
+      <Icon size={14} className={color ? '' : 'text-gray-500'} style={color ? { color } : undefined} />
       <div>
-        <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">
-          {label}
-        </p>
-        <p className="text-[15px] font-bold leading-tight" style={{ color: color ?? '#f0f0f4' }}>
+        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">{label}</p>
+        <p className={`text-[15px] font-bold leading-tight ${color ? '' : 'text-ui-text'}`} style={color ? { color } : undefined}>
           {value}
         </p>
       </div>
-    </div>
+    </>
   )
+  const base = 'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-surface-600 border border-ui-border w-full text-left'
+  if (onClick) {
+    return (
+      <button onClick={onClick} className={`${base} transition-colors hover:border-gray-500 hover:bg-surface-500 cursor-pointer`}>
+        {inner}
+      </button>
+    )
+  }
+  return <div className={base}>{inner}</div>
 }
 
 // ── Page ─────────────────────────────────────────────────────────
 
 export function Patio() {
+  const navigate = useNavigate()
   const {
     ordens, clientes, veiculos, agendamentos, instaladores, servicos,
     lancamentos, configuracoes,
@@ -145,7 +155,7 @@ export function Patio() {
                 style={{ backgroundColor: '#34d399' }}
               />
             </span>
-            <span className="text-[12px] sm:text-[13px] text-slate-500">
+            <span className="text-[12px] sm:text-[13px] text-gray-500">
               Atualizado em tempo real
             </span>
           </div>
@@ -161,16 +171,16 @@ export function Patio() {
       <div className="hidden md:flex overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 gap-3 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:hidden">
         <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="No Pátio" value={noPatioCount} color="#f0f0f4" icon={LayoutGrid} /></div>
         <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="Atrasados" value={atrasadosCount} color={atrasadosCount > 0 ? '#e8304a' : '#5a6070'} icon={AlertTriangle} /></div>
-        <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Faturado" value={fmt(faturamentoHoje)} color="#34d399" icon={TrendingUp} /></div>
-        <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Agenda" value={`${todayAgendamentos.length} hoje`} color={todayAgendamentos.length > 0 ? 'var(--wrap-accent)' : '#5a6070'} icon={Calendar} /></div>
+        <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Faturado" value={fmt(faturamentoHoje)} color="#34d399" icon={TrendingUp} onClick={() => navigate('/financeiro')} /></div>
+        <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Agenda" value={`${todayAgendamentos.length} hoje`} color={todayAgendamentos.length > 0 ? 'var(--wrap-accent)' : '#5a6070'} icon={Calendar} onClick={() => navigate('/agendamento')} /></div>
       </div>
 
       {/* ── Carros no pátio ── */}
       {carrosNoPatio.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Car size={32} style={{ color: '#2a3040' }} />
-          <p className="mt-3 text-[14px] font-medium text-slate-400">Nenhum carro no pátio</p>
-          <p className="text-[12px] text-slate-600 mt-1">Use o Check-in para registrar a entrada de um veículo.</p>
+          <Car size={32} className="text-gray-700" />
+          <p className="mt-3 text-[14px] font-medium text-gray-400">Nenhum carro no pátio</p>
+          <p className="text-[12px] text-gray-600 mt-1">Use o Check-in para registrar a entrada de um veículo.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -200,7 +210,7 @@ export function Patio() {
             exit={{ opacity: 0 }}
             className="space-y-3"
           >
-            <h2 className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2 text-slate-500">
+            <h2 className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2 text-gray-500">
               <CheckCircle2 size={12} style={{ color: '#34d399' }} />
               Concluídas Hoje
               <span
@@ -229,7 +239,7 @@ export function Patio() {
                       <div className="text-[13px] sm:text-[12px] font-semibold text-ui-text truncate">
                         OS #{os.numero}
                       </div>
-                      <div className="text-[12px] sm:text-[11px] truncate text-slate-500 mt-0.5">
+                      <div className="text-[12px] sm:text-[11px] truncate text-gray-500 mt-0.5">
                         {cliente?.nome ?? '—'} · {veiculo?.modelo ?? '—'}
                       </div>
                     </div>
@@ -246,11 +256,11 @@ export function Patio() {
 
       {/* ── Agendamentos de hoje ── */}
       <section className="space-y-3">
-        <h2 className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2 text-slate-500">
+        <h2 className="text-[12px] font-semibold tracking-widest uppercase flex items-center gap-2 text-gray-500">
           <Calendar size={12} />
           Agendamentos de Hoje
           {todayAgendamentos.length === 0 && (
-            <span className="normal-case font-normal text-slate-400">
+            <span className="normal-case font-normal text-gray-400">
               — nenhum
             </span>
           )}
@@ -267,24 +277,24 @@ export function Patio() {
               return (
                 <div
                   key={ag.id}
-                  className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/[0.025] border border-white/5"
+                  className="flex items-center gap-4 px-4 py-3 rounded-xl bg-surface-700/40 border border-ui-border"
                 >
                   <div className="shrink-0 w-14 text-center">
                     <div className="text-[15px] font-bold" style={{ color: 'var(--wrap-accent)' }}>
                       {ag.horario}
                     </div>
-                    <div className="text-[10px] text-slate-400">
+                    <div className="text-[10px] text-gray-400">
                       {ag.duracao}h
                     </div>
                   </div>
 
-                  <div className="w-px h-8 shrink-0 bg-white/[0.08]" />
+                  <div className="w-px h-8 shrink-0 bg-surface-600" />
 
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-semibold text-ui-text truncate">
                       {cliente?.nome ?? '—'}
                     </div>
-                    <div className="text-[11px] truncate text-slate-500">
+                    <div className="text-[11px] truncate text-gray-500">
                       {veiculo ? `${veiculo.marca} ${veiculo.modelo}` : '—'}
                       {servico ? ` · ${servico.nome}` : ''}
                       {ag.box > 0 ? ` · Box ${ag.box}` : ''}
@@ -292,7 +302,7 @@ export function Patio() {
                   </div>
 
                   {tecnico && (
-                    <div className="shrink-0 flex items-center gap-1 text-[11px] text-slate-500">
+                    <div className="shrink-0 flex items-center gap-1 text-[11px] text-gray-500">
                       <User size={11} />
                       {tecnico.nome.split(' ')[0]}
                     </div>
@@ -320,7 +330,7 @@ export function Patio() {
               <p className="text-[14px] font-semibold text-ui-text">
                 OS #{confirmOS.numero} — {getCliente(confirmOS.clienteId)?.nome ?? '—'}
               </p>
-              <p className="text-[12px] text-slate-500">
+              <p className="text-[12px] text-gray-500">
                 {getVeiculo(confirmOS.veiculoId)?.modelo ?? '—'}
                 {confirmOS.box > 0 ? ` · Box ${confirmOS.box}` : ''}
               </p>
@@ -328,7 +338,7 @@ export function Patio() {
                 {fmt(confirmOS.valorTotal)}
               </p>
             </div>
-            <p className="text-[12px] text-slate-500">
+            <p className="text-[12px] text-gray-500">
               Isso lançará o valor no financeiro e concluirá a OS.
             </p>
             <div className="flex gap-2">

@@ -12,6 +12,15 @@ import type { Cliente, Veiculo, Instalador, OrdemServico } from '../types'
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
+const CORES_VEICULO: { nome: string; hex: string }[] = [
+  { nome: 'Preto', hex: '#1a1a1a' }, { nome: 'Branco', hex: '#e5e5e5' },
+  { nome: 'Prata', hex: '#c4c8cc' }, { nome: 'Cinza', hex: '#6b7280' },
+  { nome: 'Vermelho', hex: '#c0392b' }, { nome: 'Azul', hex: '#2563eb' },
+  { nome: 'Verde', hex: '#16a34a' }, { nome: 'Amarelo', hex: '#eab308' },
+  { nome: 'Laranja', hex: '#ea580c' }, { nome: 'Marrom', hex: '#78350f' },
+  { nome: 'Bege', hex: '#d6c7a1' }, { nome: 'Dourado', hex: '#c8a44d' },
+  { nome: 'Vinho', hex: '#7b1e3a' }, { nome: 'Grafite', hex: '#3a3f44' },
+]
 
 const inputCls =
   'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 outline-none transition-colors placeholder-gray-500'
@@ -56,16 +65,15 @@ function StepCliente({
               <Check size={14} className="text-emerald-400" />
             </div>
             <div>
-              <p className="text-[13px] font-semibold text-white">{clienteSel.nome}</p>
+              <p className="text-[13px] font-semibold text-ui-text">{clienteSel.nome}</p>
               {clienteSel.telefone && (
-                <p className="text-[11px]" style={{ color: '#5a6070' }}>{clienteSel.telefone}</p>
+                <p className="text-[11px] text-gray-500">{clienteSel.telefone}</p>
               )}
             </div>
           </div>
           <button
             onClick={onClear}
-            className="text-[11px] font-medium transition-colors hover:text-white"
-            style={{ color: '#5a6070' }}
+            className="text-[11px] font-medium transition-colors text-gray-500 hover:text-ui-text"
           >
             Trocar cliente
           </button>
@@ -319,8 +327,8 @@ function StepVeiculo({
           </AnimatePresence>
 
           {(placaRaw.replace(/[^A-Z0-9]/gi, '').length >= 7 || novaMarca) && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="space-y-3">
+              <div className="w-40">
                 <label className="text-[11px] text-gray-500 block mb-1">Ano</label>
                 <input
                   type="number"
@@ -332,13 +340,32 @@ function StepVeiculo({
                 />
               </div>
               <div>
-                <label className="text-[11px] text-gray-500 block mb-1">Cor</label>
+                <label className="text-[11px] text-gray-500 block mb-1.5">Cor</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {CORES_VEICULO.map(c => {
+                    const sel = novaCor.trim().toLowerCase() === c.nome.toLowerCase()
+                    return (
+                      <button
+                        key={c.nome}
+                        type="button"
+                        onClick={() => setNovaCor(c.nome)}
+                        title={c.nome}
+                        className={`flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all ${
+                          sel ? 'border-accent/50 bg-accent/10 text-ui-text' : 'border-ui-border bg-surface-700 text-gray-400 hover:border-gray-500'
+                        }`}
+                      >
+                        <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: c.hex, border: '1px solid rgba(128,128,128,0.35)' }} />
+                        {c.nome}
+                      </button>
+                    )
+                  })}
+                </div>
                 <input
                   type="text"
-                  placeholder="Ex: Prata"
-                  value={novaCor}
+                  placeholder="Outra cor (opcional)"
+                  value={CORES_VEICULO.some(c => c.nome.toLowerCase() === novaCor.trim().toLowerCase()) ? '' : novaCor}
                   onChange={e => setNovaCor(e.target.value)}
-                  className={inputCls}
+                  className={`${inputCls} mt-2`}
                 />
               </div>
             </div>
@@ -395,7 +422,7 @@ function StepServicos({
       <div>
         <label className="text-[11px] text-gray-500 block mb-1.5">Valor (R$)</label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] select-none" style={{ color: '#5a6070' }}>R$</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] select-none text-gray-500">R$</span>
           <input
             type="number" min={0} step={10} placeholder="0"
             value={servicoValor}
@@ -452,7 +479,7 @@ function StepPeriodo({
         type="button"
         onClick={() => { const v = !mesmoDia; setMesmoDia(v); if (v) setDataSaida(dataEntrada) }}
         className="flex items-center gap-2 text-sm font-medium transition-colors"
-        style={{ color: mesmoDia ? 'var(--wrap-accent)' : '#5a6070' }}
+        style={{ color: mesmoDia ? 'var(--wrap-accent)' : 'var(--wrap-muted)' }}
       >
         <span className="relative rounded-full transition-colors" style={{ height: 22, width: 40, background: mesmoDia ? 'var(--wrap-accent)' : 'var(--surface-500)' }}>
           <span className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform" style={{ width: 18, height: 18, transform: mesmoDia ? 'translateX(18px)' : 'translateX(0)' }} />

@@ -6,7 +6,7 @@ import {
   ClipboardList, Calendar, Users,
   DollarSign, Package, UserCheck, Settings,
   LogOut, Bell, Sun, Moon, ChevronLeft, ChevronRight, Car,
-  Search, Zap, AlertCircle, MoreVertical, Plus,
+  Search, Zap, AlertCircle, MoreVertical, Plus, Home,
 } from 'lucide-react'
 import { useApp }   from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
@@ -60,7 +60,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'OPERAÇÃO',
     items: [
-      { to: '/patio', label: 'Pátio', icon: Car, end: true },
+      { to: '/',      label: 'Início', icon: Home, end: true },
+      { to: '/patio', label: 'Pátio',  icon: Car,  end: true },
     ],
   },
   {
@@ -88,6 +89,7 @@ const NAV_GROUPS: NavGroup[] = [
 ]
 
 const ROUTE_LABELS: Record<string, string> = {
+  '/':              'Início',
   '/patio':         'Pátio',
   '/ordens':        'Ordens de Serviço',
   '/agendamento':   'Agendamento',
@@ -99,9 +101,10 @@ const ROUTE_LABELS: Record<string, string> = {
 }
 
 // Bottom nav: 4 rotas + botão central de ação (Registrar Carro)
+// Agenda foi movida para DRAWER_ITEMS para abrir espaço para Início
 const BOTTOM_NAV_LEFT: NavItem[] = [
-  { to: '/patio',       label: 'Pátio',  icon: Car,      end: true },
-  { to: '/agendamento', label: 'Agenda', icon: Calendar           },
+  { to: '/',      label: 'Início', icon: Home, end: true },
+  { to: '/patio', label: 'Pátio',  icon: Car,  end: true },
 ]
 const BOTTOM_NAV_RIGHT: NavItem[] = [
   { to: '/estoque',       label: 'Estoque', icon: Package,  badgeKey: 'estoque' },
@@ -110,10 +113,11 @@ const BOTTOM_NAV_RIGHT: NavItem[] = [
 
 // Itens do menu "⋮" (features que não estão na bottom nav)
 const DRAWER_ITEMS: NavItem[] = [
-  { to: '/ordens',     label: 'Ordens de Serviço', icon: ClipboardList },
-  { to: '/clientes',   label: 'Clientes',          icon: Users         },
-  { to: '/financeiro', label: 'Financeiro',        icon: DollarSign    },
-  { to: '/equipe',     label: 'Equipe',            icon: UserCheck     },
+  { to: '/agendamento', label: 'Agendamento',       icon: Calendar      },
+  { to: '/ordens',      label: 'Ordens de Serviço', icon: ClipboardList },
+  { to: '/clientes',    label: 'Clientes',          icon: Users         },
+  { to: '/financeiro',  label: 'Financeiro',        icon: DollarSign    },
+  { to: '/equipe',      label: 'Equipe',            icon: UserCheck     },
 ]
 
 const handleLogout = () => {

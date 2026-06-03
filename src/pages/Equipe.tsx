@@ -162,7 +162,7 @@ export function Equipe() {
       {/* Header + tabs */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white font-display">Equipe</h1>
+          <h1 className="text-xl font-bold text-ui-text font-display">Equipe</h1>
           <div className="flex items-center gap-1 mt-3">
             {(['equipe', 'metas'] as const).map(tab => (
               <button
@@ -225,7 +225,7 @@ export function Equipe() {
           {instaladores.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 rounded-xl" style={{ backgroundColor: 'var(--wrap-surface)', border: '1px solid var(--wrap-border)' }}>
               <Users size={36} style={{ color: 'var(--wrap-muted)', opacity: 0.4 }} className="mb-3" />
-              <p className="text-[14px] font-medium text-white mb-1">Nenhum instalador cadastrado</p>
+              <p className="text-[14px] font-medium text-ui-text mb-1">Nenhum instalador cadastrado</p>
               <p className="text-[12px] mb-4" style={{ color: 'var(--wrap-muted)' }}>Adicione instaladores para gerenciar sua equipe</p>
               <Button onClick={abrirNovo}><Plus size={14} /> Adicionar Instalador</Button>
             </div>

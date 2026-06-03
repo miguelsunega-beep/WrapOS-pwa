@@ -6,6 +6,8 @@ export type StatusOS =
   | 'concluido'
   | 'cancelado'
 
+export type StatusPagamento = 'pago' | 'a_receber'
+
 export type StatusAgendamento = 'agendado' | 'confirmado' | 'concluido' | 'cancelado'
 export type StatusGarantia = 'ativa' | 'acionada' | 'expirada'
 export type TipoLancamento = 'entrada' | 'saida'
@@ -50,6 +52,16 @@ export interface ItemOS {
   preco: number
 }
 
+export type OrigemMaterial = 'estoque' | 'compra' | 'retalho'
+
+export interface MaterialUsado {
+  origem: OrigemMaterial
+  produtoId?: string   // usado quando origem === 'estoque'
+  nome?: string        // usado quando origem === 'compra' | 'retalho'
+  quantidade: number
+  custo?: number       // custo total do material; obrigatório em 'compra', opcional em 'retalho'
+}
+
 export interface OrdemServico {
   id: string
   numero: number
@@ -63,10 +75,11 @@ export interface OrdemServico {
   comissao: number
   observacoes: string
   status: StatusOS
+  statusPagamento?: StatusPagamento
   dataCriacao: string
   dataFinalizacao?: string
   agendamentoId?: string
-  materiaisUsados?: { produtoId: string; quantidade: number }[]
+  materiaisUsados?: MaterialUsado[]
 }
 
 export interface Agendamento {
