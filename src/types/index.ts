@@ -78,6 +78,7 @@ export interface OrdemServico {
   statusPagamento?: StatusPagamento
   dataCriacao: string
   dataFinalizacao?: string
+  dataSaidaPrevista?: string
   agendamentoId?: string
   materiaisUsados?: MaterialUsado[]
 }

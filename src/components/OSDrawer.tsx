@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Printer, CheckCircle2, Save, Plus, Package, RotateCcw } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { StatusQuickEdit } from './StatusQuickEdit'
 import type { OrdemServico, Cliente, Veiculo, Instalador } from '../types'
 
 const fmt = (v: number) =>
@@ -242,6 +243,11 @@ export function OSDrawer({
                   <p className="text-[11px] text-gray-600">
                     Aberta em {fmtDate(os.dataCriacao)}
                   </p>
+                  {os.dataSaidaPrevista && (
+                    <p className="text-[11px] text-gray-600">
+                      Entrega prevista: {new Date(os.dataSaidaPrevista + 'T00:00:00').toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
                 </div>
               </section>
 
@@ -418,16 +424,19 @@ export function OSDrawer({
                 </button>
               )}
 
-              {/* Concluir — only for active OS */}
+              {/* Status + Concluir lado a lado — apenas para OS ativa */}
               {os.status !== 'concluido' && os.status !== 'cancelado' && (
-                <button
-                  onClick={() => onConfirmarConcluir(os.id)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-opacity hover:opacity-90 active:scale-[0.98]"
-                  style={{ backgroundColor: '#34d399', color: '#0a0c12' }}
-                >
-                  <CheckCircle2 size={15} />
-                  Concluir OS #{os.numero}
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <StatusQuickEdit osId={os.id} status={os.status} variant="button" />
+                  <button
+                    onClick={() => onConfirmarConcluir(os.id)}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[13px] font-bold transition-opacity hover:opacity-90 active:scale-[0.98]"
+                    style={{ backgroundColor: '#34d399', color: '#0a0c12' }}
+                  >
+                    <CheckCircle2 size={15} />
+                    Concluir
+                  </button>
+                </div>
               )}
 
               <div className="grid grid-cols-2 gap-2">

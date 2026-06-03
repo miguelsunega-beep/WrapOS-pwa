@@ -12,6 +12,10 @@ import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
 import { CheckinRapido } from '../components/CheckinRapido'
+import { ConcluirOSModal } from '../components/ConcluirOSModal'
+import { StatusQuickEdit } from '../components/StatusQuickEdit'
+import { DateField } from '../components/DateField'
+import { isOSAtrasada } from '../lib/osStatus'
 import { useApp } from '../context/AppContext'
 import type { StatusOS, BadgeVariant, OrdemServico, MaterialUsado } from '../types'
 
@@ -72,6 +76,7 @@ interface FormState {
   comissaoPerc: number
   comissaoFixo: number
   observacoes: string
+  dataSaidaPrevista: string
 }
 
 const blankForm: FormState = {
@@ -87,6 +92,7 @@ const blankForm: FormState = {
   comissaoPerc: 12,
   comissaoFixo: 0,
   observacoes: '',
+  dataSaidaPrevista: '',
 }
 
 // ── Edit form state ───────────────────────────────────────────
@@ -121,7 +127,7 @@ const selectCls = `${inputCls} cursor-pointer`
 export function OrdemServico() {
   const {
     ordens, clientes, veiculos, servicos, instaladores, produtos,
-    adicionarOS, editarOS, mudarStatusOS, deletarOS, concluirOS, cancelarOS,
+    adicionarOS, editarOS, mudarStatusOS, deletarOS, cancelarOS,
     adicionarCliente, adicionarVeiculo, registrarPagamentoOS,
   } = useApp()
   const location = useLocation()
@@ -134,10 +140,7 @@ export function OrdemServico() {
   const [confirmarDelete, setConfirmarDelete] = useState<string | null>(null)
   const [editarOSOpen, setEditarOSOpen]     = useState(false)
   const [editandoOS, setEditandoOS]         = useState<OrdemServico | null>(null)
-  const [concluirOpen, setConcluirOpen]     = useState(false)
   const [concluirOSData, setConcluirOSData] = useState<OrdemServico | null>(null)
-  const [materiaisModal, setMateriaisModal] = useState<MaterialUsado[]>([])
-  const [pagoNaConclusao, setPagoNaConclusao] = useState(true)
   const [checkinOpen, setCheckinOpen]       = useState(false)
 
   // ── Form state ────────────────────────────────────────────────
@@ -319,9 +322,10 @@ export function OrdemServico() {
       formaPagamento: form.formaPagamento,
       instaladorId:   form.instaladorId,
       box:            form.box,
-      comissao:       comissaoValor,
-      observacoes:    form.observacoes,
-      status:         'aguardando_aprovacao',
+      comissao:          comissaoValor,
+      observacoes:       form.observacoes,
+      dataSaidaPrevista: form.dataSaidaPrevista || undefined,
+      status:            'aguardando_aprovacao',
     })
     toast.success('OS criada com sucesso!')
     resetForm()
@@ -383,42 +387,7 @@ export function OrdemServico() {
     setConfirmarDelete(null)
   }
 
-  const abrirConcluir = (os: OrdemServico) => {
-    setConcluirOSData(os)
-    setMateriaisModal([])
-    setConcluirOpen(true)
-  }
-
-  const confirmarConcluir = () => {
-    if (!concluirOSData) return
-    const mats = materiaisModal.filter(m =>
-      m.quantidade > 0 && (
-        (m.origem === 'estoque' && m.produtoId) ||
-        (m.origem === 'compra'  && m.nome?.trim() && (m.custo ?? 0) > 0) ||
-        (m.origem === 'retalho' && m.nome?.trim())
-      )
-    )
-    const { created } = concluirOS(concluirOSData.id, mats, pagoNaConclusao)
-    const parts: string[] = ['OS concluída!']
-    if (created.includes('receita')) parts.push('Receita lançada')
-    if (created.includes('a_receber')) parts.push('Marcada como A RECEBER')
-    if (created.includes('garantia')) parts.push('Garantia criada')
-    if (mats.some(m => m.origem === 'estoque')) parts.push('Estoque baixado')
-    if (created.includes('despesa_material')) parts.push('Despesa de material lançada')
-    toast.success(parts.join(' · '))
-    const today = new Date().toISOString().split('T')[0]
-    if (detalhesOS?.id === concluirOSData.id)
-      setDetalhesOS(p => p ? {
-        ...p,
-        status: 'concluido' as StatusOS,
-        statusPagamento: pagoNaConclusao ? 'pago' : 'a_receber',
-        dataFinalizacao: today,
-      } : null)
-    setConcluirOpen(false)
-    setConcluirOSData(null)
-    setMateriaisModal([])
-    setPagoNaConclusao(true)
-  }
+  const abrirConcluir = (os: OrdemServico) => setConcluirOSData(os)
 
   const nextAction: Partial<Record<StatusOS, { label: string; status: StatusOS; icon: typeof PlayCircle }>> = {
     aguardando_aprovacao: { label: 'Aprovar',           status: 'em_andamento', icon: PlayCircle    },
@@ -534,6 +503,9 @@ export function OrdemServico() {
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-1.5">
                         <Badge label={sc.label} variant={sc.variant} />
+                        {isOSAtrasada(os) && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">ATRASADO</span>
+                        )}
                         {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
                         )}
@@ -572,6 +544,9 @@ export function OrdemServico() {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <Badge label={sc.label} variant={sc.variant} />
+                    {isOSAtrasada(os) && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">ATRASADO</span>
+                    )}
                     {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
                     )}
@@ -825,6 +800,14 @@ export function OrdemServico() {
               </FieldWrap>
             </div>
 
+            <FieldWrap>
+              <Label>Entrega prevista (opcional)</Label>
+              <DateField
+                value={form.dataSaidaPrevista}
+                onChange={(iso) => setForm(f => ({ ...f, dataSaidaPrevista: iso }))}
+              />
+            </FieldWrap>
+
             {/* Comissão toggle */}
             <div className="p-3.5 bg-surface-700 rounded-xl border border-ui-border space-y-3">
               <div className="flex items-center justify-between">
@@ -963,6 +946,17 @@ export function OrdemServico() {
                 <div className="flex items-center justify-between p-3 bg-surface-700 rounded-xl border border-ui-border">
                   <div className="flex items-center gap-3 flex-wrap">
                     <Badge label={sc.label} variant={sc.variant} />
+                    {(os.status === 'em_andamento' || os.status === 'aguardando_material' || os.status === 'aguardando_aprovacao') && (
+                      <StatusQuickEdit
+                        osId={os.id}
+                        status={os.status}
+                        variant="badge"
+                        onChanged={(novo) => setDetalhesOS(p => p ? { ...p, status: novo } : null)}
+                      />
+                    )}
+                    {isOSAtrasada(os) && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">ATRASADO</span>
+                    )}
                     {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
                     )}
@@ -1061,6 +1055,12 @@ export function OrdemServico() {
                     <p className="text-sm font-semibold text-ui-text">{fmtDate(os.dataCriacao)}</p>
                   </div>
                 </div>
+                {os.dataSaidaPrevista && (
+                  <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+                    <p className="text-[11px] text-gray-600 mb-1">Entrega prevista</p>
+                    <p className="text-sm font-semibold text-ui-text">{fmtDate(os.dataSaidaPrevista)}</p>
+                  </div>
+                )}
 
                 {/* Observações */}
                 {os.observacoes && (
@@ -1198,157 +1198,21 @@ export function OrdemServico() {
         </Modal>
       )}
 
-      {/* ════════════════════════════════════════════════════════
-          MODAL: CONCLUIR OS
-      ════════════════════════════════════════════════════════ */}
-      <Modal
-        isOpen={concluirOpen}
-        onClose={() => { setConcluirOpen(false); setConcluirOSData(null); setMateriaisModal([]); setPagoNaConclusao(true) }}
-        title={`Concluir OS #${concluirOSData?.numero ?? ''}`}
-        size="lg"
-      >
-        <div className="space-y-5">
-          <p className="text-sm text-gray-400">
-            A OS será marcada como concluída. Uma receita e uma garantia serão criadas automaticamente.
-          </p>
-
-          {/* Materiais utilizados */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Materiais Utilizados (opcional)</p>
-              <button
-                onClick={() => setMateriaisModal(p => [...p, { origem: 'estoque', produtoId: '', quantidade: 1 }])}
-                className="text-xs text-accent hover:text-ui-text transition-colors font-medium"
-              >
-                + Adicionar
-              </button>
-            </div>
-
-            {materiaisModal.length === 0 ? (
-              <p className="text-xs text-gray-600 py-2 text-center border border-dashed border-ui-border rounded-xl">
-                Nenhum material registrado — clique em "+ Adicionar" para registrar
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {materiaisModal.map((m, i) => (
-                  <div key={i} className="p-3 rounded-xl border border-ui-border bg-surface-700 space-y-2">
-                    {/* Seletor de origem */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1 flex-1">
-                        {([
-                          { v: 'estoque', label: 'Estoque' },
-                          { v: 'compra',  label: 'Compra' },
-                          { v: 'retalho', label: 'Retalho' },
-                        ] as const).map(opt => (
-                          <button
-                            key={opt.v}
-                            type="button"
-                            onClick={() => setMateriaisModal(p => p.map((x, j) => j === i
-                              ? { origem: opt.v, quantidade: x.quantidade, produtoId: '', nome: '', custo: undefined }
-                              : x))}
-                            className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                              m.origem === opt.v
-                                ? 'bg-accent/10 border-accent/40 text-accent'
-                                : 'bg-surface-600 border-ui-border text-gray-500 hover:text-ui-text'
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => setMateriaisModal(p => p.filter((_, j) => j !== i))}
-                        className="p-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-
-                    {/* Campos condicionais por origem */}
-                    {m.origem === 'estoque' ? (
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={m.produtoId ?? ''}
-                          onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, produtoId: e.target.value } : x))}
-                          className="flex-1 bg-surface-600 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 outline-none"
-                        >
-                          <option className="bg-surface-700 text-ui-text" value="">Selecionar produto...</option>
-                          {produtos.map(p => (
-                            <option className="bg-surface-700 text-ui-text" key={p.id} value={p.id}>{p.nome} (em estoque: {p.quantidade} {p.unidade})</option>
-                          ))}
-                        </select>
-                        <input
-                          type="number" min={1}
-                          value={m.quantidade}
-                          onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, quantidade: +e.target.value } : x))}
-                          className="w-20 bg-surface-600 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text text-center focus:border-accent/50 outline-none"
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder={m.origem === 'compra' ? 'Material comprado (ex: PPF cor X)' : 'Retalho/sobra usado'}
-                          value={m.nome ?? ''}
-                          onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, nome: e.target.value } : x))}
-                          className="flex-1 bg-surface-600 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text placeholder-gray-500 focus:border-accent/50 outline-none"
-                        />
-                        <input
-                          type="number" min={1}
-                          value={m.quantidade}
-                          onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, quantidade: +e.target.value } : x))}
-                          className="w-16 bg-surface-600 border border-ui-border rounded-lg px-2 py-2 text-sm text-ui-text text-center focus:border-accent/50 outline-none"
-                        />
-                        {m.origem === 'compra' && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-[12px] text-gray-500">R$</span>
-                            <input
-                              type="number" min={0} step={10}
-                              placeholder="custo"
-                              value={m.custo ?? ''}
-                              onChange={e => setMateriaisModal(p => p.map((x, j) => j === i ? { ...x, custo: parseFloat(e.target.value) || 0 } : x))}
-                              className="w-24 bg-surface-600 border border-ui-border rounded-lg px-2 py-2 text-sm text-ui-text text-right focus:border-accent/50 outline-none"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {m.origem === 'compra' && (
-                      <p className="text-[10px] text-amber-400/80">Será lançado como despesa no Financeiro.</p>
-                    )}
-                    {m.origem === 'retalho' && (
-                      <p className="text-[10px] text-gray-600">Retalho/sobra — não baixa estoque nem gera despesa.</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Pagamento</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setPagoNaConclusao(true)}
-                className={`py-2 rounded-lg text-sm font-medium border transition-all ${pagoNaConclusao ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'border-ui-border text-gray-500 hover:text-gray-300'}`}>
-                ✓ Recebido agora
-              </button>
-              <button type="button" onClick={() => setPagoNaConclusao(false)}
-                className={`py-2 rounded-lg text-sm font-medium border transition-all ${!pagoNaConclusao ? 'bg-amber-500/15 border-amber-500/40 text-amber-400' : 'border-ui-border text-gray-500 hover:text-gray-300'}`}>
-                ⏳ A receber
-              </button>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-ui-border">
-            <Button variant="secondary" onClick={() => { setConcluirOpen(false); setConcluirOSData(null); setMateriaisModal([]); setPagoNaConclusao(true) }}>
-              Cancelar
-            </Button>
-            <ActionButton onClick={confirmarConcluir}>
-              <CheckCheck size={15} /> Concluir OS
-            </ActionButton>
-          </div>
-        </div>
-      </Modal>
+      <ConcluirOSModal
+        os={concluirOSData}
+        onClose={() => setConcluirOSData(null)}
+        onConcluded={(osId, pago) => {
+          const today = new Date().toISOString().split('T')[0]
+          if (detalhesOS?.id === osId) {
+            setDetalhesOS(p => p ? {
+              ...p,
+              status: 'concluido' as StatusOS,
+              statusPagamento: pago ? 'pago' : 'a_receber',
+              dataFinalizacao: today,
+            } : null)
+          }
+        }}
+      />
 
       {/* ════════════════════════════════════════════════════════
           MODAL: CONFIRMAR DELETE

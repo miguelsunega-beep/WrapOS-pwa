@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Calendar, User, TrendingUp, LayoutGrid, AlertTriangle, CheckCircle2, Car } from 'lucide-react'
-import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import { isOSAtrasada } from '../lib/osStatus'
 import { BoxCard } from '../components/BoxCard'
 import { OSDrawer } from '../components/OSDrawer'
-import { Modal } from '../components/Modal'
-import { Button } from '../components/Button'
+import { ConcluirOSModal } from '../components/ConcluirOSModal'
 import type { OrdemServico, StatusOS } from '../types'
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -63,7 +62,6 @@ export function Patio() {
   const {
     ordens, clientes, veiculos, agendamentos, instaladores, servicos,
     lancamentos, configuracoes,
-    concluirOS,
   } = useApp()
 
   const todayStr = toDateStr(new Date())
@@ -83,10 +81,7 @@ export function Patio() {
 
   const noPatioCount = carrosNoPatio.length
 
-  const nowMs = Date.now()
-  const atrasadosCount = carrosNoPatio.filter(
-    os => nowMs - new Date(os.dataCriacao).getTime() > 6 * 3_600_000
-  ).length
+  const atrasadosCount = carrosNoPatio.filter(os => isOSAtrasada(os)).length
 
   const faturamentoHoje = lancamentos
     .filter(l => l.tipo === 'entrada' && l.data === todayStr)
@@ -107,22 +102,13 @@ export function Patio() {
   const getServico    = (id: string) => servicos.find(s => s.id === id)
 
   // ── Confirm concluir modal ────────────────────────────────────
-  const [confirmOS, setConfirmOS]       = useState<OrdemServico | null>(null)
-  const [leavingBoxId, setLeavingBoxId] = useState<string | null>(null)
+  const [concluirOSData, setConcluirOSData] = useState<OrdemServico | null>(null)
+  const [leavingBoxId, setLeavingBoxId]     = useState<string | null>(null)
 
   const handleOpenConfirm = (osId: string) => {
     const os = ordens.find(o => o.id === osId) ?? null
-    setConfirmOS(os)
-  }
-
-  const handleConfirmar = () => {
-    if (!confirmOS) return
-    const os = confirmOS
-    concluirOS(os.id)
-    setLeavingBoxId(os.id)
-    setDrawerOS(null)
-    setConfirmOS(null)
-    toast.success(`OS #${os.numero} concluída — ${fmt(os.valorTotal)} lançado no financeiro`)
+    setDrawerOS(null)        // fecha o editor para o modal não ficar atrás
+    setConcluirOSData(os)
   }
 
   // ── Drawer state ──────────────────────────────────────────────
@@ -193,6 +179,7 @@ export function Patio() {
               veiculo={getVeiculo(os.veiculoId)}
               instalador={getInstalador(os.instaladorId)}
               leaving={leavingBoxId === os.id}
+              atrasada={isOSAtrasada(os)}
               onConcluir={() => setLeavingBoxId(null)}
               onConfirmarConcluir={handleOpenConfirm}
               onOpenDrawer={() => setDrawerOS(os)}
@@ -314,49 +301,12 @@ export function Patio() {
         )}
       </section>
 
-      {/* ── Modal: Confirmar Conclusão ── */}
-      <Modal
-        isOpen={confirmOS !== null}
-        onClose={() => setConfirmOS(null)}
-        title="Confirmar conclusão"
-        size="sm"
-      >
-        {confirmOS && (
-          <div className="space-y-4">
-            <div
-              className="p-4 rounded-xl space-y-1"
-              style={{ backgroundColor: 'rgba(52,211,153,0.05)', border: '1px solid rgba(52,211,153,0.18)' }}
-            >
-              <p className="text-[14px] font-semibold text-ui-text">
-                OS #{confirmOS.numero} — {getCliente(confirmOS.clienteId)?.nome ?? '—'}
-              </p>
-              <p className="text-[12px] text-gray-500">
-                {getVeiculo(confirmOS.veiculoId)?.modelo ?? '—'}
-                {confirmOS.box > 0 ? ` · Box ${confirmOS.box}` : ''}
-              </p>
-              <p className="text-[13px] font-semibold" style={{ color: '#34d399' }}>
-                {fmt(confirmOS.valorTotal)}
-              </p>
-            </div>
-            <p className="text-[12px] text-gray-500">
-              Isso lançará o valor no financeiro e concluirá a OS.
-            </p>
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => setConfirmOS(null)} className="flex-1">
-                Cancelar
-              </Button>
-              <button
-                onClick={handleConfirmar}
-                className="flex-1 flex min-h-12 sm:min-h-0 items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold transition-opacity hover:opacity-90"
-                style={{ backgroundColor: '#34d399', color: '#0a0c12' }}
-              >
-                <CheckCircle2 size={14} />
-                Confirmar conclusão
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      {/* ── Modal: Concluir OS (shared component) ── */}
+      <ConcluirOSModal
+        os={concluirOSData}
+        onClose={() => setConcluirOSData(null)}
+        onConcluded={(osId) => setLeavingBoxId(osId)}
+      />
 
       {/* ── OS Drawer (right panel) ── */}
       <OSDrawer

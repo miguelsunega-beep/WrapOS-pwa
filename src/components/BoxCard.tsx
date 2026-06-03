@@ -50,6 +50,7 @@ interface BoxCardProps {
   cliente:               Cliente | null
   veiculo:               Veiculo | null
   instalador:            Instalador | null
+  atrasada?:             boolean
   onConcluir:            (osId: string) => void
   onConfirmarConcluir?:  (osId: string) => void
   leaving?:              boolean
@@ -60,7 +61,7 @@ interface BoxCardProps {
 
 export function BoxCard({
   boxNum, os, cliente, veiculo, instalador,
-  onConcluir, onConfirmarConcluir, leaving,
+  atrasada, onConcluir, onConfirmarConcluir, leaving,
   onOpenDrawer, onToggleManutencao, emManutencao,
 }: BoxCardProps) {
   const [elapsed, setElapsed] = useState(0)
@@ -162,8 +163,16 @@ export function BoxCard({
       <div style={{ width: 5, backgroundColor: corVeic, flexShrink: 0 }} />
 
       <div className="flex-1 min-w-0 px-4 py-3 flex flex-col">
-        {/* Topo: badge de tempo */}
+        {/* Topo: badge de atraso (se houver) + badge de tempo */}
         <div className="flex items-center min-w-0">
+          {atrasada && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mr-2"
+              style={{ color: '#e8304a', backgroundColor: 'rgba(232,48,74,0.15)' }}
+            >
+              Atrasado
+            </span>
+          )}
           <span
             className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full ml-auto shrink-0"
             style={{ color: statusColor, backgroundColor: `${statusColor}1f` }}

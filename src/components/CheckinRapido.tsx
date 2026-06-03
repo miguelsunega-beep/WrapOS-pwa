@@ -679,7 +679,7 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
       observacoes: obsOS,
       status: 'em_andamento',
       dataEntrada,
-      dataSaidaPrevista: mesmoDia ? dataEntrada : dataSaida,
+      dataSaidaPrevista: mesmoDia ? dataEntrada : (dataSaida || undefined),
     } as Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>)
 
     toast.success(`OS #${numero} criada — ${nomeCliente} · ${labelVeiculo}`)
