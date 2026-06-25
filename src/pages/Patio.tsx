@@ -1,26 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Calendar, User, TrendingUp, LayoutGrid, AlertTriangle, CheckCircle2, Car } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
-import { isOSAtrasada } from '../lib/osStatus'
 import { BoxCard } from '../components/BoxCard'
 import { OSDrawer } from '../components/OSDrawer'
 import { ConcluirOSModal } from '../components/ConcluirOSModal'
-import type { OrdemServico, StatusOS } from '../types'
-
-// ── Helpers ──────────────────────────────────────────────────────
-
-const fmt = (v: number) =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency', currency: 'BRL', maximumFractionDigits: 0,
-  }).format(v)
-
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-const ACTIVE_STATUSES: StatusOS[] = ['em_andamento', 'aguardando_material', 'aguardando_aprovacao']
+import { usePatio } from '../hooks/usePatio'
 
 // ── StatusBar ────────────────────────────────────────────────────
 
@@ -58,71 +42,31 @@ function StatChip({ label, value, color, icon: Icon, onClick }: StatChipProps) {
 // ── Page ─────────────────────────────────────────────────────────
 
 export function Patio() {
-  const navigate = useNavigate()
   const {
-    ordens, clientes, veiculos, agendamentos, instaladores, servicos,
-    lancamentos, configuracoes,
-  } = useApp()
+    carrosNoPatio,
+    noPatioCount,
+    atrasadosCount,
+    faturamentoHojeStr,
+    todayAgendamentos,
+    concluidasHoje,
+    getCliente,
+    getVeiculo,
+    getInstalador,
+    getServico,
+    drawerOS,
+    abrirDrawer,
+    fecharDrawer,
+    concluirOSData,
+    handleOpenConfirm,
+    fecharConcluir,
+    instaladores,
+    numeroBoxes,
+    irParaFinanceiro,
+    irParaAgendamento,
+  } = usePatio()
 
-  const todayStr = toDateStr(new Date())
+  const [leavingBoxId, setLeavingBoxId] = useState<string | null>(null)
 
-  // ── Live status refresh (atrasados counter) ───────────────────
-  const [, forceUpdate] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => forceUpdate(n => n + 1), 60_000)
-    return () => clearInterval(id)
-  }, [])
-
-  // ── Derived data ──────────────────────────────────────────────
-  // Carros no pátio = todas as OS ativas (sem distinção de box)
-  const carrosNoPatio = ordens
-    .filter(o => ACTIVE_STATUSES.includes(o.status))
-    .sort((a, b) => new Date(a.dataCriacao).getTime() - new Date(b.dataCriacao).getTime())
-
-  const noPatioCount = carrosNoPatio.length
-
-  const atrasadosCount = carrosNoPatio.filter(os => isOSAtrasada(os)).length
-
-  const faturamentoHoje = lancamentos
-    .filter(l => l.tipo === 'entrada' && l.data === todayStr)
-    .reduce((s, l) => s + l.valor, 0)
-
-  const todayAgendamentos = agendamentos
-    .filter(a => a.data === todayStr && a.status !== 'concluido' && a.status !== 'cancelado')
-    .sort((a, b) => a.horario.localeCompare(b.horario))
-
-  const concluidasHoje = ordens.filter(o =>
-    o.status === 'concluido' && o.dataFinalizacao === todayStr
-  )
-
-  // ── Lookups ───────────────────────────────────────────────────
-  const getCliente    = (id: string) => clientes.find(c => c.id === id) ?? null
-  const getVeiculo    = (id: string) => veiculos.find(v => v.id === id) ?? null
-  const getInstalador = (id: string) => instaladores.find(i => i.id === id) ?? null
-  const getServico    = (id: string) => servicos.find(s => s.id === id)
-
-  // ── Confirm concluir modal ────────────────────────────────────
-  const [concluirOSData, setConcluirOSData] = useState<OrdemServico | null>(null)
-  const [leavingBoxId, setLeavingBoxId]     = useState<string | null>(null)
-
-  const handleOpenConfirm = (osId: string) => {
-    const os = ordens.find(o => o.id === osId) ?? null
-    setDrawerOS(null)        // fecha o editor para o modal não ficar atrás
-    setConcluirOSData(os)
-  }
-
-  // ── Drawer state ──────────────────────────────────────────────
-  const [drawerOS, setDrawerOS] = useState<OrdemServico | null>(null)
-
-  // Sync drawer OS when ordens update (e.g. after Salvar or status change)
-  useEffect(() => {
-    if (drawerOS) {
-      const updated = ordens.find(o => o.id === drawerOS.id)
-      if (updated) setDrawerOS(updated)
-    }
-  }, [ordens])
-
-  // ── Render ────────────────────────────────────────────────────
   return (
     <div className="p-4 md:p-6 space-y-6 min-h-full" style={{ backgroundColor: 'var(--wrap-bg)' }}>
 
@@ -157,8 +101,8 @@ export function Patio() {
       <div className="hidden md:flex overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 gap-3 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:hidden">
         <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="No Pátio" value={noPatioCount} color="#f0f0f4" icon={LayoutGrid} /></div>
         <div className="min-w-[140px] shrink-0 snap-start"><StatChip label="Atrasados" value={atrasadosCount} color={atrasadosCount > 0 ? '#e8304a' : '#5a6070'} icon={AlertTriangle} /></div>
-        <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Faturado" value={fmt(faturamentoHoje)} color="#34d399" icon={TrendingUp} onClick={() => navigate('/financeiro')} /></div>
-        <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Agenda" value={`${todayAgendamentos.length} hoje`} color={todayAgendamentos.length > 0 ? 'var(--wrap-accent)' : '#5a6070'} icon={Calendar} onClick={() => navigate('/agendamento')} /></div>
+        <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Faturado" value={faturamentoHojeStr} color="#34d399" icon={TrendingUp} onClick={irParaFinanceiro} /></div>
+        <div className="min-w-[150px] shrink-0 snap-start"><StatChip label="Agenda" value={`${todayAgendamentos.length} hoje`} color={todayAgendamentos.length > 0 ? 'var(--wrap-accent)' : '#5a6070'} icon={Calendar} onClick={irParaAgendamento} /></div>
       </div>
 
       {/* ── Carros no pátio ── */}
@@ -179,10 +123,10 @@ export function Patio() {
               veiculo={getVeiculo(os.veiculoId)}
               instalador={getInstalador(os.instaladorId)}
               leaving={leavingBoxId === os.id}
-              atrasada={isOSAtrasada(os)}
+              atrasada={os.atrasada}
               onConcluir={() => setLeavingBoxId(null)}
               onConfirmarConcluir={handleOpenConfirm}
-              onOpenDrawer={() => setDrawerOS(os)}
+              onOpenDrawer={() => abrirDrawer(os)}
             />
           ))}
         </div>
@@ -215,7 +159,7 @@ export function Patio() {
                 return (
                   <button
                     key={os.id}
-                    onClick={() => setDrawerOS(os)}
+                    onClick={() => abrirDrawer(os)}
                     className="flex min-h-12 items-center justify-between rounded-xl p-5 sm:px-4 sm:py-3 text-left transition-opacity hover:opacity-80 w-full"
                     style={{
                       backgroundColor: 'rgba(52,211,153,0.04)',
@@ -231,7 +175,7 @@ export function Patio() {
                       </div>
                     </div>
                     <div className="ml-3 shrink-0 text-[12px] sm:text-[11px] font-semibold" style={{ color: '#34d399' }}>
-                      {fmt(os.valorTotal)}
+                      {os.valorTotalStr}
                     </div>
                   </button>
                 )
@@ -301,21 +245,21 @@ export function Patio() {
         )}
       </section>
 
-      {/* ── Modal: Concluir OS (shared component) ── */}
+      {/* ── Modal: Concluir OS ── */}
       <ConcluirOSModal
         os={concluirOSData}
-        onClose={() => setConcluirOSData(null)}
+        onClose={fecharConcluir}
         onConcluded={(osId) => setLeavingBoxId(osId)}
       />
 
-      {/* ── OS Drawer (right panel) ── */}
+      {/* ── OS Drawer ── */}
       <OSDrawer
         os={drawerOS}
         cliente={drawerOS ? getCliente(drawerOS.clienteId) : null}
         veiculo={drawerOS ? getVeiculo(drawerOS.veiculoId) : null}
         instaladores={instaladores}
-        numeroBoxes={configuracoes.numeroBoxes}
-        onClose={() => setDrawerOS(null)}
+        numeroBoxes={numeroBoxes}
+        onClose={fecharDrawer}
         onConfirmarConcluir={handleOpenConfirm}
       />
     </div>
