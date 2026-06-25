@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
-import { toast } from 'sonner'
 import {
   Plus, Search, Trash2, Check, X, PlayCircle, CheckCheck, PackageSearch,
   DollarSign, Car, User, Wrench, MessageSquare, Edit2,
@@ -16,96 +14,22 @@ import { ConcluirOSModal } from '../components/ConcluirOSModal'
 import { StatusQuickEdit } from '../components/StatusQuickEdit'
 import { DateField } from '../components/DateField'
 import { isOSAtrasada } from '../lib/osStatus'
-import { useApp } from '../context/AppContext'
-import type { StatusOS, BadgeVariant, OrdemServico, MaterialUsado } from '../types'
+import {
+  useOrdemServico,
+  statusConfig, fmt, fmtDate, FORMAS_PAGAMENTO, CORES_VEICULO_OS,
+} from '../hooks/useOrdemServico'
+import type { StatusOS, OrdemServico, Veiculo } from '../types'
+import type { FiltroStatus } from '../hooks/useOrdemServico'
 
-// ── Constants ─────────────────────────────────────────────────
+// ── Next action config (icon refs — stays in page) ────────────────
 
-const statusConfig: Record<StatusOS, { label: string; variant: BadgeVariant }> = {
-  em_andamento:         { label: 'Em Andamento',      variant: 'warning' },
-  aguardando_material:  { label: 'Aguard. Material',  variant: 'info'    },
-  aguardando_aprovacao: { label: 'Aguard. Aprovação', variant: 'purple'  },
-  concluido:            { label: 'Concluído',         variant: 'success' },
-  cancelado:            { label: 'Cancelado',         variant: 'danger'  },
+const nextAction: Partial<Record<StatusOS, { label: string; status: StatusOS; icon: typeof PlayCircle }>> = {
+  aguardando_aprovacao: { label: 'Aprovar',           status: 'em_andamento', icon: PlayCircle    },
+  aguardando_material:  { label: 'Material Recebido', status: 'em_andamento', icon: PackageSearch },
+  em_andamento:         { label: 'Finalizar OS',      status: 'concluido',    icon: CheckCheck    },
 }
 
-const STATUS_ORDER: StatusOS[] = [
-  'em_andamento', 'aguardando_material', 'aguardando_aprovacao', 'concluido', 'cancelado',
-]
-
-const FORMAS_PAGAMENTO = [
-  'PIX', 'Dinheiro', 'Cartão de Débito', 'Cartão de Crédito', 'Parcelado',
-]
-
-const CORES_VEICULO_OS: { nome: string; hex: string }[] = [
-  { nome: 'Preto', hex: '#1a1a1a' }, { nome: 'Branco', hex: '#e5e5e5' },
-  { nome: 'Prata', hex: '#c4c8cc' }, { nome: 'Cinza', hex: '#6b7280' },
-  { nome: 'Vermelho', hex: '#c0392b' }, { nome: 'Azul', hex: '#2563eb' },
-  { nome: 'Verde', hex: '#16a34a' }, { nome: 'Amarelo', hex: '#eab308' },
-  { nome: 'Laranja', hex: '#ea580c' }, { nome: 'Marrom', hex: '#78350f' },
-  { nome: 'Bege', hex: '#d6c7a1' }, { nome: 'Dourado', hex: '#c8a44d' },
-  { nome: 'Vinho', hex: '#7b1e3a' }, { nome: 'Grafite', hex: '#3a3f44' },
-]
-
-const fmt = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
-
-const fmtDate = (d: string) =>
-  new Date(d + 'T00:00:00').toLocaleDateString('pt-BR')
-
-// ── Filter type ───────────────────────────────────────────────
-
-type FiltroStatus = StatusOS | 'todos' | 'abertos'
-
-// ── Serviço selecionado ───────────────────────────────────────
-
-interface ServicoSelecionado { servicoId: string; valor: number }
-
-// ── Form state ────────────────────────────────────────────────
-
-interface FormState {
-  clienteSearch: string
-  clienteId: string
-  veiculoId: string
-  servicosSel: ServicoSelecionado[]
-  formaPagamento: string
-  instaladorId: string
-  box: number
-  comissaoAtiva: boolean
-  comissaoTipo: 'percentual' | 'fixo'
-  comissaoPerc: number
-  comissaoFixo: number
-  observacoes: string
-  dataSaidaPrevista: string
-}
-
-const blankForm: FormState = {
-  clienteSearch: '',
-  clienteId: '',
-  veiculoId: '',
-  servicosSel: [],
-  formaPagamento: 'PIX',
-  instaladorId: '',
-  box: 1,
-  comissaoAtiva: false,
-  comissaoTipo: 'percentual',
-  comissaoPerc: 12,
-  comissaoFixo: 0,
-  observacoes: '',
-  dataSaidaPrevista: '',
-}
-
-// ── Edit form state ───────────────────────────────────────────
-
-interface EditFormState {
-  servicosSel: ServicoSelecionado[]
-  formaPagamento: string
-  instaladorId: string
-  box: number
-  observacoes: string
-}
-
-// ── Campo label ───────────────────────────────────────────────
+// ── Visual helpers ────────────────────────────────────────────────
 
 function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
@@ -119,56 +43,191 @@ function FieldWrap({ children }: { children: React.ReactNode }) {
   return <div>{children}</div>
 }
 
-const inputCls = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 outline-none transition-colors'
+const inputCls  = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 outline-none transition-colors'
 const selectCls = `${inputCls} cursor-pointer`
 
-// ── Main component ────────────────────────────────────────────
+// ── Sub-component: status filter cards ────────────────────────────
+
+interface StatusCardsProps {
+  counts:      Record<StatusOS, number>
+  statusFilter: FiltroStatus
+  onToggle:    (s: StatusOS) => void
+}
+
+function OSStatusCards({ counts, statusFilter, onToggle }: StatusCardsProps) {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      {([
+        { s: 'em_andamento',         label: 'Em Andamento',      color: 'text-amber-400',   ring: 'ring-amber-500/30'   },
+        { s: 'aguardando_material',  label: 'Aguard. Material',  color: 'text-blue-400',    ring: 'ring-blue-500/30'    },
+        { s: 'aguardando_aprovacao', label: 'Aguard. Aprovação', color: 'text-purple-400',  ring: 'ring-purple-500/30'  },
+        { s: 'concluido',            label: 'Concluídas',        color: 'text-emerald-400', ring: 'ring-emerald-500/30' },
+        { s: 'cancelado',            label: 'Canceladas',        color: 'text-red-400',     ring: 'ring-red-500/30'     },
+      ] as { s: StatusOS; label: string; color: string; ring: string }[]).map(item => (
+        <button
+          key={item.s}
+          onClick={() => onToggle(item.s)}
+          className={`text-left p-4 rounded-xl border transition-all ${
+            statusFilter === item.s
+              ? `bg-surface-700 border-ui-border ring-2 ${item.ring}`
+              : 'bg-surface-800 border-ui-border hover:border-gray-600'
+          }`}
+        >
+          <p className="text-[11px] text-gray-500 font-medium">{item.label}</p>
+          <p className={`text-2xl font-bold mt-1.5 ${item.color}`}>{counts[item.s]}</p>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── Sub-component: OS list (desktop table + mobile cards) ─────────
+
+interface OSListProps {
+  filtered:          OrdemServico[]
+  onOpen:            (os: OrdemServico) => void
+  onConfirmarDelete: (id: string) => void
+  clienteNome:       (id: string) => string
+  veiculoLabel:      (id: string) => string
+  getVeiculo:        (id: string) => Veiculo | undefined
+}
+
+function OSList({ filtered, onOpen, onConfirmarDelete, clienteNome, veiculoLabel, getVeiculo }: OSListProps) {
+  return (
+    <Card padding={false}>
+      <div className="px-4 py-4 border-b border-ui-border flex justify-between items-center">
+        <div>
+          <h2 className="text-sm font-semibold text-ui-text">Todas as Ordens</h2>
+          <p className="text-gray-600 text-xs mt-0.5">{filtered.length} encontradas</p>
+        </div>
+      </div>
+
+      {/* Visão Desktop: Tabela */}
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-ui-border">
+              {['#OS', 'Cliente', 'Veículo', 'Serviços', 'Valor', 'Status', ''].map(h => (
+                <th key={h} className="text-left py-2.5 px-4 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ui-border">
+            {filtered.map(os => {
+              const v  = getVeiculo(os.veiculoId)
+              const sc = statusConfig[os.status]
+              return (
+                <tr key={os.id} onClick={() => onOpen(os)} className="hover:bg-surface-600/40 transition-colors cursor-pointer group">
+                  <td className="py-3.5 px-4 text-xs font-mono text-accent font-semibold">#{os.numero}</td>
+                  <td className="py-3.5 px-4 text-sm font-medium text-ui-text">{clienteNome(os.clienteId)}</td>
+                  <td className="py-3.5 px-4">
+                    <p className="text-sm text-gray-300">{veiculoLabel(os.veiculoId)}</p>
+                    <p className="text-[11px] text-gray-600 font-mono mt-0.5">{v?.placa ?? '—'}</p>
+                  </td>
+                  <td className="py-3.5 px-4 text-sm text-gray-400 max-w-[180px] truncate">{os.servicos.map(s => s.nome).join(', ')}</td>
+                  <td className="py-3.5 px-4 text-sm font-bold text-ui-text">{fmt(os.valorTotal)}</td>
+                  <td className="py-3.5 px-4">
+                    <div className="flex items-center gap-1.5">
+                      <Badge label={sc.label} variant={sc.variant} />
+                      {isOSAtrasada(os) && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">ATRASADO</span>
+                      )}
+                      {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4 text-right">
+                    <button
+                      onClick={e => { e.stopPropagation(); onConfirmarDelete(os.id) }}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-600 hover:text-red-400 transition-all"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Visão Mobile: Lista de Cards */}
+      <div className="md:hidden flex flex-col divide-y divide-ui-border">
+        {filtered.length === 0 ? (
+          <div className="py-12 text-center text-gray-600 text-sm">Nenhuma OS encontrada.</div>
+        ) : filtered.map(os => {
+          const v  = getVeiculo(os.veiculoId)
+          const sc = statusConfig[os.status]
+          return (
+            <button key={os.id} onClick={() => onOpen(os)} className="p-4 text-left hover:bg-surface-600/40 transition-colors flex flex-col gap-2">
+              <div className="flex justify-between items-start w-full">
+                <div>
+                  <span className="text-xs font-mono text-accent font-bold bg-accent/10 px-1.5 py-0.5 rounded mr-2">#{os.numero}</span>
+                  <span className="text-sm font-semibold text-ui-text">{clienteNome(os.clienteId)}</span>
+                </div>
+                <span className="text-sm font-bold text-ui-text">{fmt(os.valorTotal)}</span>
+              </div>
+              <div className="flex justify-between items-end w-full">
+                <div>
+                  <p className="text-xs text-gray-400">{veiculoLabel(os.veiculoId)} <span className="text-[10px] uppercase ml-1">({v?.placa ?? '—'})</span></p>
+                  <p className="text-[11px] text-gray-500 mt-1 truncate max-w-[200px]">{os.servicos.map(s => s.nome).join(', ')}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge label={sc.label} variant={sc.variant} />
+                  {isOSAtrasada(os) && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">ATRASADO</span>
+                  )}
+                  {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
+                  )}
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </Card>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────
 
 export function OrdemServico() {
   const {
-    ordens, clientes, veiculos, servicos, instaladores, produtos,
-    adicionarOS, editarOS, mudarStatusOS, deletarOS, cancelarOS,
-    adicionarCliente, adicionarVeiculo, registrarPagamentoOS,
-  } = useApp()
-  const location = useLocation()
+    servicos, instaladores,
+    search, setSearch,
+    statusFilter, setStatusFilter,
+    filtered, counts, totalOS,
+    detalhesOS, setDetalhesOS,
+    detCustoMateriais,
+    confirmarDelete, setConfirmarDelete, handleDelete,
+    editandoOS, editForm, setEditForm,
+    prepararEdicao, fecharEdicao, handleSalvarEdicao,
+    editValorTotal,
+    toggleServicoEdit, setValorServicoEdit,
+    concluirOSData, setConcluirOSData,
+    abrirConcluir, handleConcluido,
+    form, setForm,
+    criandoCliente, setCriandoCliente,
+    novoCli, setNovoCli,
+    clientesFiltrados, veiculosDoCliente,
+    valorTotalNova, comissaoValor,
+    resetForm, selecionarCliente, handleCriarClienteInline,
+    toggleServico, setValorServico,
+    handleInstaladorChange, handleSalvar,
+    handleStatus, handleCancelarOS, handleRegistrarPagamento,
+    clienteNome, instNome, getVeiculo, veiculoLabel,
+  } = useOrdemServico()
 
-  // ── UI state ─────────────────────────────────────────────────
-  const [search, setSearch]                 = useState('')
-  const [statusFilter, setStatusFilter]     = useState<FiltroStatus>('todos')
-  const [novaOSOpen, setNovaOSOpen]         = useState(false)
-  const [detalhesOS, setDetalhesOS]         = useState<OrdemServico | null>(null)
-  const [confirmarDelete, setConfirmarDelete] = useState<string | null>(null)
-  const [editarOSOpen, setEditarOSOpen]     = useState(false)
-  const [editandoOS, setEditandoOS]         = useState<OrdemServico | null>(null)
-  const [concluirOSData, setConcluirOSData] = useState<OrdemServico | null>(null)
-  const [checkinOpen, setCheckinOpen]       = useState(false)
+  // ── UI state ──────────────────────────────────────────────────
+  const [novaOSOpen, setNovaOSOpen]     = useState(false)
+  const [editarOSOpen, setEditarOSOpen] = useState(false)
+  const [checkinOpen, setCheckinOpen]   = useState(false)
+  const [dropdownOpen, setDropdown]     = useState(false)
+  const dropdownRef                     = useRef<HTMLDivElement>(null)
 
-  // ── Form state ────────────────────────────────────────────────
-  const [form, setForm]         = useState<FormState>(blankForm)
-  const [editForm, setEditForm] = useState<EditFormState>({
-    servicosSel: [], formaPagamento: 'PIX', instaladorId: '', box: 1, observacoes: '',
-  })
-  const [dropdownOpen, setDropdown] = useState(false)
-  const dropdownRef               = useRef<HTMLDivElement>(null)
-  const [criandoCliente, setCriandoCliente] = useState(false)
-  const [novoCli, setNovoCli] = useState({
-    nome: '', telefone: '',
-    marca: '', modelo: '', ano: new Date().getFullYear(), cor: '', placa: '',
-  })
-
-  // ── Auto-open from navigation state (Dashboard click) ─────────
-  useEffect(() => {
-    const state = location.state as { openOSId?: string; statusFilter?: string } | null
-    if (state?.openOSId) {
-      const os = ordens.find(o => o.id === state.openOSId)
-      if (os) setDetalhesOS(os)
-    }
-    if (state?.statusFilter === 'abertos') {
-      setStatusFilter('abertos')
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
+  // ── Click-outside: autocomplete dropdown ──────────────────────
   useEffect(() => {
     const close = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node))
@@ -178,222 +237,18 @@ export function OrdemServico() {
     return () => document.removeEventListener('mousedown', close)
   }, [])
 
-  // ── Lookups ───────────────────────────────────────────────────
-  const clienteNome  = (id: string) => clientes.find(c => c.id === id)?.nome ?? '—'
-  const instNome     = (id: string) => instaladores.find(i => i.id === id)?.nome ?? '—'
-  const getVeiculo   = (id: string) => veiculos.find(v => v.id === id)
-  const veiculoLabel = (id: string) => {
-    const v = getVeiculo(id)
-    return v ? `${v.marca} ${v.modelo} ${v.ano}` : '—'
-  }
+  // ── Wrapper functions ─────────────────────────────────────────
+  const onNova         = () => { resetForm(); setDropdown(false); setNovaOSOpen(true) }
+  const onSalvar       = () => { if (handleSalvar()) setNovaOSOpen(false) }
+  const onPrepararEdicao = (os: OrdemServico) => { prepararEdicao(os); setEditarOSOpen(true) }
+  const onSalvarEdicao = () => { if (handleSalvarEdicao()) setEditarOSOpen(false) }
 
-  // ── Filtered table data ───────────────────────────────────────
-  const filtered = ordens
-    .filter(os => {
-      const q     = search.toLowerCase()
-      const nome  = clienteNome(os.clienteId).toLowerCase()
-      const matchQ = !q || nome.includes(q) || String(os.numero).includes(q) ||
-        os.servicos.some(s => s.nome.toLowerCase().includes(q))
-      const matchS = statusFilter === 'todos'
-        ? true
-        : statusFilter === 'abertos'
-          ? (os.status === 'em_andamento' || os.status === 'aguardando_material')
-          : os.status === statusFilter
-      return matchQ && matchS
-    })
-    .sort((a, b) => {
-      const ar = (o: typeof a) => o.status === 'concluido' && o.statusPagamento === 'a_receber' ? 1 : 0
-      if (ar(a) !== ar(b)) return ar(b) - ar(a)
-      return b.numero - a.numero
-    })
-
-  const counts = STATUS_ORDER.reduce((acc, s) => {
-    acc[s] = ordens.filter(o => o.status === s).length
-    return acc
-  }, {} as Record<StatusOS, number>)
-
-  // ── Form derived ──────────────────────────────────────────────
-  const clientesFiltrados = clientes.filter(c =>
-    c.nome.toLowerCase().includes(form.clienteSearch.toLowerCase()) ||
-    c.cpf.includes(form.clienteSearch),
-  )
-  const veiculosDoCliente = veiculos.filter(v => v.clienteId === form.clienteId)
-
-  const valorTotalNova = form.servicosSel.reduce((sum, s) => sum + (s.valor || 0), 0)
-
-  const comissaoValor = form.comissaoAtiva
-    ? form.comissaoTipo === 'percentual'
-      ? +(valorTotalNova * form.comissaoPerc / 100).toFixed(2)
-      : form.comissaoFixo
-    : 0
-
-  // ── Edit form derived ─────────────────────────────────────────
-  const editValorTotal = editForm.servicosSel.reduce((sum, s) => sum + (s.valor || 0), 0)
-
-  // ── Form handlers ─────────────────────────────────────────────
-  const resetForm = () => {
-    setForm({ ...blankForm, servicosSel: [] })
-    setDropdown(false)
-    setCriandoCliente(false)
-    setNovoCli({ nome: '', telefone: '', marca: '', modelo: '', ano: new Date().getFullYear(), cor: '', placa: '' })
-  }
-
-  const selecionarCliente = (id: string, nome: string) => {
-    setForm(f => ({ ...f, clienteId: id, clienteSearch: nome, veiculoId: '' }))
-    setDropdown(false)
-  }
-
-  const handleCriarClienteInline = () => {
-    if (!novoCli.nome.trim()) { toast.error('Informe o nome do cliente.'); return }
-    if (!novoCli.telefone.trim()) { toast.error('Informe o telefone.'); return }
-
-    const clienteId = adicionarCliente({
-      nome: novoCli.nome.trim(),
-      telefone: novoCli.telefone.trim(),
-      email: '', cpf: '',
-      comoConheceu: 'Cadastro via OS',
-      dataCadastro: new Date().toISOString().split('T')[0],
-      totalGasto: 0,
-    })
-
-    let veiculoId = ''
-    if (novoCli.placa.trim() || novoCli.marca.trim() || novoCli.modelo.trim()) {
-      const limpa = novoCli.placa.toUpperCase().replace(/[^A-Z0-9]/g, '')
-      const placaFmt = limpa.length === 7 ? `${limpa.slice(0,3)}-${limpa.slice(3)}` : novoCli.placa.trim()
-      veiculoId = adicionarVeiculo({
-        clienteId,
-        marca: novoCli.marca.trim(), modelo: novoCli.modelo.trim(),
-        ano: novoCli.ano, cor: novoCli.cor.trim(), placa: placaFmt,
-      })
-    }
-
-    setForm(f => ({ ...f, clienteId, clienteSearch: novoCli.nome.trim(), veiculoId }))
-    setCriandoCliente(false)
-    setNovoCli({ nome: '', telefone: '', marca: '', modelo: '', ano: new Date().getFullYear(), cor: '', placa: '' })
-    toast.success('Cliente cadastrado e selecionado!')
-  }
-
-  const toggleServico = (id: string) =>
-    setForm(f => {
-      const existe = f.servicosSel.some(s => s.servicoId === id)
-      return {
-        ...f,
-        servicosSel: existe
-          ? f.servicosSel.filter(s => s.servicoId !== id)
-          : [...f.servicosSel, { servicoId: id, valor: 0 }],
-      }
-    })
-
-  const setValorServico = (id: string, valor: number) =>
-    setForm(f => ({ ...f, servicosSel: f.servicosSel.map(s => s.servicoId === id ? { ...s, valor } : s) }))
-
-  const toggleServicoEdit = (id: string) =>
-    setEditForm(f => {
-      const existe = f.servicosSel.some(s => s.servicoId === id)
-      return {
-        ...f,
-        servicosSel: existe
-          ? f.servicosSel.filter(s => s.servicoId !== id)
-          : [...f.servicosSel, { servicoId: id, valor: 0 }],
-      }
-    })
-
-  const setValorServicoEdit = (id: string, valor: number) =>
-    setEditForm(f => ({ ...f, servicosSel: f.servicosSel.map(s => s.servicoId === id ? { ...s, valor } : s) }))
-
-  const handleInstaladorChange = (id: string) => {
-    const padrao = instaladores.find(i => i.id === id)?.comissaoPadrao ?? 12
-    setForm(f => ({ ...f, instaladorId: id, comissaoPerc: padrao }))
-  }
-
-  const handleSalvar = () => {
-    if (!form.clienteId) { toast.error('Selecione um cliente.'); return }
-    if (form.servicosSel.length === 0) { toast.error('Selecione ao menos um serviço.'); return }
-    if (!form.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return }
-
-    adicionarOS({
-      clienteId:      form.clienteId,
-      veiculoId:      form.veiculoId,
-      servicos:       form.servicosSel.map(sel => {
-        const s = servicos.find(x => x.id === sel.servicoId)!
-        return { servicoId: sel.servicoId, nome: s.nome, preco: sel.valor }
-      }),
-      valorTotal:     valorTotalNova,
-      formaPagamento: form.formaPagamento,
-      instaladorId:   form.instaladorId,
-      box:            form.box,
-      comissao:          comissaoValor,
-      observacoes:       form.observacoes,
-      dataSaidaPrevista: form.dataSaidaPrevista || undefined,
-      status:            'aguardando_aprovacao',
-    })
-    toast.success('OS criada com sucesso!')
-    resetForm()
-    setNovaOSOpen(false)
-  }
-
-  // ── Edit OS handlers ──────────────────────────────────────────
-  const abrirEdicao = (os: OrdemServico) => {
-    setEditandoOS(os)
-    setEditForm({
-      servicosSel:    os.servicos.map(s => ({ servicoId: s.servicoId, valor: s.preco ?? 0 })),
-      formaPagamento: os.formaPagamento,
-      instaladorId:   os.instaladorId,
-      box:            os.box,
-      observacoes:    os.observacoes,
-    })
-    setEditarOSOpen(true)
-  }
-
-  const handleSalvarEdicao = () => {
-    if (!editandoOS) return
-    if (editForm.servicosSel.length === 0) { toast.error('Selecione ao menos um serviço.'); return }
-    if (!editForm.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return }
-
-    const servicosAtualizados = editForm.servicosSel.map(sel => {
-      const cat = servicos.find(s => s.id === sel.servicoId)
-      const nomeExistente = editandoOS.servicos.find(s => s.servicoId === sel.servicoId)?.nome
-      return { servicoId: sel.servicoId, nome: nomeExistente ?? cat?.nome ?? 'Serviço', preco: sel.valor }
-    })
-
-    const updates = {
-      servicos:       servicosAtualizados,
-      valorTotal:     editValorTotal,
-      formaPagamento: editForm.formaPagamento,
-      instaladorId:   editForm.instaladorId,
-      box:            editForm.box,
-      observacoes:    editForm.observacoes,
-    }
-
-    editarOS(editandoOS.id, updates)
-    setDetalhesOS(prev => prev ? { ...prev, ...updates } : null)
-    toast.success('OS atualizada com sucesso!')
-    setEditarOSOpen(false)
-    setEditandoOS(null)
-  }
-
-  // ── Status handlers ───────────────────────────────────────────
-  const handleStatus = (id: string, status: StatusOS) => {
-    mudarStatusOS(id, status)
-    toast.success(`Status: "${statusConfig[status].label}"`)
-    if (detalhesOS?.id === id) setDetalhesOS(p => p ? { ...p, status } : null)
-  }
-
-  const handleDelete = () => {
-    if (!confirmarDelete) return
-    deletarOS(confirmarDelete)
-    toast('OS removida.')
-    if (detalhesOS?.id === confirmarDelete) setDetalhesOS(null)
-    setConfirmarDelete(null)
-  }
-
-  const abrirConcluir = (os: OrdemServico) => setConcluirOSData(os)
-
-  const nextAction: Partial<Record<StatusOS, { label: string; status: StatusOS; icon: typeof PlayCircle }>> = {
-    aguardando_aprovacao: { label: 'Aprovar',           status: 'em_andamento', icon: PlayCircle    },
-    aguardando_material:  { label: 'Material Recebido', status: 'em_andamento', icon: PackageSearch },
-    em_andamento:         { label: 'Finalizar OS',      status: 'concluido',    icon: CheckCheck    },
-  }
+  // ── Pre-computed for details modal (no IIFE) ──────────────────
+  const detV        = detalhesOS ? getVeiculo(detalhesOS.veiculoId)  : undefined
+  const detNext     = detalhesOS ? nextAction[detalhesOS.status]     : undefined
+  const detPodeAcao = detalhesOS
+    ? (detalhesOS.status !== 'concluido' && detalhesOS.status !== 'cancelado')
+    : false
 
   // ── Render ────────────────────────────────────────────────────
   return (
@@ -404,7 +259,7 @@ export function OrdemServico() {
         <div>
           <h1 className="text-xl font-bold text-ui-text">Ordens de Serviço</h1>
           <p className="text-gray-500 text-xs mt-0.5">
-            {ordens.length} OS — {counts.em_andamento + counts.aguardando_material} em aberto
+            {totalOS} OS — {counts.em_andamento + counts.aguardando_material} em aberto
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -414,35 +269,18 @@ export function OrdemServico() {
           >
             <Zap size={14} /> Check-in Rápido
           </button>
-          <Button onClick={() => { resetForm(); setNovaOSOpen(true) }}>
+          <Button onClick={onNova}>
             <Plus size={15} /> Nova OS
           </Button>
         </div>
       </div>
 
       {/* Status cards (filtro clicável) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {([
-          { s: 'em_andamento',         label: 'Em Andamento',      color: 'text-amber-400',   ring: 'ring-amber-500/30'   },
-          { s: 'aguardando_material',  label: 'Aguard. Material',  color: 'text-blue-400',    ring: 'ring-blue-500/30'    },
-          { s: 'aguardando_aprovacao', label: 'Aguard. Aprovação', color: 'text-purple-400',  ring: 'ring-purple-500/30'  },
-          { s: 'concluido',            label: 'Concluídas',        color: 'text-emerald-400', ring: 'ring-emerald-500/30' },
-          { s: 'cancelado',            label: 'Canceladas',        color: 'text-red-400',     ring: 'ring-red-500/30'     },
-        ] as { s: StatusOS; label: string; color: string; ring: string }[]).map(item => (
-          <button
-            key={item.s}
-            onClick={() => setStatusFilter(f => f === item.s ? 'todos' : item.s)}
-            className={`text-left p-4 rounded-xl border transition-all ${
-              statusFilter === item.s
-                ? `bg-surface-700 border-ui-border ring-2 ${item.ring}`
-                : 'bg-surface-800 border-ui-border hover:border-gray-600'
-            }`}
-          >
-            <p className="text-[11px] text-gray-500 font-medium">{item.label}</p>
-            <p className={`text-2xl font-bold mt-1.5 ${item.color}`}>{counts[item.s]}</p>
-          </button>
-        ))}
-      </div>
+      <OSStatusCards
+        counts={counts}
+        statusFilter={statusFilter}
+        onToggle={s => setStatusFilter(f => f === s ? 'todos' : s)}
+      />
 
       {/* Busca */}
       <div className="flex items-center gap-3">
@@ -467,96 +305,15 @@ export function OrdemServico() {
         )}
       </div>
 
-      {/* Tabela (Desktop) / Cards (Mobile) */}
-      <Card padding={false}>
-        <div className="px-4 py-4 border-b border-ui-border flex justify-between items-center">
-          <div>
-            <h2 className="text-sm font-semibold text-ui-text">Todas as Ordens</h2>
-            <p className="text-gray-600 text-xs mt-0.5">{filtered.length} encontradas</p>
-          </div>
-        </div>
-
-        {/* Visão Desktop: Tabela */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-ui-border">
-                {['#OS', 'Cliente', 'Veículo', 'Serviços', 'Valor', 'Status', ''].map(h => (
-                  <th key={h} className="text-left py-2.5 px-4 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ui-border">
-              {filtered.map(os => {
-                const v  = getVeiculo(os.veiculoId)
-                const sc = statusConfig[os.status]
-                return (
-                  <tr key={os.id} onClick={() => setDetalhesOS(os)} className="hover:bg-surface-600/40 transition-colors cursor-pointer group">
-                    <td className="py-3.5 px-4 text-xs font-mono text-accent font-semibold">#{os.numero}</td>
-                    <td className="py-3.5 px-4 text-sm font-medium text-ui-text">{clienteNome(os.clienteId)}</td>
-                    <td className="py-3.5 px-4">
-                      <p className="text-sm text-gray-300">{veiculoLabel(os.veiculoId)}</p>
-                      <p className="text-[11px] text-gray-600 font-mono mt-0.5">{v?.placa ?? '—'}</p>
-                    </td>
-                    <td className="py-3.5 px-4 text-sm text-gray-400 max-w-[180px] truncate">{os.servicos.map(s => s.nome).join(', ')}</td>
-                    <td className="py-3.5 px-4 text-sm font-bold text-ui-text">{fmt(os.valorTotal)}</td>
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-1.5">
-                        <Badge label={sc.label} variant={sc.variant} />
-                        {isOSAtrasada(os) && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">ATRASADO</span>
-                        )}
-                        {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <button onClick={e => { e.stopPropagation(); setConfirmarDelete(os.id) }} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-600 hover:text-red-400 transition-all"><Trash2 size={14} /></button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Visão Mobile: Lista de Cards */}
-        <div className="md:hidden flex flex-col divide-y divide-ui-border">
-          {filtered.length === 0 ? (
-            <div className="py-12 text-center text-gray-600 text-sm">Nenhuma OS encontrada.</div>
-          ) : filtered.map(os => {
-            const v  = getVeiculo(os.veiculoId)
-            const sc = statusConfig[os.status]
-            return (
-              <button key={os.id} onClick={() => setDetalhesOS(os)} className="p-4 text-left hover:bg-surface-600/40 transition-colors flex flex-col gap-2">
-                <div className="flex justify-between items-start w-full">
-                  <div>
-                    <span className="text-xs font-mono text-accent font-bold bg-accent/10 px-1.5 py-0.5 rounded mr-2">#{os.numero}</span>
-                    <span className="text-sm font-semibold text-ui-text">{clienteNome(os.clienteId)}</span>
-                  </div>
-                  <span className="text-sm font-bold text-ui-text">{fmt(os.valorTotal)}</span>
-                </div>
-                <div className="flex justify-between items-end w-full">
-                  <div>
-                    <p className="text-xs text-gray-400">{veiculoLabel(os.veiculoId)} <span className="text-[10px] uppercase ml-1">({v?.placa ?? '—'})</span></p>
-                    <p className="text-[11px] text-gray-500 mt-1 truncate max-w-[200px]">{os.servicos.map(s => s.nome).join(', ')}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge label={sc.label} variant={sc.variant} />
-                    {isOSAtrasada(os) && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">ATRASADO</span>
-                    )}
-                    {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
-                    )}
-                  </div>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </Card>
+      {/* Lista */}
+      <OSList
+        filtered={filtered}
+        onOpen={setDetalhesOS}
+        onConfirmarDelete={setConfirmarDelete}
+        clienteNome={clienteNome}
+        veiculoLabel={veiculoLabel}
+        getVeiculo={getVeiculo}
+      />
 
       {/* ════════════════════════════════════════════════════════
           MODAL: NOVA OS
@@ -611,7 +368,7 @@ export function OrdemServico() {
                     ) : clientesFiltrados.slice(0, 6).map(c => (
                       <button
                         key={c.id}
-                        onMouseDown={() => selecionarCliente(c.id, c.nome)}
+                        onMouseDown={() => { selecionarCliente(c.id, c.nome); setDropdown(false) }}
                         className="w-full text-left px-3 py-2.5 hover:bg-surface-600 border-b border-ui-border/50 last:border-0 transition-colors"
                       >
                         <p className="text-sm font-medium text-ui-text">{c.nome}</p>
@@ -908,7 +665,7 @@ export function OrdemServico() {
             <Button variant="secondary" onClick={() => { setNovaOSOpen(false); resetForm() }}>
               Cancelar
             </Button>
-            <ActionButton onClick={handleSalvar}>
+            <ActionButton onClick={onSalvar}>
               <Check size={15} /> Salvar OS
             </ActionButton>
           </div>
@@ -925,160 +682,134 @@ export function OrdemServico() {
           title={`OS #${detalhesOS.numero}`}
           size="xl"
         >
-          {(() => {
-            const os   = detalhesOS
-            const v    = getVeiculo(os.veiculoId)
-            const sc   = statusConfig[os.status]
-            const next = nextAction[os.status]
-            const podeCancelar = os.status !== 'concluido' && os.status !== 'cancelado'
-            const podeEditar   = os.status !== 'concluido' && os.status !== 'cancelado'
-            const custoMateriais = (os.materiaisUsados ?? []).reduce((sum, m) => {
-              const origem = (m as MaterialUsado).origem ?? 'estoque'
-              if (origem === 'estoque') {
-                const p = produtos.find(x => x.id === m.produtoId)
-                return sum + (p ? p.valorUnitario * m.quantidade : 0)
-              }
-              return sum + ((m as MaterialUsado).custo ?? 0)
-            }, 0)
-            return (
-              <div className="space-y-5">
-                {/* Status + botões de ação */}
-                <div className="flex items-center justify-between p-3 bg-surface-700 rounded-xl border border-ui-border">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <Badge label={sc.label} variant={sc.variant} />
-                    {(os.status === 'em_andamento' || os.status === 'aguardando_material' || os.status === 'aguardando_aprovacao') && (
-                      <StatusQuickEdit
-                        osId={os.id}
-                        status={os.status}
-                        variant="badge"
-                        onChanged={(novo) => setDetalhesOS(p => p ? { ...p, status: novo } : null)}
-                      />
-                    )}
-                    {isOSAtrasada(os) && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">ATRASADO</span>
-                    )}
-                    {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
-                    )}
-                    {os.dataFinalizacao && (
-                      <span className="text-xs text-gray-600">Finalizada em {fmtDate(os.dataFinalizacao)}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
-                      <Button size="sm" onClick={() => {
-                        registrarPagamentoOS(os.id)
-                        toast.success('Pagamento registrado! Receita lançada no Financeiro.')
-                        setDetalhesOS(p => p ? { ...p, statusPagamento: 'pago' } : null)
-                      }} className="bg-emerald-600 hover:bg-emerald-500 border-emerald-600 text-white">
-                        <Check size={14} />Registrar pagamento
-                      </Button>
-                    )}
-                    {podeEditar && (
-                      <Button size="sm" variant="secondary" onClick={() => abrirEdicao(os)}>
-                        <Edit2 size={14} />Editar OS
-                      </Button>
-                    )}
-                    {next && (
-                      <Button
-                        size="sm"
-                        onClick={() => next.status === 'concluido' ? abrirConcluir(os) : handleStatus(os.id, next.status)}
-                      >
-                        <next.icon size={14} />{next.label}
-                      </Button>
-                    )}
-                    {podeCancelar && (
-                      <Button size="sm" variant="danger" onClick={() => {
-                        cancelarOS(os.id)
-                        toast.success('OS cancelada.')
-                        if (detalhesOS?.id === os.id) setDetalhesOS(p => p ? { ...p, status: 'cancelado' as StatusOS } : null)
-                      }}>
-                        <XCircle size={14} />Cancelar OS
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Info */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                    <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><User size={11} />Cliente</p>
-                    <p className="text-sm font-semibold text-ui-text">{clienteNome(os.clienteId)}</p>
-                  </div>
-                  <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                    <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><Car size={11} />Veículo</p>
-                    <p className="text-sm font-semibold text-ui-text">{veiculoLabel(os.veiculoId)}</p>
-                    {v && <p className="text-[11px] font-mono text-gray-500 mt-0.5">{v.placa} · {v.cor}</p>}
-                  </div>
-                  <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                    <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><Wrench size={11} />Instalador</p>
-                    <p className="text-sm font-semibold text-ui-text">{instNome(os.instaladorId)}</p>
-                  </div>
-                </div>
-
-                {/* Serviços */}
-                <div className="border border-ui-border rounded-xl overflow-hidden">
-                  <div className="px-4 py-2.5 bg-surface-700 border-b border-ui-border">
-                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Serviços</p>
-                  </div>
-                  <table className="w-full">
-                    <tbody className="divide-y divide-ui-border">
-                      {os.servicos.map(s => (
-                        <tr key={s.servicoId}>
-                          <td className="px-4 py-2.5 text-sm text-ui-text">{s.nome}</td>
-                          <td className="px-4 py-2.5 text-sm font-bold text-right text-ui-text">{fmt(s.preco)}</td>
-                        </tr>
-                      ))}
-                      <tr className="bg-surface-700">
-                        <td className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Total</td>
-                        <td
-                          className="px-4 py-2.5 text-base font-bold text-accent text-right"
-                          style={{ color: custoMateriais > os.valorTotal ? '#e8304a' : undefined }}
-                        >{fmt(os.valorTotal)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Dados financeiros */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                    <p className="text-[11px] text-gray-600 mb-1">Pagamento</p>
-                    <p className="text-sm font-semibold text-ui-text">{os.formaPagamento}</p>
-                  </div>
-                  <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                    <p className="text-[11px] text-gray-600 mb-1">Comissão</p>
-                    <p className="text-sm font-semibold text-ui-text">{os.comissao > 0 ? fmt(os.comissao) : '—'}</p>
-                  </div>
-                  <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                    <p className="text-[11px] text-gray-600 mb-1">Abertura</p>
-                    <p className="text-sm font-semibold text-ui-text">{fmtDate(os.dataCriacao)}</p>
-                  </div>
-                </div>
-                {os.dataSaidaPrevista && (
-                  <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                    <p className="text-[11px] text-gray-600 mb-1">Entrega prevista</p>
-                    <p className="text-sm font-semibold text-ui-text">{fmtDate(os.dataSaidaPrevista)}</p>
-                  </div>
+          <div className="space-y-5">
+            {/* Status + botões de ação */}
+            <div className="flex items-center justify-between p-3 bg-surface-700 rounded-xl border border-ui-border">
+              <div className="flex items-center gap-3 flex-wrap">
+                <Badge label={statusConfig[detalhesOS.status].label} variant={statusConfig[detalhesOS.status].variant} />
+                {(detalhesOS.status === 'em_andamento' || detalhesOS.status === 'aguardando_material' || detalhesOS.status === 'aguardando_aprovacao') && (
+                  <StatusQuickEdit
+                    osId={detalhesOS.id}
+                    status={detalhesOS.status}
+                    variant="badge"
+                    onChanged={(novo) => setDetalhesOS(p => p ? { ...p, status: novo } : null)}
+                  />
                 )}
-
-                {/* Observações */}
-                {os.observacoes && (
-                  <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                    <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><MessageSquare size={11} />Observações</p>
-                    <p className="text-sm text-gray-300">{os.observacoes}</p>
-                  </div>
+                {isOSAtrasada(detalhesOS) && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">ATRASADO</span>
                 )}
-
-                <div className="flex justify-between pt-4 border-t border-ui-border">
-                  <Button variant="danger" size="sm" onClick={() => { setConfirmarDelete(os.id); setDetalhesOS(null) }}>
-                    <Trash2 size={13} />Excluir OS
-                  </Button>
-                  <Button variant="secondary" onClick={() => setDetalhesOS(null)}>Fechar</Button>
-                </div>
+                {detalhesOS.status === 'concluido' && detalhesOS.statusPagamento === 'a_receber' && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
+                )}
+                {detalhesOS.dataFinalizacao && (
+                  <span className="text-xs text-gray-600">Finalizada em {fmtDate(detalhesOS.dataFinalizacao)}</span>
+                )}
               </div>
-            )
-          })()}
+              <div className="flex items-center gap-2 flex-wrap">
+                {detalhesOS.status === 'concluido' && detalhesOS.statusPagamento === 'a_receber' && (
+                  <Button size="sm" onClick={() => handleRegistrarPagamento(detalhesOS.id)} className="bg-emerald-600 hover:bg-emerald-500 border-emerald-600 text-white">
+                    <Check size={14} />Registrar pagamento
+                  </Button>
+                )}
+                {detPodeAcao && (
+                  <Button size="sm" variant="secondary" onClick={() => onPrepararEdicao(detalhesOS)}>
+                    <Edit2 size={14} />Editar OS
+                  </Button>
+                )}
+                {detNext && (
+                  <Button
+                    size="sm"
+                    onClick={() => detNext.status === 'concluido' ? abrirConcluir(detalhesOS) : handleStatus(detalhesOS.id, detNext.status)}
+                  >
+                    <detNext.icon size={14} />{detNext.label}
+                  </Button>
+                )}
+                {detPodeAcao && (
+                  <Button size="sm" variant="danger" onClick={() => handleCancelarOS(detalhesOS.id)}>
+                    <XCircle size={14} />Cancelar OS
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Info */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+                <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><User size={11} />Cliente</p>
+                <p className="text-sm font-semibold text-ui-text">{clienteNome(detalhesOS.clienteId)}</p>
+              </div>
+              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+                <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><Car size={11} />Veículo</p>
+                <p className="text-sm font-semibold text-ui-text">{veiculoLabel(detalhesOS.veiculoId)}</p>
+                {detV && <p className="text-[11px] font-mono text-gray-500 mt-0.5">{detV.placa} · {detV.cor}</p>}
+              </div>
+              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+                <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><Wrench size={11} />Instalador</p>
+                <p className="text-sm font-semibold text-ui-text">{instNome(detalhesOS.instaladorId)}</p>
+              </div>
+            </div>
+
+            {/* Serviços */}
+            <div className="border border-ui-border rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 bg-surface-700 border-b border-ui-border">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Serviços</p>
+              </div>
+              <table className="w-full">
+                <tbody className="divide-y divide-ui-border">
+                  {detalhesOS.servicos.map(s => (
+                    <tr key={s.servicoId}>
+                      <td className="px-4 py-2.5 text-sm text-ui-text">{s.nome}</td>
+                      <td className="px-4 py-2.5 text-sm font-bold text-right text-ui-text">{fmt(s.preco)}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-surface-700">
+                    <td className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Total</td>
+                    <td
+                      className="px-4 py-2.5 text-base font-bold text-accent text-right"
+                      style={{ color: detCustoMateriais > detalhesOS.valorTotal ? '#e8304a' : undefined }}
+                    >{fmt(detalhesOS.valorTotal)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Dados financeiros */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+                <p className="text-[11px] text-gray-600 mb-1">Pagamento</p>
+                <p className="text-sm font-semibold text-ui-text">{detalhesOS.formaPagamento}</p>
+              </div>
+              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+                <p className="text-[11px] text-gray-600 mb-1">Comissão</p>
+                <p className="text-sm font-semibold text-ui-text">{detalhesOS.comissao > 0 ? fmt(detalhesOS.comissao) : '—'}</p>
+              </div>
+              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+                <p className="text-[11px] text-gray-600 mb-1">Abertura</p>
+                <p className="text-sm font-semibold text-ui-text">{fmtDate(detalhesOS.dataCriacao)}</p>
+              </div>
+            </div>
+            {detalhesOS.dataSaidaPrevista && (
+              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+                <p className="text-[11px] text-gray-600 mb-1">Entrega prevista</p>
+                <p className="text-sm font-semibold text-ui-text">{fmtDate(detalhesOS.dataSaidaPrevista)}</p>
+              </div>
+            )}
+
+            {/* Observações */}
+            {detalhesOS.observacoes && (
+              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
+                <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><MessageSquare size={11} />Observações</p>
+                <p className="text-sm text-gray-300">{detalhesOS.observacoes}</p>
+              </div>
+            )}
+
+            <div className="flex justify-between pt-4 border-t border-ui-border">
+              <Button variant="danger" size="sm" onClick={() => { setConfirmarDelete(detalhesOS.id); setDetalhesOS(null) }}>
+                <Trash2 size={13} />Excluir OS
+              </Button>
+              <Button variant="secondary" onClick={() => setDetalhesOS(null)}>Fechar</Button>
+            </div>
+          </div>
         </Modal>
       )}
 
@@ -1088,7 +819,7 @@ export function OrdemServico() {
       {editandoOS && (
         <Modal
           isOpen={editarOSOpen}
-          onClose={() => { setEditarOSOpen(false); setEditandoOS(null) }}
+          onClose={() => { setEditarOSOpen(false); fecharEdicao() }}
           title={`Editar OS #${editandoOS.numero}`}
           size="xl"
         >
@@ -1188,10 +919,10 @@ export function OrdemServico() {
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-ui-border">
-            <Button variant="secondary" onClick={() => { setEditarOSOpen(false); setEditandoOS(null) }}>
+            <Button variant="secondary" onClick={() => { setEditarOSOpen(false); fecharEdicao() }}>
               Cancelar
             </Button>
-            <ActionButton onClick={handleSalvarEdicao}>
+            <ActionButton onClick={onSalvarEdicao}>
               <Check size={15} /> Salvar Alterações
             </ActionButton>
           </div>
@@ -1201,17 +932,7 @@ export function OrdemServico() {
       <ConcluirOSModal
         os={concluirOSData}
         onClose={() => setConcluirOSData(null)}
-        onConcluded={(osId, pago) => {
-          const today = new Date().toISOString().split('T')[0]
-          if (detalhesOS?.id === osId) {
-            setDetalhesOS(p => p ? {
-              ...p,
-              status: 'concluido' as StatusOS,
-              statusPagamento: pago ? 'pago' : 'a_receber',
-              dataFinalizacao: today,
-            } : null)
-          }
-        }}
+        onConcluded={handleConcluido}
       />
 
       {/* ════════════════════════════════════════════════════════
