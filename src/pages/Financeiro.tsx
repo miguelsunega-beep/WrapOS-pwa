@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
 import {
-  TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight,
+  ArrowUpRight, ArrowDownRight,
   Plus, Trash2, BarChart2, Eye, EyeOff,
 } from 'lucide-react'
 import { Card } from '../components/Card'
@@ -13,126 +12,45 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from 'recharts'
-import { useApp } from '../context/AppContext'
-import { useTheme } from '../context/ThemeContext'
 import { Relatorios } from './Relatorios'
-
-const fmt = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
-
-const fmtDate = (iso: string) => {
-  const [, m, d] = iso.split('-')
-  return `${d}/${m}`
-}
-
-const FORMAS_PAGAMENTO = [
-  'PIX', 'Dinheiro', 'Cartão de Débito', 'Cartão de Crédito',
-  'Transferência', 'Boleto', 'Débito automático',
-]
-const CATEGORIAS_ENTRADA = ['OS', 'Adiantamento', 'Outros']
-const CATEGORIAS_SAIDA  = ['Estoque', 'Folha', 'Aluguel', 'Marketing', 'Utilities', 'Manutenção', 'Outros']
-
-const initForm = () => ({
-  tipo: 'entrada' as 'entrada' | 'saida',
-  categoria: 'OS',
-  descricao: '',
-  valor: '',
-  data: new Date().toISOString().slice(0, 10),
-  formaPagamento: 'PIX',
-})
+import { useFinanceiro } from '../hooks/useFinanceiro'
 
 export function Financeiro() {
-  const { lancamentos, ordens, adicionarLancamento, deletarLancamento } = useApp()
-  const { theme } = useTheme()
+  const {
+    meses, mesSel, setMesSel,
+    kpisFinanceiro,
+    aReceber, aReceberStr,
+    chartData,
+    gridColor, tickColor, tooltipBg, tooltipBrd, tooltipLabel, tooltipItem, fmt,
+    lancOrdenados,
+    deletarLancamentoById,
+    form, setForm,
+    categorias,
+    FORMAS_PAGAMENTO,
+    setTipo,
+    salvarLancamento,
+    resetForm,
+  } = useFinanceiro()
 
-  const gridColor    = theme === 'dark' ? '#1e2140' : '#e5e7eb'
-  const tickColor    = theme === 'dark' ? '#6b7280' : '#4b5563'
-  const tooltipBg    = theme === 'dark' ? '#18182a' : '#ffffff'
-  const tooltipBrd   = theme === 'dark' ? '#1e2140' : '#e5e7eb'
-  const tooltipLabel = theme === 'dark' ? '#9ca3af' : '#6b7280'
-  const tooltipItem  = theme === 'dark' ? '#fff'    : '#111827'
-
-  // ── Month select ──────────────────────────────────────────────
-  const today = new Date()
-  const meses = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
-    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-      .replace(/^./, c => c.toUpperCase())
-    return { value, label }
-  })
-  const [mesSel, setMesSel] = useState(meses[0].value)
-
-  // ── KPIs ──────────────────────────────────────────────────────
-  const lancMes = lancamentos.filter(l => l.data.startsWith(mesSel))
-  const receita = lancMes.filter(l => l.tipo === 'entrada').reduce((s, l) => s + l.valor, 0)
-  const despesas = lancMes.filter(l => l.tipo === 'saida').reduce((s, l) => s + l.valor, 0)
-  const lucro = receita - despesas
-  const osConcluidas = ordens.filter(o => o.status === 'concluido' && o.dataFinalizacao?.startsWith(mesSel))
-  const ticketMedio = osConcluidas.length > 0
-    ? osConcluidas.reduce((s, o) => s + o.valorTotal, 0) / osConcluidas.length
-    : 0
-  const aReceber = ordens
-    .filter(o => o.status === 'concluido' && o.statusPagamento === 'a_receber')
-    .reduce((s, o) => s + o.valorTotal, 0)
-
-  // ── Chart data (last 6 months, oldest → newest) ───────────────
-  const chartData = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const mes = d.toLocaleDateString('pt-BR', { month: 'short' })
-      .replace('.', '').replace(/^./, c => c.toUpperCase())
-    const receita = lancamentos
-      .filter(l => l.tipo === 'entrada' && l.data.startsWith(key))
-      .reduce((s, l) => s + l.valor, 0)
-    const despesa = lancamentos
-      .filter(l => l.tipo === 'saida' && l.data.startsWith(key))
-      .reduce((s, l) => s + l.valor, 0)
-    return { mes, receita, despesa }
-  })
-
-  // ── Sorted table ──────────────────────────────────────────────
-  const lancOrdenados = [...lancMes].sort((a, b) => b.data.localeCompare(a.data))
-
-  // ── Delete confirm ────────────────────────────────────────────
-  const [confirmar, setConfirmar] = useState<string | null>(null)
-  const handleDelete = () => {
-    if (!confirmar) return
-    deletarLancamento(confirmar)
-    setConfirmar(null)
-    toast.success('Lançamento excluído.')
-  }
-
-  // ── Modal form ────────────────────────────────────────────────
-  const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState(initForm())
-
-  const categorias = form.tipo === 'entrada' ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA
+  const [aba,         setAba]        = useState<'lancamentos' | 'relatorios'>('lancamentos')
+  const [kpisOcultos, setKpisOcultos] = useState(false)
+  const [modalOpen,   setModalOpen]  = useState(false)
+  const [confirmar,   setConfirmar]  = useState<string | null>(null)
 
   const handleSalvar = () => {
-    if (!form.descricao.trim()) { toast.error('Informe a descrição.'); return }
-    const valor = parseFloat(form.valor)
-    if (!valor || valor <= 0) { toast.error('Informe um valor válido.'); return }
-    adicionarLancamento({
-      tipo: form.tipo,
-      categoria: form.categoria,
-      descricao: form.descricao.trim(),
-      valor,
-      data: form.data,
-      formaPagamento: form.formaPagamento,
-    })
-    toast.success('Lançamento adicionado com sucesso!')
-    setModalOpen(false)
-    setForm(initForm())
+    if (salvarLancamento()) setModalOpen(false)
   }
 
-  const closeModal = () => { setModalOpen(false); setForm(initForm()) }
+  const closeModal = () => { setModalOpen(false); resetForm() }
+
+  const handleDelete = () => {
+    if (!confirmar) return
+    deletarLancamentoById(confirmar)
+    setConfirmar(null)
+  }
 
   const inputCls = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text placeholder-gray-500 focus:outline-none focus:border-accent/50 transition-colors'
   const labelCls = 'block text-xs font-medium text-gray-400 mb-1.5'
-
-  const [aba, setAba] = useState<'lancamentos' | 'relatorios'>('lancamentos')
-  const [kpisOcultos, setKpisOcultos] = useState(false)
 
   return (
     <div>
@@ -206,12 +124,7 @@ export function Financeiro() {
         </div>
 
         <div className="grid grid-cols-4 gap-4">
-          {([
-            { label: 'Receita Bruta',  value: receita,     icon: TrendingUp,   color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-            { label: 'Despesas',       value: despesas,    icon: TrendingDown, color: 'text-accent',      bg: 'bg-accent/10'      },
-            { label: 'Lucro Líquido',  value: lucro,       icon: DollarSign,   color: 'text-blue-400',    bg: 'bg-blue-500/10'    },
-            { label: 'Ticket Médio',   value: ticketMedio, icon: ArrowUpRight, color: 'text-purple-400',  bg: 'bg-purple-500/10'  },
-          ] as const).map((item) => {
+          {kpisFinanceiro.map(item => {
             const Icon = item.icon
             return (
               <Card key={item.label}>
@@ -223,13 +136,9 @@ export function Financeiro() {
                         kpisOcultos ? 'blur-md select-none pointer-events-none' : ''
                       }`}
                     >
-                      {fmt(item.value)}
+                      {item.valueStr}
                     </p>
-                    <p className="text-[11px] text-gray-600 mt-1.5">
-                      {item.label === 'Ticket Médio'
-                        ? `${osConcluidas.length} OS concluída${osConcluidas.length !== 1 ? 's' : ''}`
-                        : `${lancMes.length} lançamento${lancMes.length !== 1 ? 's' : ''} no mês`}
-                    </p>
+                    <p className="text-[11px] text-gray-600 mt-1.5">{item.subtitle}</p>
                   </div>
                   <div className={`w-9 h-9 ${item.bg} rounded-xl flex items-center justify-center shrink-0`}>
                     <Icon size={17} className={item.color} />
@@ -250,7 +159,7 @@ export function Financeiro() {
               </div>
             </div>
             <p className={`text-lg font-bold text-amber-400 ${kpisOcultos ? 'blur-md select-none pointer-events-none' : ''}`}>
-              {fmt(aReceber)}
+              {aReceberStr}
             </p>
           </div>
         )}
@@ -310,13 +219,13 @@ export function Financeiro() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-300 truncate">{l.descricao}</p>
                   <p className="text-[11px] text-gray-600 mt-0.5">
-                    {fmtDate(l.data)} · {l.categoria} · {l.formaPagamento}
+                    {l.dataFmt} · {l.categoria} · {l.formaPagamento}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <p className={`text-sm font-bold ${l.tipo === 'entrada' ? 'text-emerald-400' : 'text-accent'}`}>
-                      {l.tipo === 'entrada' ? '+' : '−'}{fmt(l.valor)}
+                      {l.valorFormatado}
                     </p>
                     <Badge
                       label={l.tipo === 'entrada' ? 'Receita' : 'Despesa'}
@@ -349,10 +258,7 @@ export function Financeiro() {
               {(['entrada', 'saida'] as const).map(t => (
                 <button
                   key={t}
-                  onClick={() => {
-                    const cats = t === 'entrada' ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA
-                    setForm(p => ({ ...p, tipo: t, categoria: cats[0] }))
-                  }}
+                  onClick={() => setTipo(t)}
                   className={`py-2 rounded-lg text-sm font-medium border transition-all ${
                     form.tipo === t
                       ? t === 'entrada'
