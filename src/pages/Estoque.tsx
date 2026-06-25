@@ -1,129 +1,45 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
 import {
   Package, AlertTriangle, Plus, Pencil, PackagePlus, PackageMinus, Trash2,
-  Search, DollarSign, Users,
+  Search,
 } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
-import { useApp } from '../context/AppContext'
 import type { Produto } from '../types'
-
-const fmt = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
-
-const CATEGORIAS = ['PPF', 'Envelopamento', 'Cerâmica', 'Acessórios', 'Ferramentas', 'Outros']
-const UNIDADES   = ['rolo', 'unidade', 'frasco', 'caixa', 'litro', 'metro']
-
-interface ProdutoForm {
-  nome: string; sku: string; categoria: string; fornecedor: string
-  quantidade: string; minimo: string; unidade: string; valorUnitario: string
-  metragemRolo: string; valorRolo: string
-}
-
-const CATEGORIAS_ROLO = ['PPF', 'Envelopamento']
-
-const initForm = (p?: Produto): ProdutoForm => ({
-  nome:          p?.nome          ?? '',
-  sku:           p?.sku           ?? '',
-  categoria:     p?.categoria     ?? CATEGORIAS[0],
-  fornecedor:    p?.fornecedor    ?? '',
-  quantidade:    p ? String(p.quantidade)    : '0',
-  minimo:        p ? String(p.minimo)        : '0',
-  unidade:       p?.unidade       ?? UNIDADES[0],
-  valorUnitario: p ? String(p.valorUnitario) : '',
-  metragemRolo:  p && CATEGORIAS_ROLO.includes(p.categoria) ? String(p.quantidade) : '',
-  valorRolo:     '',
-})
+import { useEstoque } from '../hooks/useEstoque'
 
 export function Estoque() {
-  const { produtos, adicionarProduto, editarProduto, deletarProduto, registrarEntradaEstoque, baixarEstoque } = useApp()
+  const {
+    search, setSearch,
+    filtrados,
+    kpisEstoque,
+    criticosCount,
+    CATEGORIAS,
+    UNIDADES,
+    form, setForm,
+    isRolo,
+    custoPorMetroStr,
+    prepararNovo,
+    prepararEditar,
+    salvarProduto,
+    registrarEntrada,
+    registrarBaixa,
+    deletarProdutoById,
+  } = useEstoque()
 
-  // ── Search ─────────────────────────────────────────────────────
-  const [search, setSearch] = useState('')
-  const filtrados = produtos.filter(p => {
-    const q = search.toLowerCase()
-    return !q || p.nome.toLowerCase().includes(q)
-      || p.categoria.toLowerCase().includes(q)
-      || p.fornecedor.toLowerCase().includes(q)
-  })
-
-  // ── KPIs ───────────────────────────────────────────────────────
-  const criticos = produtos.filter(p => p.quantidade <= p.minimo).length
-  const valorTotal = produtos.reduce((s, p) => s + p.quantidade * p.valorUnitario, 0)
-  const fornecedoresUnicos = new Set(produtos.map(p => p.fornecedor)).size
-
-  // ── Produto modal (novo / editar) ──────────────────────────────
   const [produtoModal, setProdutoModal] = useState<'novo' | 'editar' | null>(null)
-  const [editandoId, setEditandoId] = useState<string | null>(null)
-  const [form, setForm] = useState<ProdutoForm>(initForm())
 
-  const abrirNovo = () => {
-    setForm(initForm())
-    setEditandoId(null)
-    setProdutoModal('novo')
-  }
-
-  const abrirEditar = (p: Produto) => {
-    setForm(initForm(p))
-    setEditandoId(p.id)
-    setProdutoModal('editar')
-  }
-
-  const fecharProdutoModal = () => {
-    setProdutoModal(null)
-    setEditandoId(null)
-  }
-
-  const handleSalvarProduto = () => {
-    if (!form.nome.trim()) { toast.error('Informe o nome do produto.'); return }
-
-    const isRolo = CATEGORIAS_ROLO.includes(form.categoria)
-    let valorUnitario: number
-    let quantidade: number
-
-    if (isRolo) {
-      const metragem = parseFloat(form.metragemRolo)
-      const valorRolo = parseFloat(form.valorRolo)
-      if (!metragem || metragem <= 0) { toast.error('Informe a metragem total do rolo.'); return }
-      if (!valorRolo || valorRolo <= 0) { toast.error('Informe o valor pago pelo rolo.'); return }
-      valorUnitario = valorRolo / metragem
-      quantidade = metragem
-    } else {
-      const valor = parseFloat(form.valorUnitario)
-      if (!valor || valor <= 0) { toast.error('Informe o valor unitário.'); return }
-      valorUnitario = valor
-      quantidade = Math.max(0, parseFloat(form.quantidade) || 0)
-    }
-
-    const dados: Omit<Produto, 'id'> = {
-      nome:          form.nome.trim(),
-      sku:           form.sku.trim(),
-      categoria:     form.categoria,
-      fornecedor:    form.fornecedor.trim(),
-      quantidade,
-      minimo:        isRolo ? 0 : Math.max(0, parseFloat(form.minimo) || 0),
-      unidade:       isRolo ? 'metro' : form.unidade,
-      valorUnitario,
-    }
-
-    if (produtoModal === 'novo') {
-      adicionarProduto(dados)
-      toast.success('Produto cadastrado com sucesso!')
-    } else if (editandoId) {
-      editarProduto(editandoId, dados)
-      toast.success('Produto atualizado com sucesso!')
-    }
-    fecharProdutoModal()
-  }
-
-  // ── Baixa de estoque modal ────────────────────────────────────
   const [baixaProduto, setBaixaProduto] = useState<Produto | null>(null)
   const [baixaQtd,     setBaixaQtd]     = useState('1')
   const [baixaMotivo,  setBaixaMotivo]  = useState('')
+
+  const [entradaProduto, setEntradaProduto] = useState<Produto | null>(null)
+  const [entradaQtd,     setEntradaQtd]     = useState('1')
+
+  const [deletarId, setDeletarId] = useState<string | null>(null)
 
   const abrirBaixa = (p: Produto) => {
     setBaixaProduto(p)
@@ -131,41 +47,29 @@ export function Estoque() {
     setBaixaMotivo('')
   }
 
-  const handleBaixa = () => {
-    if (!baixaProduto) return
-    const qtd = parseInt(baixaQtd)
-    if (!qtd || qtd <= 0) { toast.error('Informe uma quantidade válida.'); return }
-    if (qtd > baixaProduto.quantidade) { toast.error('Quantidade maior que o estoque disponível.'); return }
-    baixarEstoque(baixaProduto.id, qtd, baixaMotivo.trim() || undefined)
-    toast.success(`-${qtd} ${baixaProduto.unidade}(s) baixados do estoque.`)
-    setBaixaProduto(null)
-  }
-
-  // ── Delete confirm ────────────────────────────────────────────
-  const [deletarId, setDeletarId] = useState<string | null>(null)
-  const handleDeletar = () => {
-    if (!deletarId) return
-    deletarProduto(deletarId)
-    setDeletarId(null)
-    toast.success('Produto excluído do estoque.')
-  }
-
-  // ── Entrada de estoque modal ───────────────────────────────────
-  const [entradaProduto, setEntradaProduto] = useState<Produto | null>(null)
-  const [entradaQtd, setEntradaQtd] = useState('1')
-
   const abrirEntrada = (p: Produto) => {
     setEntradaProduto(p)
     setEntradaQtd('1')
   }
 
+  const handleSalvarProduto = () => {
+    if (salvarProduto()) setProdutoModal(null)
+  }
+
   const handleRegistrarEntrada = () => {
     if (!entradaProduto) return
-    const qtd = parseInt(entradaQtd)
-    if (!qtd || qtd <= 0) { toast.error('Informe uma quantidade válida.'); return }
-    registrarEntradaEstoque(entradaProduto.id, qtd)
-    toast.success(`+${qtd} ${entradaProduto.unidade}(s) adicionado(s) ao estoque.`)
-    setEntradaProduto(null)
+    if (registrarEntrada(entradaProduto, entradaQtd)) setEntradaProduto(null)
+  }
+
+  const handleBaixa = () => {
+    if (!baixaProduto) return
+    if (registrarBaixa(baixaProduto, baixaQtd, baixaMotivo)) setBaixaProduto(null)
+  }
+
+  const handleDeletar = () => {
+    if (!deletarId) return
+    deletarProdutoById(deletarId)
+    setDeletarId(null)
   }
 
   const inputCls = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text placeholder-gray-500 focus:outline-none focus:border-accent/50 transition-colors'
@@ -180,7 +84,7 @@ export function Estoque() {
           <h1 className="text-xl font-bold text-ui-text">Estoque</h1>
           <p className="text-gray-500 text-xs mt-0.5">Controle de materiais e insumos</p>
         </div>
-        <Button onClick={abrirNovo}>
+        <Button onClick={() => { prepararNovo(); setProdutoModal('novo') }}>
           <Plus size={15} />
           Novo Produto
         </Button>
@@ -188,12 +92,7 @@ export function Estoque() {
 
       {/* KPIs com Carrossel Mobile */}
       <div className="flex overflow-x-auto pb-2 -mx-6 px-6 md:mx-0 md:px-0 md:grid md:grid-cols-4 gap-3 snap-x [&::-webkit-scrollbar]:hidden">
-        {[
-          { label: 'Total de Itens',   value: String(produtos.length),   color: 'text-ui-text',     icon: Package,      bg: 'bg-surface-600'      },
-          { label: 'Estoque Crítico',  value: String(criticos),          color: 'text-accent',      icon: AlertTriangle,bg: 'bg-accent/10'        },
-          { label: 'Valor em Estoque', value: fmt(valorTotal),           color: 'text-emerald-400', icon: DollarSign,   bg: 'bg-emerald-500/10'   },
-          { label: 'Fornecedores',     value: String(fornecedoresUnicos), color: 'text-blue-400',    icon: Users,        bg: 'bg-blue-500/10'      },
-        ].map((item) => {
+        {kpisEstoque.map((item) => {
           const Icon = item.icon
           return (
             <div key={item.label} className="min-w-[220px] md:min-w-0 shrink-0 snap-start">
@@ -214,11 +113,11 @@ export function Estoque() {
       </div>
 
       {/* Critical alert */}
-      {criticos > 0 && (
+      {criticosCount > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 flex items-center gap-3">
           <AlertTriangle size={16} className="text-amber-400 shrink-0" />
           <p className="text-sm text-amber-400">
-            <span className="font-semibold">{criticos} {criticos === 1 ? 'item' : 'itens'}</span>{' '}
+            <span className="font-semibold">{criticosCount} {criticosCount === 1 ? 'item' : 'itens'}</span>{' '}
             com estoque abaixo do mínimo — faça um pedido de reposição.
           </p>
         </div>
@@ -258,43 +157,40 @@ export function Estoque() {
                     Nenhum produto encontrado.
                   </td>
                 </tr>
-              ) : filtrados.map((produto) => {
-                const critico = produto.quantidade <= produto.minimo
-                return (
-                  <tr key={produto.id} className="group hover:bg-surface-600/40 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${critico ? 'bg-accent/10' : 'bg-surface-600'}`}>
-                          <Package size={14} className={critico ? 'text-accent' : 'text-gray-500'} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-ui-text leading-tight">{produto.nome}</p>
-                          {produto.sku && <p className="text-[10px] text-gray-600 mt-0.5">{produto.sku}</p>}
-                        </div>
+              ) : filtrados.map((produto) => (
+                <tr key={produto.id} className="group hover:bg-surface-600/40 transition-colors">
+                  <td className="py-3.5 px-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${produto.critico ? 'bg-accent/10' : 'bg-surface-600'}`}>
+                        <Package size={14} className={produto.critico ? 'text-accent' : 'text-gray-500'} />
                       </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-sm text-gray-400">{produto.categoria}</td>
-                    <td className="py-3.5 px-4 text-sm text-gray-500">{produto.fornecedor}</td>
-                    <td className={`py-3.5 px-4 text-sm font-bold ${critico ? 'text-accent' : 'text-ui-text'}`}>
-                      {produto.quantidade}
-                    </td>
-                    <td className="py-3.5 px-4 text-sm text-gray-500">{produto.minimo}</td>
-                    <td className="py-3.5 px-4 text-sm text-gray-500">{produto.unidade}</td>
-                    <td className="py-3.5 px-4 text-sm font-semibold text-ui-text">{fmt(produto.valorUnitario)}</td>
-                    <td className="py-3.5 px-4">
-                      <Badge label={critico ? 'Crítico' : 'Normal'} variant={critico ? 'danger' : 'success'} />
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => abrirEditar(produto)} className="p-1.5 rounded-lg hover:bg-surface-500 text-gray-500 hover:text-ui-text transition-colors"><Pencil size={13} /></button>
-                        <button onClick={() => abrirEntrada(produto)} className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-gray-500 hover:text-emerald-400 transition-colors"><PackagePlus size={13} /></button>
-                        <button onClick={() => abrirBaixa(produto)} className="p-1.5 rounded-lg hover:bg-amber-500/10 text-gray-500 hover:text-amber-400 transition-colors"><PackageMinus size={13} /></button>
-                        <button onClick={() => setDeletarId(produto.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
+                      <div>
+                        <p className="text-sm font-medium text-ui-text leading-tight">{produto.nome}</p>
+                        {produto.sku && <p className="text-[10px] text-gray-600 mt-0.5">{produto.sku}</p>}
                       </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4 text-sm text-gray-400">{produto.categoria}</td>
+                  <td className="py-3.5 px-4 text-sm text-gray-500">{produto.fornecedor}</td>
+                  <td className={`py-3.5 px-4 text-sm font-bold ${produto.critico ? 'text-accent' : 'text-ui-text'}`}>
+                    {produto.quantidade}
+                  </td>
+                  <td className="py-3.5 px-4 text-sm text-gray-500">{produto.minimo}</td>
+                  <td className="py-3.5 px-4 text-sm text-gray-500">{produto.unidade}</td>
+                  <td className="py-3.5 px-4 text-sm font-semibold text-ui-text">{produto.valorUnitarioStr}</td>
+                  <td className="py-3.5 px-4">
+                    <Badge label={produto.critico ? 'Crítico' : 'Normal'} variant={produto.critico ? 'danger' : 'success'} />
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => { prepararEditar(produto); setProdutoModal('editar') }} className="p-1.5 rounded-lg hover:bg-surface-500 text-gray-500 hover:text-ui-text transition-colors"><Pencil size={13} /></button>
+                      <button onClick={() => abrirEntrada(produto)} className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-gray-500 hover:text-emerald-400 transition-colors"><PackagePlus size={13} /></button>
+                      <button onClick={() => abrirBaixa(produto)} className="p-1.5 rounded-lg hover:bg-amber-500/10 text-gray-500 hover:text-amber-400 transition-colors"><PackageMinus size={13} /></button>
+                      <button onClick={() => setDeletarId(produto.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -303,56 +199,53 @@ export function Estoque() {
         <div className="md:hidden flex flex-col gap-6 p-4">
           {filtrados.length === 0 ? (
             <div className="py-10 text-center text-gray-600 text-sm">Nenhum produto encontrado.</div>
-          ) : filtrados.map((produto) => {
-            const critico = produto.quantidade <= produto.minimo
-            return (
-              <div
-                key={produto.id}
-                className="p-4 flex flex-col gap-3 rounded-xl border border-ui-border shadow-sm hover:bg-surface-600/40 transition-colors"
-              >
-                <div className="flex justify-between items-start w-full">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${critico ? 'bg-accent/10' : 'bg-surface-600'}`}>
-                      <Package size={18} className={critico ? 'text-accent' : 'text-gray-500'} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-ui-text truncate">{produto.nome}</p>
-                      <p className="text-[11px] text-gray-500 mt-0.5 truncate">{produto.categoria} · {produto.fornecedor}</p>
-                    </div>
+          ) : filtrados.map((produto) => (
+            <div
+              key={produto.id}
+              className="p-4 flex flex-col gap-3 rounded-xl border border-ui-border shadow-sm hover:bg-surface-600/40 transition-colors"
+            >
+              <div className="flex justify-between items-start w-full">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${produto.critico ? 'bg-accent/10' : 'bg-surface-600'}`}>
+                    <Package size={18} className={produto.critico ? 'text-accent' : 'text-gray-500'} />
                   </div>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-2 mt-1">
-                  <div className="bg-surface-700 rounded-lg p-2 text-center border border-ui-border">
-                    <p className="text-[9px] text-gray-500 uppercase">Estoque</p>
-                    <p className={`text-sm font-bold mt-0.5 ${critico ? 'text-accent' : 'text-ui-text'}`}>{produto.quantidade}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ui-text truncate">{produto.nome}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5 truncate">{produto.categoria} · {produto.fornecedor}</p>
                   </div>
-                  <div className="bg-surface-700 rounded-lg p-2 text-center border border-ui-border">
-                    <p className="text-[9px] text-gray-500 uppercase">Mínimo</p>
-                    <p className="text-sm font-bold text-gray-400 mt-0.5">{produto.minimo} {produto.unidade}</p>
-                  </div>
-                  <div className="bg-surface-700 rounded-lg p-2 text-center border border-ui-border">
-                    <p className="text-[9px] text-gray-500 uppercase">Valor Un.</p>
-                    <p className="text-sm font-bold text-ui-text mt-0.5">{fmt(produto.valorUnitario)}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-ui-border/50">
-                  <button onClick={() => abrirEditar(produto)} className="flex-1 py-2 rounded-lg bg-surface-600 text-gray-300 text-xs font-medium flex justify-center items-center gap-1.5"><Pencil size={13}/> Editar</button>
-                  <button onClick={() => abrirEntrada(produto)} className="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium flex justify-center items-center gap-1.5"><PackagePlus size={13}/> Entrar</button>
-                  <button onClick={() => abrirBaixa(produto)} className="flex-1 py-2 rounded-lg bg-amber-500/10 text-amber-400 text-xs font-medium flex justify-center items-center gap-1.5"><PackageMinus size={13}/> Baixar</button>
-                  <button onClick={() => setDeletarId(produto.id)} className="p-2 rounded-lg bg-red-500/10 text-red-400 flex justify-center items-center shrink-0"><Trash2 size={15}/></button>
                 </div>
               </div>
-            )
-          })}
+
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                <div className="bg-surface-700 rounded-lg p-2 text-center border border-ui-border">
+                  <p className="text-[9px] text-gray-500 uppercase">Estoque</p>
+                  <p className={`text-sm font-bold mt-0.5 ${produto.critico ? 'text-accent' : 'text-ui-text'}`}>{produto.quantidade}</p>
+                </div>
+                <div className="bg-surface-700 rounded-lg p-2 text-center border border-ui-border">
+                  <p className="text-[9px] text-gray-500 uppercase">Mínimo</p>
+                  <p className="text-sm font-bold text-gray-400 mt-0.5">{produto.minimo} {produto.unidade}</p>
+                </div>
+                <div className="bg-surface-700 rounded-lg p-2 text-center border border-ui-border">
+                  <p className="text-[9px] text-gray-500 uppercase">Valor Un.</p>
+                  <p className="text-sm font-bold text-ui-text mt-0.5">{produto.valorUnitarioStr}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-ui-border/50">
+                <button onClick={() => { prepararEditar(produto); setProdutoModal('editar') }} className="flex-1 py-2 rounded-lg bg-surface-600 text-gray-300 text-xs font-medium flex justify-center items-center gap-1.5"><Pencil size={13}/> Editar</button>
+                <button onClick={() => abrirEntrada(produto)} className="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium flex justify-center items-center gap-1.5"><PackagePlus size={13}/> Entrar</button>
+                <button onClick={() => abrirBaixa(produto)} className="flex-1 py-2 rounded-lg bg-amber-500/10 text-amber-400 text-xs font-medium flex justify-center items-center gap-1.5"><PackageMinus size={13}/> Baixar</button>
+                <button onClick={() => setDeletarId(produto.id)} className="p-2 rounded-lg bg-red-500/10 text-red-400 flex justify-center items-center shrink-0"><Trash2 size={15}/></button>
+              </div>
+            </div>
+          ))}
         </div>
       </Card>
 
       {/* Modal Novo / Editar Produto */}
       <Modal
         isOpen={produtoModal !== null}
-        onClose={fecharProdutoModal}
+        onClose={() => setProdutoModal(null)}
         title={produtoModal === 'novo' ? 'Novo Produto' : 'Editar Produto'}
         size="lg"
       >
@@ -403,7 +296,7 @@ export function Estoque() {
           </div>
 
           {/* Rolo fields for PPF / Envelopamento */}
-          {CATEGORIAS_ROLO.includes(form.categoria) ? (
+          {isRolo ? (
             <div className="space-y-3">
               <div
                 className="px-3.5 py-2.5 rounded-xl text-xs text-gray-500"
@@ -437,16 +330,14 @@ export function Estoque() {
                   />
                 </div>
               </div>
-              {parseFloat(form.metragemRolo) > 0 && parseFloat(form.valorRolo) > 0 && (
+              {custoPorMetroStr && (
                 <div
                   className="flex items-center justify-between px-3.5 py-2.5 rounded-xl"
                   style={{ backgroundColor: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.18)' }}
                 >
                   <span className="text-xs text-gray-500">Custo por metro calculado</span>
                   <span className="text-sm font-bold" style={{ color: '#34d399' }}>
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                      parseFloat(form.valorRolo) / parseFloat(form.metragemRolo)
-                    )}/m
+                    {custoPorMetroStr}
                   </span>
                 </div>
               )}
@@ -505,7 +396,7 @@ export function Estoque() {
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-1 border-t border-ui-border">
-            <Button variant="secondary" onClick={fecharProdutoModal}>Cancelar</Button>
+            <Button variant="secondary" onClick={() => setProdutoModal(null)}>Cancelar</Button>
             <ActionButton onClick={handleSalvarProduto}>
               {produtoModal === 'novo' ? 'Cadastrar Produto' : 'Salvar Alterações'}
             </ActionButton>
@@ -553,6 +444,7 @@ export function Estoque() {
           </div>
         )}
       </Modal>
+
       {/* Modal Baixa de Estoque */}
       <Modal
         isOpen={baixaProduto !== null}
