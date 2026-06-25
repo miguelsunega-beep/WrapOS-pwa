@@ -1,141 +1,47 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
-
-import { Settings, Store, Bell, Shield, Palette, Tag, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Settings, Store, Bell, Tag, Plus, Pencil, Trash2 } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
-import { useApp } from '../context/AppContext'
-import { useTheme } from '../context/ThemeContext'
+import { useConfiguracoes } from '../hooks/useConfiguracoes'
 import type { Servico } from '../types'
 
-// ── Helpers ───────────────────────────────────────────────────────
-const inferirCategoria = (nome: string): string => {
-  const n = nome.toLowerCase()
-  if (n.includes('ppf'))           return 'PPF'
-  if (n.includes('envelopamento')) return 'Envelopamento'
-  if (n.includes('insulfilm'))     return 'Insulfilm'
-  if (n.includes('higieni'))       return 'Higienização'
-  if (n.includes('personaliz'))    return 'Personalização'
-  return 'Outros'
-}
-
-interface ServicoForm { nome: string }
-const blankServico = (): ServicoForm => ({ nome: '' })
-
-// ── Types ─────────────────────────────────────────────────────────
-interface LojaForm {
-  nomeLoja: string
-  cidade:   string
-  telefone: string
-  email:    string
-}
-
-interface OpForm {
-  comissaoPadrao: string
-  corPrimaria:    string
-}
-
-// ── Component ─────────────────────────────────────────────────────
 export function Configuracoes() {
   const {
-    configuracoes, atualizarConfiguracoes,
-    servicos, adicionarServico, editarServico, deletarServico,
-  } = useApp()
-  const { theme, toggleTheme } = useTheme()
+    loja,        setLoja,       handleSalvarLoja,
+    op,          setOp,         handleSalvarOp,
+    toggles,
+    servicos,
+    servForm,    setServForm,
+    servEditId,
+    categorias,
+    prepararEditarServico,
+    resetServico,
+    salvarServico,
+    deletarServicoById,
+  } = useConfiguracoes()
 
-  // ── Loja form ──────────────────────────────────────────────────
-  const [loja, setLoja] = useState<LojaForm>({
-    nomeLoja:  configuracoes.nomeLoja,
-    cidade:    configuracoes.cidade,
-    telefone:  configuracoes.telefone,
-    email:     configuracoes.email,
-  })
-
-  // ── Operacional form ───────────────────────────────────────────
-  const [op, setOp] = useState<OpForm>({
-    comissaoPadrao: String(configuracoes.comissaoPadrao),
-    corPrimaria:    configuracoes.corPrimaria,
-  })
-
-  // ── Toggles ────────────────────────────────────────────────────
-  const [auth2fa, setAuth2fa] = useState(false)
-
-  const notifEstoque  = configuracoes.notifEstoque  ?? true
-  const notifGarantia = configuracoes.notifGarantia ?? true
-  const notifPosVenda = configuracoes.notifPosVenda ?? true
-
-  // ── Save handlers ─────────────────────────────────────────────
-  const handleSalvarLoja = () => {
-    atualizarConfiguracoes({
-      nomeLoja:  loja.nomeLoja.trim(),
-      cidade:    loja.cidade.trim(),
-      telefone:  loja.telefone.trim(),
-      email:     loja.email.trim(),
-    })
-    toast.success('Dados da loja salvos com sucesso!')
-  }
-
-  const handleSalvarOp = () => {
-    atualizarConfiguracoes({
-      numeroBoxes:    configuracoes.numeroBoxes ?? 1,
-      comissaoPadrao: Math.max(0, Math.min(100, parseFloat(op.comissaoPadrao) || 0)),
-      corPrimaria:    op.corPrimaria,
-    })
-    toast.success('Configurações operacionais salvas!')
-  }
-
-  const inputCls = 'mt-1 w-full bg-surface-600 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 focus:outline-none transition-colors'
-  const labelCls = 'text-[11px] text-gray-600 font-medium uppercase tracking-wider'
-
-  // ── Serviço state ─────────────────────────────────────────────
   const [servModalOpen, setServModalOpen] = useState(false)
-  const [servForm,      setServForm]      = useState<ServicoForm>(blankServico)
-  const [servEditId,    setServEditId]    = useState<string | null>(null)
   const [servDeletarId, setServDeletarId] = useState<string | null>(null)
 
   const abrirEditarServico = (s: Servico) => {
-    setServEditId(s.id)
-    setServForm({ nome: s.nome })
+    prepararEditarServico(s)
     setServModalOpen(true)
   }
 
   const handleSalvarServico = () => {
-    if (!servForm.nome.trim()) { toast.error('Nome é obrigatório.'); return }
-    if (servEditId) {
-      editarServico(servEditId, { nome: servForm.nome.trim() })
-      toast.success('Serviço atualizado!')
-    } else {
-      adicionarServico({ nome: servForm.nome.trim() })
-      toast.success('Serviço adicionado!')
-    }
-    setServModalOpen(false)
-    setServEditId(null)
-    setServForm(blankServico())
+    if (salvarServico()) setServModalOpen(false)
   }
 
   const handleDeletarServico = () => {
     if (!servDeletarId) return
-    deletarServico(servDeletarId)
+    deletarServicoById(servDeletarId)
     setServDeletarId(null)
-    toast.success('Serviço excluído.')
   }
 
-  const categorias = servicos.reduce((acc, s) => {
-    const cat = inferirCategoria(s.nome)
-    if (!acc[cat]) acc[cat] = []
-    acc[cat].push(s)
-    return acc
-  }, {} as Record<string, Servico[]>)
-
-  const toggles = [
-    { icon: Bell,    titulo: 'Notificações de Estoque Crítico', ativo: notifEstoque,     toggle: () => atualizarConfiguracoes({ notifEstoque:  !notifEstoque  }) },
-    { icon: Bell,    titulo: 'Alertas de Garantia Vencendo',    ativo: notifGarantia,    toggle: () => atualizarConfiguracoes({ notifGarantia: !notifGarantia }) },
-    { icon: Bell,    titulo: 'Lembretes de Pós-venda',          ativo: notifPosVenda,    toggle: () => atualizarConfiguracoes({ notifPosVenda: !notifPosVenda }) },
-    { icon: Shield,  titulo: 'Autenticação em Dois Fatores',    ativo: auth2fa,          toggle: () => setAuth2fa(p => !p)                                       },
-    { icon: Palette, titulo: 'Tema Escuro',                     ativo: theme === 'dark', toggle: toggleTheme                                                     },
-  ]
+  const inputCls = 'mt-1 w-full bg-surface-600 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 focus:outline-none transition-colors'
+  const labelCls = 'text-[11px] text-gray-600 font-medium uppercase tracking-wider'
 
   return (
     <div className="p-6 space-y-5">
@@ -291,7 +197,7 @@ export function Configuracoes() {
               <p className="text-[11px] text-gray-600">Catálogo de serviços com preços e tempos estimados</p>
             </div>
           </div>
-          <Button size="sm" onClick={() => { setServForm(blankServico()); setServEditId(null); setServModalOpen(true) }}>
+          <Button size="sm" onClick={() => { resetServico(); setServModalOpen(true) }}>
             <Plus size={13} /> Adicionar
           </Button>
         </div>
@@ -328,7 +234,7 @@ export function Configuracoes() {
       {/* Modal Serviço */}
       <Modal
         isOpen={servModalOpen}
-        onClose={() => { setServModalOpen(false); setServEditId(null); setServForm(blankServico()) }}
+        onClose={() => { setServModalOpen(false); resetServico() }}
         title={servEditId ? 'Editar Serviço' : 'Novo Serviço'}
         size="sm"
       >
@@ -343,7 +249,7 @@ export function Configuracoes() {
             />
           </div>
           <div className="flex justify-end gap-2 pt-1 border-t border-ui-border">
-            <Button variant="secondary" onClick={() => { setServModalOpen(false); setServForm(blankServico()) }}>Cancelar</Button>
+            <Button variant="secondary" onClick={() => { setServModalOpen(false); resetServico() }}>Cancelar</Button>
             <ActionButton onClick={handleSalvarServico}>{servEditId ? 'Salvar' : 'Adicionar Serviço'}</ActionButton>
           </div>
         </div>
