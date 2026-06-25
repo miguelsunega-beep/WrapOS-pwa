@@ -1,6 +1,4 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
 import {
   Calendar, Plus, ChevronLeft, ChevronRight,
   Check, CheckCheck, Trash2, Pencil, FilePlus2,
@@ -11,238 +9,35 @@ import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
-import { useApp } from '../context/AppContext'
 import { DateField } from '../components/DateField'
-import type { Agendamento, StatusAgendamento, BadgeVariant } from '../types'
+import { useAgendamento, todayISO, statusConfig, DIAS_SEMANA } from '../hooks/useAgendamento'
 
-// ── Module-level constants ────────────────────────────────────────
-const todayISO = new Date().toISOString().slice(0, 10)
-const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+const inputCls = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text placeholder-gray-500 focus:outline-none focus:border-accent/50 transition-colors'
+const labelCls = 'block text-xs font-medium text-gray-400 mb-1.5'
 
-const statusConfig: Record<StatusAgendamento, { label: string; variant: BadgeVariant }> = {
-  agendado:   { label: 'Agendado',   variant: 'info'    },
-  confirmado: { label: 'Confirmado', variant: 'success' },
-  concluido:  { label: 'Concluído',  variant: 'default' },
-  cancelado:  { label: 'Cancelado',  variant: 'danger'  },
-}
-
-const startOfWeek = (d: Date): Date => {
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  const start = new Date(d)
-  start.setDate(d.getDate() + diff)
-  start.setHours(0, 0, 0, 0)
-  return start
-}
-
-const toISO = (d: Date) => d.toISOString().slice(0, 10)
-
-const fmtCurrency = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
-
-// ── Types ─────────────────────────────────────────────────────────
-interface EditForm {
-  clienteId:    string
-  veiculoId:    string
-  servicoId:    string
-  instaladorId: string
-  valor:        string
-  data:         string
-  horario:      string
-  dataSaida:    string
-  mesmoDia:     boolean
-}
-
-interface AgForm {
-  clienteSearch: string
-  clienteId:     string
-  veiculoId:     string
-  servicoId:     string
-  instaladorId:  string
-  valor:         string
-  data:          string
-  horario:       string
-  dataSaida:     string
-  mesmoDia:      boolean
-}
-
-// ── Component ─────────────────────────────────────────────────────
 export function Agendamento() {
-  const navigate = useNavigate()
   const {
-    agendamentos, clientes, veiculos, servicos, instaladores,
-    adicionarAgendamento, editarAgendamento, deletarAgendamento, adicionarOS,
-  } = useApp()
+    clientes, veiculos, servicos,
+    diaSelecionado, setDiaSelecionado,
+    diasDaSemana, weekLabel, diaSelecionadoLabel, navWeek, goToday,
+    agsDia,
+    getNomeCliente, getTelCliente, getVeiculoLabel, getVeiculoSub,
+    getServicoNome, getInstalador, capacidadeDia,
+    handleStatus,
+    detalhes, setDetalhes,
+    detCliente, detVeiculo, detServico, detInstalador, detValorStr, detDataStr,
+    confirmarDelete, setConfirmarDelete, handleDelete,
+    editForm, setEditForm, abrirEditar, handleSalvarEdicao,
+    editVeiculosCliente, instaladoresAtivos,
+    form, setForm, resetNovoForm, clientesFiltrados, veiculosCliente, selecionarCliente, handleSalvar,
+    handleConverterOS,
+  } = useAgendamento()
 
-  // ── Week navigation ───────────────────────────────────────────
-  const [semanaOffset, setSemanaOffset] = useState(0)
-  const [diaSelecionado, setDiaSelecionado] = useState(todayISO)
-
-  const baseDate = new Date()
-  baseDate.setDate(baseDate.getDate() + semanaOffset * 7)
-  const weekStart = startOfWeek(baseDate)
-
-  const diasDaSemana = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart)
-    d.setDate(weekStart.getDate() + i)
-    return d
-  })
-
-  const weekLabel = (() => {
-    const s = weekStart
-    const e = diasDaSemana[6]
-    if (s.getMonth() === e.getMonth()) {
-      return `${s.getDate()} – ${e.getDate()} ${e.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^./, c => c.toUpperCase())}`
-    }
-    const ms = s.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
-    const me = e.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '')
-    return `${s.getDate()} ${ms} – ${e.getDate()} ${me}`
-  })()
-
-  const navWeek = (dir: -1 | 1) => {
-    const newOffset = semanaOffset + dir
-    setSemanaOffset(newOffset)
-    const base = new Date()
-    base.setDate(base.getDate() + newOffset * 7)
-    setDiaSelecionado(toISO(startOfWeek(base)))
-  }
-
-  const goToday = () => {
-    setSemanaOffset(0)
-    setDiaSelecionado(todayISO)
-  }
-
-  // ── Day's schedule ────────────────────────────────────────────
-  const agsDia = [...agendamentos]
-    .filter(a => a.data === diaSelecionado)
-    .sort((a, b) => a.horario.localeCompare(b.horario))
-
-  // ── Lookup helpers ────────────────────────────────────────────
-  const getNomeCliente  = (id: string) => clientes.find(c => c.id === id)?.nome ?? '—'
-  const getTelCliente   = (id: string) => clientes.find(c => c.id === id)?.telefone ?? ''
-  const getVeiculoLabel = (id: string) => {
-    const v = veiculos.find(x => x.id === id)
-    return v ? `${v.marca} ${v.modelo} ${v.ano}` : '—'
-  }
-  const getVeiculoSub = (id: string) => {
-    const v = veiculos.find(x => x.id === id)
-    return v ? `${v.ano} · ${v.placa}` : ''
-  }
-  const getServicoNome  = (id: string) => servicos.find(s => s.id === id)?.nome ?? '—'
-  const getInstalador   = (id: string) => instaladores.find(i => i.id === id)?.nome ?? '—'
-
-  // ── Capacidade do dia (regra fixa) ────────────────────────────
-  const capacidadeDia = (count: number) => {
-    if (count === 0) return null
-    if (count <= 3)  return { cor: '#34d399', label: 'Livre'   }
-    if (count <= 5)  return { cor: '#ff6b35', label: 'Ocupado' }
-    return            { cor: '#e8304a', label: 'Lotado'  }
-  }
-
-  // ── Status actions ────────────────────────────────────────────
-  const handleStatus = (ag: Agendamento, status: StatusAgendamento) => {
-    editarAgendamento(ag.id, { status })
-    if (detalhes?.id === ag.id) setDetalhes({ ...ag, status })
-    toast.success(`Status: ${statusConfig[status].label}`)
-  }
-
-  // ── Details modal ─────────────────────────────────────────────
-  const [detalhes, setDetalhes] = useState<Agendamento | null>(null)
-
-  // ── Delete confirm ────────────────────────────────────────────
-  const [confirmarDelete, setConfirmarDelete] = useState<string | null>(null)
-  const handleDelete = () => {
-    if (!confirmarDelete) return
-    deletarAgendamento(confirmarDelete)
-    setConfirmarDelete(null)
-    if (detalhes?.id === confirmarDelete) setDetalhes(null)
-    toast.success('Agendamento excluído.')
-  }
-
-  // ── Edit modal ───────────────────────────────────────────────
-  const [editOpen,   setEditOpen]   = useState(false)
-  const [editandoId, setEditandoId] = useState<string | null>(null)
-  const [editForm,   setEditForm]   = useState<EditForm>({
-    clienteId: '', veiculoId: '', servicoId: '', instaladorId: '',
-    valor: '', data: todayISO, horario: '09:00',
-    dataSaida: todayISO, mesmoDia: true,
-  })
-
-  const abrirEditar = (ag: Agendamento) => {
-    setEditandoId(ag.id)
-    setEditForm({
-      clienteId:    ag.clienteId,
-      veiculoId:    ag.veiculoId,
-      servicoId:    ag.servicoId,
-      instaladorId: ag.instaladorId,
-      valor:        ag.valor != null ? String(ag.valor) : '',
-      data:         ag.data,
-      horario:      ag.horario,
-      dataSaida:    ag.data,
-      mesmoDia:     true,
-    })
-    setEditOpen(true)
-  }
-
-  const handleSalvarEdicao = () => {
-    if (!editandoId) return
-    if (!editForm.data)    { toast.error('Informe a data.'); return }
-    if (!editForm.horario) { toast.error('Informe o horário.'); return }
-    const conflito = agendamentos.some(a =>
-      a.id !== editandoId &&
-      a.data === editForm.data &&
-      a.horario === editForm.horario &&
-      (a.status === 'agendado' || a.status === 'confirmado')
-    )
-    if (conflito) { toast.error('Conflito: já existe agendamento neste horário.'); return }
-    const payload = { ...editForm, duracao: 0, valor: parseFloat(editForm.valor) || 0 }
-    editarAgendamento(editandoId, payload)
-    if (detalhes?.id === editandoId) setDetalhes(prev => prev ? { ...prev, ...payload } : null)
-    toast.success('Agendamento atualizado!')
-    setEditOpen(false)
-  }
-
-  // ── Converter em OS ──────────────────────────────────────────
-  const handleConverterOS = (ag: Agendamento) => {
-    const servico = servicos.find(s => s.id === ag.servicoId)
-    adicionarOS({
-      clienteId:      ag.clienteId,
-      veiculoId:      ag.veiculoId,
-      servicos:       servico ? [{ servicoId: ag.servicoId, nome: servico.nome, preco: servico.preco ?? 0 }] : [],
-      valorTotal:     ag.valor ?? servico?.preco ?? 0,
-      formaPagamento: 'A definir',
-      instaladorId:   ag.instaladorId,
-      box:            ag.box,
-      comissao:       0,
-      observacoes:    '',
-      status:         'em_andamento',
-      agendamentoId:  ag.id,
-    })
-    editarAgendamento(ag.id, { status: 'concluido' })
-    setDetalhes(null)
-    toast.success('OS criada com sucesso!')
-    navigate('/ordens')
-  }
-
-  // ── Novo agendamento form ─────────────────────────────────────
-  const [novoOpen, setNovoOpen] = useState(false)
+  // ── Pure UI state ─────────────────────────────────────────────
+  const [novoOpen, setNovoOpen]     = useState(false)
+  const [editOpen, setEditOpen]     = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-
-  const makeInitForm = (): AgForm => ({
-    clienteSearch: '',
-    clienteId:     '',
-    veiculoId:     '',
-    servicoId:     servicos[0]?.id ?? '',
-    instaladorId:  instaladores.find(i => i.ativo)?.id ?? '',
-    valor:         '',
-    data:          diaSelecionado,
-    horario:       '09:00',
-    dataSaida:     diaSelecionado,
-    mesmoDia:      true,
-  })
-
-  const [form, setForm] = useState<AgForm>(makeInitForm)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -254,58 +49,18 @@ export function Agendamento() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const clientesFiltrados = form.clienteSearch.length > 0
-    ? clientes.filter(c => c.nome.toLowerCase().includes(form.clienteSearch.toLowerCase()))
-    : []
-
-  const veiculosCliente = veiculos.filter(v => v.clienteId === form.clienteId)
-  const instaladoresAtivos = instaladores.filter(i => i.ativo)
-
-  const selecionarCliente = (c: typeof clientes[number]) => {
-    const primeiro = veiculos.find(v => v.clienteId === c.id)
-    setForm(p => ({ ...p, clienteSearch: c.nome, clienteId: c.id, veiculoId: primeiro?.id ?? '' }))
-    setDropdownOpen(false)
-  }
-
-  const handleSalvar = () => {
-    if (!form.clienteId) { toast.error('Selecione um cliente.'); return }
-    if (!form.data)      { toast.error('Informe a data.'); return }
-    if (!form.horario)   { toast.error('Informe o horário.'); return }
-    const conflito = agendamentos.some(a =>
-      a.data === form.data &&
-      a.horario === form.horario &&
-      (a.status === 'agendado' || a.status === 'confirmado')
-    )
-    if (conflito) { toast.error('Conflito: já existe agendamento neste horário.'); return }
-    adicionarAgendamento({
-      clienteId:    form.clienteId,
-      veiculoId:    form.veiculoId,
-      servicoId:    form.servicoId,
-      instaladorId: form.instaladorId,
-      box:          1,
-      data:         form.data,
-      horario:      form.horario,
-      duracao:      0,
-      valor:        parseFloat(form.valor) || 0,
-      status:       'agendado',
-    })
-    toast.success('Agendamento criado com sucesso!')
-    setNovoOpen(false)
-  }
-
-  const abrirNovo = () => {
-    setForm(makeInitForm())
+  const onAbrirNovo = () => {
+    resetNovoForm()
     setNovoOpen(true)
   }
 
-  const inputCls = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text placeholder-gray-500 focus:outline-none focus:border-accent/50 transition-colors'
-  const labelCls = 'block text-xs font-medium text-gray-400 mb-1.5'
+  const onSalvar = () => {
+    if (handleSalvar()) setNovoOpen(false)
+  }
 
-  // ── Details modal computed ────────────────────────────────────
-  const detCliente    = detalhes ? clientes.find(c => c.id === detalhes.clienteId)       : null
-  const detVeiculo    = detalhes ? veiculos.find(v => v.id === detalhes.veiculoId)       : null
-  const detServico    = detalhes ? servicos.find(s => s.id === detalhes.servicoId)       : null
-  const detInstalador = detalhes ? instaladores.find(i => i.id === detalhes.instaladorId) : null
+  const onSalvarEdicao = () => {
+    if (handleSalvarEdicao()) setEditOpen(false)
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-5">
@@ -316,7 +71,7 @@ export function Agendamento() {
           <h1 className="text-xl font-bold text-ui-text">Agendamento</h1>
           <p className="text-gray-500 text-xs mt-0.5">Agenda semanal</p>
         </div>
-        <Button onClick={abrirNovo}>
+        <Button onClick={onAbrirNovo}>
           <Plus size={15} />
           Novo Agendamento
         </Button>
@@ -349,11 +104,9 @@ export function Agendamento() {
 
       {/* Week cards Carrossel Mobile */}
       <div className="flex overflow-x-auto pb-2 -mx-6 px-6 md:mx-0 md:px-0 md:grid md:grid-cols-7 gap-2 snap-x [&::-webkit-scrollbar]:hidden">
-        {diasDaSemana.map((d, i) => {
-          const iso = toISO(d)
+        {diasDaSemana.map(({ date, iso, count }, i) => {
           const isToday = iso === todayISO
           const isSel = iso === diaSelecionado
-          const count = agendamentos.filter(a => a.data === iso).length
           return (
             <button
               key={iso}
@@ -366,7 +119,7 @@ export function Agendamento() {
             >
               <p className="text-[10px] text-gray-600 uppercase tracking-wider">{DIAS_SEMANA[i]}</p>
               <p className={`text-xl font-bold mt-1 ${isToday ? 'text-accent' : isSel ? 'text-ui-text' : 'text-gray-400'}`}>
-                {d.getDate()}
+                {date.getDate()}
               </p>
               {(() => {
                 const cap = capacidadeDia(count)
@@ -393,10 +146,7 @@ export function Agendamento() {
           <div className="flex items-center gap-2">
             <Calendar size={15} className="text-accent shrink-0" />
             <h2 className="text-sm font-semibold text-ui-text">
-              Agenda —{' '}
-              {new Date(diaSelecionado + 'T12:00:00').toLocaleDateString('pt-BR', {
-                weekday: 'long', day: '2-digit', month: 'long',
-              }).replace(/^./, c => c.toUpperCase())}
+              Agenda — {diaSelecionadoLabel}
             </h2>
           </div>
           <span className="md:ml-auto text-xs text-gray-600">
@@ -532,9 +282,7 @@ export function Agendamento() {
               <div className="bg-surface-700 rounded-xl p-3.5">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Serviço</p>
                 <p className="text-sm font-semibold text-ui-text">{detServico?.nome ?? '—'}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {detalhes.valor != null ? fmtCurrency(detalhes.valor) : '—'}
-                </p>
+                <p className="text-xs text-gray-500 mt-0.5">{detValorStr}</p>
               </div>
               <div className="bg-surface-700 rounded-xl p-3.5">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Instalador</p>
@@ -548,7 +296,7 @@ export function Agendamento() {
             {/* Data/Horário row */}
             <div className="grid grid-cols-2 gap-3">
               {([
-                { label: 'Data',    value: new Date(detalhes.data + 'T12:00:00').toLocaleDateString('pt-BR') },
+                { label: 'Data',    value: detDataStr       },
                 { label: 'Horário', value: detalhes.horario },
               ] as const).map(item => (
                 <div key={item.label} className="bg-surface-700 rounded-xl p-3 text-center">
@@ -578,7 +326,7 @@ export function Agendamento() {
                   </button>
                 )}
                 <button
-                  onClick={() => { setDetalhes(null); abrirEditar(detalhes) }}
+                  onClick={() => { setDetalhes(null); abrirEditar(detalhes); setEditOpen(true) }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-600 text-gray-400 border border-ui-border hover:text-ui-text hover:bg-surface-500 transition-colors"
                 >
                   <Pencil size={13} />
@@ -619,7 +367,7 @@ export function Agendamento() {
                     {clientesFiltrados.slice(0, 6).map(c => (
                       <button
                         key={c.id}
-                        onMouseDown={() => selecionarCliente(c)}
+                        onMouseDown={() => { selecionarCliente(c); setDropdownOpen(false) }}
                         className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-surface-600 hover:text-ui-text transition-colors flex items-center justify-between"
                       >
                         <span>{c.nome}</span>
@@ -764,7 +512,7 @@ export function Agendamento() {
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-1 border-t border-ui-border">
             <Button variant="secondary" onClick={() => setNovoOpen(false)}>Cancelar</Button>
-            <ActionButton onClick={handleSalvar}>Criar Agendamento</ActionButton>
+            <ActionButton onClick={onSalvar}>Criar Agendamento</ActionButton>
           </div>
         </div>
       </Modal>
@@ -799,7 +547,7 @@ export function Agendamento() {
                 className={inputCls}
               >
                 <option value="">Sem veículo específico</option>
-                {veiculos.filter(v => v.clienteId === editForm.clienteId).map(v => (
+                {editVeiculosCliente.map(v => (
                   <option key={v.id} value={v.id}>{v.marca} {v.modelo} {v.ano} — {v.placa}</option>
                 ))}
               </select>
@@ -841,7 +589,7 @@ export function Agendamento() {
                 className={inputCls}
               >
                 <option value="">Nenhum</option>
-                {instaladores.filter(i => i.ativo).map(i => (
+                {instaladoresAtivos.map(i => (
                   <option key={i.id} value={i.id}>{i.nome}</option>
                 ))}
               </select>
@@ -908,7 +656,7 @@ export function Agendamento() {
 
           <div className="flex justify-end gap-2 pt-1 border-t border-ui-border">
             <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancelar</Button>
-            <ActionButton onClick={handleSalvarEdicao}>Salvar Alterações</ActionButton>
+            <ActionButton onClick={onSalvarEdicao}>Salvar Alterações</ActionButton>
           </div>
         </div>
       </Modal>
