@@ -14,6 +14,7 @@ export type TipoLancamento = 'entrada' | 'saida'
 export type TipoAlerta = 'estoque_baixo' | 'garantia' | 'pos_venda'
 export type PrioridadeAlerta = 'alta' | 'media' | 'baixa'
 export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple'
+export type StatusCliente = 'ativo' | 'inativo'
 
 // ── Core entity types ──────────────────────────────────────────
 export interface Cliente {
@@ -26,6 +27,8 @@ export interface Cliente {
   dataCadastro: string
   totalGasto: number
   cidade?: string
+  /** Ausente em registros antigos — deve ser tratado como 'ativo'. */
+  status?: StatusCliente
 }
 
 export interface Veiculo {
@@ -95,6 +98,8 @@ export interface Agendamento {
   duracao: number
   status: StatusAgendamento
   valor?: number
+  /** Quantas vezes este agendamento já teve data/horário alterados via "Reagendar". */
+  reagendamentos?: number
 }
 
 export interface Instalador {

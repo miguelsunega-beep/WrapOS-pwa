@@ -4,6 +4,26 @@ import {
   initialInstaladores, initialLancamentos, initialProdutos, initialGarantias,
   initialMeta, initialConfiguracoes,
 } from '../context/AppContext'
+import type { Agendamento } from '../types'
+
+const addDays = (n: number): string => {
+  const d = new Date()
+  d.setDate(d.getDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * initialAgendamentos (AppContext.tsx) tem datas fixas em maio/2025, então em
+ * qualquer perfil novo criado depois disso o card "Próximo agendamento" da
+ * tela de Agendamento nunca tem o que exibir. Gera 2 agendamentos futuros
+ * relativos a "agora" só para o seed de exemplo, sem tocar em AppContext.tsx.
+ */
+function agendamentosFuturosDemo(): Agendamento[] {
+  return [
+    { id: 'ag-demo-1', clienteId: 'c1', veiculoId: 'v1', servicoId: 's4', instaladorId: 'i2', box: 1, data: addDays(2), horario: '09:00', duracao: 4, status: 'agendado'   },
+    { id: 'ag-demo-2', clienteId: 'c2', veiculoId: 'v2', servicoId: 's1', instaladorId: 'i1', box: 2, data: addDays(4), horario: '14:00', duracao: 3, status: 'confirmado' },
+  ]
+}
 
 export interface Perfil {
   id: string
@@ -55,7 +75,7 @@ export function useSelecionarPerfil({ onSelect }: { onSelect: (id: string) => vo
       localStorage.setItem(`wrapos_perfil_${id}_clientes`,     JSON.stringify(initialClientes))
       localStorage.setItem(`wrapos_perfil_${id}_veiculos`,     JSON.stringify(initialVeiculos))
       localStorage.setItem(`wrapos_perfil_${id}_ordens`,       JSON.stringify(initialOrdens))
-      localStorage.setItem(`wrapos_perfil_${id}_agendamentos`, JSON.stringify(initialAgendamentos))
+      localStorage.setItem(`wrapos_perfil_${id}_agendamentos`, JSON.stringify([...initialAgendamentos, ...agendamentosFuturosDemo()]))
       localStorage.setItem(`wrapos_perfil_${id}_instaladores`, JSON.stringify(initialInstaladores))
       localStorage.setItem(`wrapos_perfil_${id}_lancamentos`,  JSON.stringify(initialLancamentos))
       localStorage.setItem(`wrapos_perfil_${id}_produtos`,     JSON.stringify(initialProdutos))

@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import {
   Plus, Search, Star, Pencil, Trash2, Car, ClipboardList,
-  User, Phone, Mail, CheckCircle,
+  User, Phone, Mail, CheckCircle, RotateCcw,
   LayoutDashboard, X, Loader2, Check, Shield, Zap,
 } from 'lucide-react'
 import { Card } from '../components/Card'
@@ -34,13 +34,14 @@ function Field({ label, required, children }: { label: string; required?: boolea
 export function Clientes() {
   const {
     search, setSearch, filtered,
+    statusFiltro, setStatusFiltro,
     totalClientes, vipCount, novosCount, posVendaCount,
     detalhes, setDetalhes,
     detVeics, detOsCliente, detUltimaVisita, detGarantias,
     editando,
     form, setForm, cepInput, setCepInput, cepResult,
     prepararNovo, prepararEditar, handleSalvarCliente, resetForm,
-    confirmarDelete, setConfirmarDelete, handleDelete,
+    confirmarDelete, setConfirmarDelete, handleDelete, handleReativar,
     veiculoForm, setVeiculoForm, placaResult,
     editVeiculoId, resetVeiculo, prepararEditarVeiculo, handleSalvarVeiculo,
     deletarVeiculoId, setDeletarVeiculoId, handleDeletarVeiculo,
@@ -106,15 +107,32 @@ export function Clientes() {
         </Card>
       </div>
 
-      {/* Busca */}
-      <div className="relative max-w-sm">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
-        <input
-          placeholder="Buscar por nome, e-mail, CPF ou telefone..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full bg-surface-700 border border-ui-border rounded-lg pl-8 pr-4 py-2 text-sm text-ui-text placeholder-gray-500 focus:border-accent/50 outline-none transition-colors"
-        />
+      {/* Busca + filtro de status */}
+      <div className="flex items-center gap-3">
+        <div className="relative max-w-sm flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+          <input
+            placeholder="Buscar por nome, e-mail, CPF ou telefone..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full bg-surface-700 border border-ui-border rounded-lg pl-8 pr-4 py-2 text-sm text-ui-text placeholder-gray-500 focus:border-accent/50 outline-none transition-colors"
+          />
+        </div>
+        <div className="flex gap-1">
+          {(['ativo', 'inativo'] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFiltro(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                statusFiltro === s
+                  ? 'bg-accent/10 border-accent/40 text-accent'
+                  : 'bg-surface-700 border-ui-border text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              {s === 'ativo' ? 'Ativos' : 'Inativos'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tabela */}
@@ -169,9 +187,11 @@ export function Clientes() {
                   <td className="py-3.5 px-4 text-sm font-semibold text-ui-text">{fmt(c.totalGasto)}</td>
                   <td className="py-3.5 px-4 text-sm text-gray-500">{fmtDate(c.dataCadastro)}</td>
                   <td className="py-3.5 px-4">
-                    {isVip(c)
-                      ? <span className="inline-flex items-center gap-1 text-xs text-amber-400 font-medium"><Star size={11} className="fill-amber-400" />VIP</span>
-                      : <Badge label="Padrão" variant="default" />
+                    {c.status === 'inativo'
+                      ? <Badge label="Inativo" variant="default" />
+                      : isVip(c)
+                        ? <span className="inline-flex items-center gap-1 text-xs text-amber-400 font-medium"><Star size={11} className="fill-amber-400" />VIP</span>
+                        : <Badge label="Padrão" variant="default" />
                     }
                   </td>
                   {/* Ações no hover */}
@@ -184,13 +204,23 @@ export function Clientes() {
                       >
                         <Pencil size={13} />
                       </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); setConfirmarDelete(c.id) }}
-                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-600 hover:text-red-400 transition-colors"
-                        title="Excluir"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      {statusFiltro === 'inativo' ? (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleReativar(c.id) }}
+                          className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-gray-600 hover:text-emerald-400 transition-colors"
+                          title="Reativar"
+                        >
+                          <RotateCcw size={13} />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={e => { e.stopPropagation(); setConfirmarDelete(c.id) }}
+                          className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-600 hover:text-red-400 transition-colors"
+                          title="Excluir"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

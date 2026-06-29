@@ -1,50 +1,24 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { TrendingUp, Users, Wrench, Tag, Printer, Calendar } from 'lucide-react'
-import { useApp } from '../context/AppContext'
-
-// ── Helpers ───────────────────────────────────────────────────────
-
-const fmtBRL = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
-
-const fmtDate = (d: string) =>
-  new Date(d + 'T00:00:00').toLocaleDateString('pt-BR')
-
-type Periodo = 'semana' | 'mes' | 'trimestre' | 'ano'
-
-function getPeriodStart(p: Periodo): Date {
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  if (p === 'semana') {
-    const d = new Date(now)
-    d.setDate(now.getDate() - 6)
-    return d
-  }
-  if (p === 'mes') {
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  }
-  if (p === 'trimestre') {
-    const m = now.getMonth()
-    const qStart = Math.floor(m / 3) * 3
-    return new Date(now.getFullYear(), qStart, 1)
-  }
-  return new Date(now.getFullYear(), 0, 1)
-}
-
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-const PERIODO_LABEL: Record<Periodo, string> = {
-  semana:     'Últimos 7 dias',
-  mes:        'Este mês',
-  trimestre:  'Este trimestre',
-  ano:        'Este ano',
-}
+import {
+  useRelatorios,
+  fmtBRL,
+} from '../hooks/useRelatorios'
+import type {
+  Periodo,
+  KpiRel,
+  ChartDataPoint,
+  LancamentoFiltrado,
+  TecnicoRanking,
+  ServicoStat,
+  PieDataPoint,
+  ClienteTop,
+  ClienteSemRetorno,
+} from '../hooks/useRelatorios'
 
 // ── Chart tooltip ─────────────────────────────────────────────────
 
@@ -55,9 +29,9 @@ interface TooltipPayload {
 }
 
 function ChartTooltip({ active, payload, label }: {
-  active?: boolean
+  active?:  boolean
   payload?: TooltipPayload[]
-  label?:  string
+  label?:   string
 }) {
   if (!active || !payload?.length) return null
   return (
@@ -82,65 +56,22 @@ function ChartTooltip({ active, payload, label }: {
 
 // ── Tab: Financeiro ───────────────────────────────────────────────
 
-function TabFinanceiro() {
-  const { lancamentos } = useApp()
-  const [periodo, setPeriodo] = useState<Periodo>('mes')
+interface TabFinanceiroProps {
+  periodo:              Periodo
+  setPeriodo:           (p: Periodo) => void
+  PERIODO_LABEL:        Record<Periodo, string>
+  kpisFinanceiro:       KpiRel[]
+  chartData:            ChartDataPoint[]
+  lancamentosFiltrados: LancamentoFiltrado[]
+  filteredCount:        number
+  lancamentosExtras:    number
+}
 
-  const periodoStart = getPeriodStart(periodo)
-  const startStr     = toDateStr(periodoStart)
-
-  const filtered = lancamentos.filter(l => l.data >= startStr)
-
-  const receitas  = filtered.filter(l => l.tipo === 'entrada').reduce((s, l) => s + l.valor, 0)
-  const despesas  = filtered.filter(l => l.tipo === 'saida').reduce((s, l) => s + l.valor, 0)
-  const lucro     = receitas - despesas
-
-  // Build chart data grouped by day/week/month
-  const chartData = useMemo(() => {
-    const map = new Map<string, { receitas: number; despesas: number }>()
-
-    if (periodo === 'semana') {
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date()
-        d.setDate(d.getDate() - i)
-        const key = toDateStr(d)
-        map.set(key, { receitas: 0, despesas: 0 })
-      }
-    } else if (periodo === 'mes') {
-      const now = new Date()
-      const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-      for (let d = 1; d <= days; d++) {
-        const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-        map.set(key, { receitas: 0, despesas: 0 })
-      }
-    } else {
-      filtered.forEach(l => {
-        const key = l.data.slice(0, 7)
-        if (!map.has(key)) map.set(key, { receitas: 0, despesas: 0 })
-      })
-    }
-
-    filtered.forEach(l => {
-      const key = periodo === 'semana' || periodo === 'mes' ? l.data : l.data.slice(0, 7)
-      if (map.has(key)) {
-        const entry = map.get(key)!
-        if (l.tipo === 'entrada') entry.receitas += l.valor
-        else entry.despesas += l.valor
-      }
-    })
-
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, vals]) => ({
-        date: periodo === 'semana' || periodo === 'mes'
-          ? new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-          : new Date(date + '-01T00:00:00').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-        receitas:  vals.receitas,
-        despesas:  vals.despesas,
-        saldo:     vals.receitas - vals.despesas,
-      }))
-  }, [filtered, periodo])
-
+function TabFinanceiro({
+  periodo, setPeriodo, PERIODO_LABEL,
+  kpisFinanceiro, chartData,
+  lancamentosFiltrados, filteredCount, lancamentosExtras,
+}: TabFinanceiroProps) {
   return (
     <div className="space-y-5">
       {/* Period selector */}
@@ -164,18 +95,14 @@ function TabFinanceiro() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Receitas',    value: receitas, color: '#34d399' },
-          { label: 'Despesas',    value: despesas, color: '#ff6b35' },
-          { label: 'Lucro Líquido', value: lucro, color: lucro >= 0 ? '#34d399' : '#e8304a' },
-        ].map(item => (
+        {kpisFinanceiro.map(item => (
           <div
             key={item.label}
             className="rounded-xl p-4"
             style={{ background: 'var(--wrap-surface2)', border: '1px solid var(--wrap-border)' }}
           >
             <p className="text-[11px] font-medium" style={{ color: 'var(--wrap-muted)' }}>{item.label}</p>
-            <p className="text-2xl font-bold mt-1.5" style={{ color: item.color }}>{fmtBRL(item.value)}</p>
+            <p className="text-2xl font-bold mt-1.5" style={{ color: item.color }}>{item.value}</p>
           </div>
         ))}
       </div>
@@ -210,9 +137,9 @@ function TabFinanceiro() {
               iconType="circle"
               iconSize={8}
             />
-            <Line type="monotone" dataKey="receitas" name="Receitas"  stroke="#34d399" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="despesas"  name="Despesas"  stroke="#ff6b35" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="saldo"     name="Saldo"     stroke="var(--wrap-accent)" strokeWidth={2} dot={false} strokeDasharray="4 2" />
+            <Line type="monotone" dataKey="receitas" name="Receitas" stroke="#34d399" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="despesas"  name="Despesas" stroke="#ff6b35" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="saldo"     name="Saldo"    stroke="var(--wrap-accent)" strokeWidth={2} dot={false} strokeDasharray="4 2" />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -226,34 +153,31 @@ function TabFinanceiro() {
           <p className="text-[12px] font-semibold" style={{ color: 'var(--wrap-text)' }}>Lançamentos no período</p>
         </div>
         <div className="divide-y" style={{ borderColor: 'var(--wrap-border)' }}>
-          {filtered.length === 0 ? (
+          {filteredCount === 0 ? (
             <p className="px-5 py-6 text-center text-[12px]" style={{ color: 'var(--wrap-muted)' }}>
               Nenhum lançamento no período
             </p>
-          ) : filtered.slice(0, 10).map(l => (
+          ) : lancamentosFiltrados.map(l => (
             <div key={l.id} className="flex items-center gap-3 px-5 py-2.5">
               <span
                 className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                style={{
-                  background: l.tipo === 'entrada' ? 'rgba(52,211,153,0.12)' : 'rgba(255,107,53,0.12)',
-                  color:      l.tipo === 'entrada' ? '#34d399' : '#ff6b35',
-                }}
+                style={{ background: l.tipoBg, color: l.tipoColor }}
               >
-                {l.tipo === 'entrada' ? '↑ Entrada' : '↓ Saída'}
+                {l.tipoStr}
               </span>
               <span className="flex-1 text-[12px] truncate" style={{ color: 'var(--wrap-text)' }}>{l.descricao}</span>
-              <span className="text-[11px] shrink-0" style={{ color: 'var(--wrap-muted)' }}>{fmtDate(l.data)}</span>
+              <span className="text-[11px] shrink-0" style={{ color: 'var(--wrap-muted)' }}>{l.dataFmt}</span>
               <span
                 className="text-[13px] font-semibold shrink-0"
-                style={{ color: l.tipo === 'entrada' ? '#34d399' : '#ff6b35' }}
+                style={{ color: l.tipoColor }}
               >
-                {l.tipo === 'entrada' ? '+' : '-'}{fmtBRL(l.valor)}
+                {l.valorFmt}
               </span>
             </div>
           ))}
-          {filtered.length > 10 && (
+          {lancamentosExtras > 0 && (
             <p className="px-5 py-3 text-center text-[11px]" style={{ color: 'var(--wrap-muted)' }}>
-              +{filtered.length - 10} lançamentos no período
+              +{lancamentosExtras} lançamentos no período
             </p>
           )}
         </div>
@@ -264,28 +188,12 @@ function TabFinanceiro() {
 
 // ── Tab: Técnicos ─────────────────────────────────────────────────
 
-function TabTecnicos() {
-  const { instaladores, ordens, servicos } = useApp()
+interface TabTecnicosProps {
+  ranking:          TecnicoRanking[]
+  rankingChartData: { name: string; faturamento: number }[]
+}
 
-  const ranking = useMemo(() => {
-    return instaladores.map(inst => {
-      const minhas = ordens.filter(o => o.instaladorId === inst.id && o.status === 'concluido')
-      const fat    = minhas.reduce((s, o) => s + o.valorTotal, 0)
-      const ticket = minhas.length > 0 ? fat / minhas.length : 0
-      const tempoTotal = minhas.reduce((s, o) => {
-        const t = o.servicos.reduce((st, item) => {
-          const sv = servicos.find(s => s.id === item.servicoId)
-          return st + (sv?.tempEstimado ?? 0)
-        }, 0)
-        return s + t
-      }, 0)
-      const tempoMedio = minhas.length > 0 ? tempoTotal / minhas.length : 0
-      return { inst, osConcluidas: minhas.length, faturamento: fat, ticket, tempoMedio }
-    }).sort((a, b) => b.faturamento - a.faturamento)
-  }, [instaladores, ordens, servicos])
-
-  const maxFat = Math.max(...ranking.map(r => r.faturamento), 1)
-
+function TabTecnicos({ ranking, rankingChartData }: TabTecnicosProps) {
   return (
     <div className="space-y-4">
       {/* Bar chart */}
@@ -297,8 +205,7 @@ function TabTecnicos() {
           Faturamento por Técnico
         </p>
         <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={ranking.map(r => ({ name: r.inst.nome.split(' ')[0], faturamento: r.faturamento }))}
-            margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
+          <BarChart data={rankingChartData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis dataKey="name" tick={{ fill: 'var(--wrap-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: 'var(--wrap-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
@@ -322,40 +229,32 @@ function TabTecnicos() {
           </p>
         ) : ranking.map((r, i) => (
           <div
-            key={r.inst.id}
+            key={r.id}
             className="px-5 py-4"
             style={{ borderBottom: i < ranking.length - 1 ? '1px solid var(--wrap-border)' : 'none' }}
           >
             <div className="flex items-center gap-3 mb-2">
-              <span className="text-[18px] shrink-0">
-                {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
-              </span>
+              <span className="text-[18px] shrink-0">{r.posicao}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-semibold" style={{ color: 'var(--wrap-text)' }}>{r.inst.nome}</p>
-                <p className="text-[11px]" style={{ color: 'var(--wrap-muted)' }}>
-                  {r.inst.especialidades.slice(0, 2).join(' · ')}
-                </p>
+                <p className="text-[13px] font-semibold" style={{ color: 'var(--wrap-text)' }}>{r.nome}</p>
+                <p className="text-[11px]" style={{ color: 'var(--wrap-muted)' }}>{r.especialidadesStr}</p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[14px] font-bold" style={{ color: 'var(--wrap-accent)' }}>{fmtBRL(r.faturamento)}</p>
+                <p className="text-[14px] font-bold" style={{ color: 'var(--wrap-accent)' }}>{r.faturamentoFmt}</p>
                 <p className="text-[11px]" style={{ color: 'var(--wrap-muted)' }}>{r.osConcluidas} OS</p>
               </div>
             </div>
-            {/* Progress bar */}
             <div className="h-1.5 rounded-full" style={{ background: 'var(--wrap-border2)' }}>
               <div
                 className="h-full rounded-full transition-all"
-                style={{
-                  width: `${(r.faturamento / maxFat) * 100}%`,
-                  background: 'var(--wrap-accent)',
-                }}
+                style={{ width: `${r.barWidthPct}%`, background: 'var(--wrap-accent)' }}
               />
             </div>
             <div className="flex gap-4 mt-2">
               {[
-                { label: 'Ticket médio', value: fmtBRL(r.ticket) },
-                { label: 'Tempo médio/OS', value: `${r.tempoMedio.toFixed(1)}h` },
-                { label: 'Comissão', value: `${r.inst.comissaoPadrao}%` },
+                { label: 'Ticket médio',    value: r.ticketFmt     },
+                { label: 'Tempo médio/OS',  value: r.tempoMedioFmt },
+                { label: 'Comissão',        value: r.comissaoStr   },
               ].map(stat => (
                 <div key={stat.label}>
                   <p className="text-[10px]" style={{ color: 'var(--wrap-muted)' }}>{stat.label}</p>
@@ -372,27 +271,13 @@ function TabTecnicos() {
 
 // ── Tab: Serviços ─────────────────────────────────────────────────
 
-const PIE_COLORS = ['var(--wrap-accent)', '#34d399', '#60a5fa', '#f59e0b', '#a78bfa', '#f87171', '#38bdf8']
+interface TabServicosProps {
+  PIE_COLORS: string[]
+  pieData:    PieDataPoint[]
+  statsServicos: ServicoStat[]
+}
 
-function TabServicos() {
-  const { servicos, ordens } = useApp()
-
-  const stats = useMemo(() => {
-    const map = new Map<string, { nome: string; count: number; receita: number }>()
-    servicos.forEach(s => map.set(s.id, { nome: s.nome, count: 0, receita: 0 }))
-    ordens.forEach(o => {
-      if (o.status === 'cancelado') return
-      o.servicos.forEach(item => {
-        const entry = map.get(item.servicoId)
-        if (entry) { entry.count++; entry.receita += item.preco }
-      })
-    })
-    return Array.from(map.values()).sort((a, b) => b.receita - a.receita)
-  }, [servicos, ordens])
-
-  const pieData = stats.slice(0, 7).map(s => ({ name: s.nome.split(' ').slice(0, 2).join(' '), value: s.count }))
-  const maxCount = Math.max(...stats.map(s => s.count), 1)
-
+function TabServicos({ PIE_COLORS, pieData, statsServicos }: TabServicosProps) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-5">
@@ -447,19 +332,16 @@ function TabServicos() {
             Top 5 por Receita
           </p>
           <div className="space-y-3">
-            {stats.slice(0, 5).map((s, i) => (
+            {statsServicos.slice(0, 5).map((s, i) => (
               <div key={s.nome}>
                 <div className="flex justify-between text-[11px] mb-1">
                   <span style={{ color: 'var(--wrap-text)' }}>{s.nome}</span>
-                  <span style={{ color: 'var(--wrap-accent)', fontWeight: 600 }}>{fmtBRL(s.receita)}</span>
+                  <span style={{ color: 'var(--wrap-accent)', fontWeight: 600 }}>{s.receitaFmt}</span>
                 </div>
                 <div className="h-1.5 rounded-full" style={{ background: 'var(--wrap-border2)' }}>
                   <div
                     className="h-full rounded-full"
-                    style={{
-                      width: `${(s.count / maxCount) * 100}%`,
-                      background: PIE_COLORS[i % PIE_COLORS.length],
-                    }}
+                    style={{ width: `${s.barWidthPct}%`, background: PIE_COLORS[i % PIE_COLORS.length] }}
                   />
                 </div>
                 <p className="text-[10px] mt-0.5" style={{ color: 'var(--wrap-muted)' }}>{s.count} execuções</p>
@@ -488,17 +370,15 @@ function TabServicos() {
             </tr>
           </thead>
           <tbody>
-            {stats.map((s, i) => (
+            {statsServicos.map((s, i) => (
               <tr
                 key={s.nome}
-                style={{ borderBottom: i < stats.length - 1 ? '1px solid var(--wrap-border)' : 'none' }}
+                style={{ borderBottom: i < statsServicos.length - 1 ? '1px solid var(--wrap-border)' : 'none' }}
               >
                 <td className="px-5 py-3 text-[13px] font-medium" style={{ color: 'var(--wrap-text)' }}>{s.nome}</td>
                 <td className="px-5 py-3 text-[13px]" style={{ color: 'var(--wrap-muted)' }}>{s.count}</td>
-                <td className="px-5 py-3 text-[13px] font-semibold" style={{ color: '#34d399' }}>{fmtBRL(s.receita)}</td>
-                <td className="px-5 py-3 text-[13px]" style={{ color: 'var(--wrap-muted)' }}>
-                  {fmtBRL(servicos.find(sv => sv.nome === s.nome)?.preco ?? 0)}
-                </td>
+                <td className="px-5 py-3 text-[13px] font-semibold" style={{ color: '#34d399' }}>{s.receitaFmt}</td>
+                <td className="px-5 py-3 text-[13px]" style={{ color: 'var(--wrap-muted)' }}>{s.precoUnitarioFmt}</td>
               </tr>
             ))}
           </tbody>
@@ -510,54 +390,21 @@ function TabServicos() {
 
 // ── Tab: Clientes ─────────────────────────────────────────────────
 
-function TabClientes() {
-  const { clientes, ordens } = useApp()
-  const now = new Date()
+interface TabClientesProps {
+  kpisClientes: KpiRel[]
+  topClientes:  ClienteTop[]
+  semRetorno:   ClienteSemRetorno[]
+  sem30:        number
+  sem60:        number
+  sem90:        number
+}
 
-  const topClientes = useMemo(
-    () => [...clientes].sort((a, b) => b.totalGasto - a.totalGasto).slice(0, 10),
-    [clientes],
-  )
-  const maxGasto = topClientes[0]?.totalGasto || 1
-
-  const semRetorno = useMemo(() => {
-    const result: { cliente: typeof clientes[0]; dias: number }[] = []
-    clientes.forEach(c => {
-      const concluidas = ordens.filter(
-        o => o.clienteId === c.id && o.status === 'concluido' && o.dataFinalizacao,
-      )
-      if (concluidas.length === 0) return
-      const ultima = concluidas
-        .map(o => new Date(o.dataFinalizacao! + 'T00:00:00').getTime())
-        .sort((a, b) => b - a)[0]
-      const dias = Math.floor((now.getTime() - ultima) / 86_400_000)
-      if (dias >= 30) result.push({ cliente: c, dias })
-    })
-    return result.sort((a, b) => b.dias - a.dias)
-  }, [clientes, ordens])
-
-  const comRetorno = clientes.filter(c =>
-    ordens.some(o => o.clienteId === c.id && o.status === 'concluido'),
-  ).length
-
-  const taxaRetorno = clientes.length > 0
-    ? Math.round((comRetorno / clientes.length) * 100)
-    : 0
-
-  const sem30  = semRetorno.filter(r => r.dias >= 30 && r.dias < 60).length
-  const sem60  = semRetorno.filter(r => r.dias >= 60 && r.dias < 90).length
-  const sem90  = semRetorno.filter(r => r.dias >= 90).length
-
+function TabClientes({ kpisClientes, topClientes, semRetorno, sem30, sem60, sem90 }: TabClientesProps) {
   return (
     <div className="space-y-5">
       {/* KPIs */}
       <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: 'Total de Clientes', value: String(clientes.length), color: 'var(--wrap-text)' },
-          { label: 'Sem retorno 30d+', value: String(sem30), color: '#ff6b35' },
-          { label: 'Sem retorno 60d+', value: String(sem60), color: '#e8304a' },
-          { label: 'Taxa de Retorno', value: `${taxaRetorno}%`, color: '#34d399' },
-        ].map(item => (
+        {kpisClientes.map(item => (
           <div
             key={item.label}
             className="rounded-xl p-4"
@@ -586,12 +433,12 @@ function TabClientes() {
             <div className="flex items-center gap-3 mb-1.5">
               <span className="text-[13px] font-bold w-6 shrink-0" style={{ color: 'var(--wrap-muted)' }}>#{i + 1}</span>
               <span className="flex-1 text-[13px] font-medium" style={{ color: 'var(--wrap-text)' }}>{c.nome}</span>
-              <span className="text-[13px] font-bold" style={{ color: 'var(--wrap-accent)' }}>{fmtBRL(c.totalGasto)}</span>
+              <span className="text-[13px] font-bold" style={{ color: 'var(--wrap-accent)' }}>{c.totalGastoFmt}</span>
             </div>
             <div className="ml-9 h-1.5 rounded-full" style={{ background: 'var(--wrap-border2)' }}>
               <div
                 className="h-full rounded-full"
-                style={{ width: `${(c.totalGasto / maxGasto) * 100}%`, background: 'var(--wrap-accent)' }}
+                style={{ width: `${c.barWidthPct}%`, background: 'var(--wrap-accent)' }}
               />
             </div>
           </div>
@@ -610,20 +457,17 @@ function TabClientes() {
             </p>
           </div>
           <div className="max-h-64 overflow-y-auto divide-y" style={{ borderColor: 'var(--wrap-border)' }}>
-            {semRetorno.map(({ cliente, dias }) => (
-              <div key={cliente.id} className="flex items-center gap-3 px-5 py-2.5">
+            {semRetorno.map(r => (
+              <div key={r.id} className="flex items-center gap-3 px-5 py-2.5">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium truncate" style={{ color: 'var(--wrap-text)' }}>{cliente.nome}</p>
-                  <p className="text-[11px]" style={{ color: 'var(--wrap-muted)' }}>{cliente.telefone}</p>
+                  <p className="text-[13px] font-medium truncate" style={{ color: 'var(--wrap-text)' }}>{r.nome}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--wrap-muted)' }}>{r.telefone}</p>
                 </div>
                 <span
                   className="text-[11px] font-semibold px-2 py-0.5 rounded"
-                  style={{
-                    background: dias >= 90 ? 'rgba(232,48,74,0.12)' : dias >= 60 ? 'rgba(255,107,53,0.12)' : 'rgba(245,158,11,0.12)',
-                    color:      dias >= 90 ? '#e8304a' : dias >= 60 ? '#ff6b35' : '#f59e0b',
-                  }}
+                  style={{ background: r.badgeBg, color: r.badgeColor }}
                 >
-                  {dias}d sem contato
+                  {r.badgeLabel}
                 </span>
               </div>
             ))}
@@ -647,7 +491,7 @@ function TabClientes() {
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────
+// ── Main component ─────────────────────────────────────────────────
 
 type Aba = 'financeiro' | 'tecnicos' | 'servicos' | 'clientes'
 
@@ -660,6 +504,15 @@ const ABAS: { key: Aba; label: string; icon: typeof TrendingUp }[] = [
 
 export function Relatorios() {
   const [aba, setAba] = useState<Aba>('financeiro')
+
+  const {
+    periodo, setPeriodo, PERIODO_LABEL,
+    kpisFinanceiro, chartData,
+    lancamentosFiltrados, filteredCount, lancamentosExtras,
+    ranking, rankingChartData,
+    PIE_COLORS, pieData, statsServicos,
+    kpisClientes, topClientes, semRetorno, sem30, sem60, sem90,
+  } = useRelatorios()
 
   const handlePrint = () => window.print()
 
@@ -699,7 +552,7 @@ export function Relatorios() {
         {/* Tab switcher */}
         <div className="flex gap-1 no-print" style={{ borderBottom: '1px solid var(--wrap-border)', paddingBottom: 0 }}>
           {ABAS.map(tab => {
-            const Icon = tab.icon
+            const Icon   = tab.icon
             const active = aba === tab.key
             return (
               <button
@@ -708,7 +561,7 @@ export function Relatorios() {
                 className="flex items-center gap-1.5 px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all -mb-px"
                 style={{
                   borderBottomColor: active ? 'var(--wrap-accent)' : 'transparent',
-                  color:  active ? 'var(--wrap-accent)' : 'var(--wrap-muted)',
+                  color:      active ? 'var(--wrap-accent)' : 'var(--wrap-muted)',
                   background: active ? 'rgb(var(--wrap-accent-rgb) / 0.04)' : 'transparent',
                 }}
               >
@@ -720,10 +573,41 @@ export function Relatorios() {
         </div>
 
         {/* Tab content */}
-        {aba === 'financeiro' && <TabFinanceiro />}
-        {aba === 'tecnicos'   && <TabTecnicos />}
-        {aba === 'servicos'   && <TabServicos />}
-        {aba === 'clientes'   && <TabClientes />}
+        {aba === 'financeiro' && (
+          <TabFinanceiro
+            periodo={periodo}
+            setPeriodo={setPeriodo}
+            PERIODO_LABEL={PERIODO_LABEL}
+            kpisFinanceiro={kpisFinanceiro}
+            chartData={chartData}
+            lancamentosFiltrados={lancamentosFiltrados}
+            filteredCount={filteredCount}
+            lancamentosExtras={lancamentosExtras}
+          />
+        )}
+        {aba === 'tecnicos' && (
+          <TabTecnicos
+            ranking={ranking}
+            rankingChartData={rankingChartData}
+          />
+        )}
+        {aba === 'servicos' && (
+          <TabServicos
+            PIE_COLORS={PIE_COLORS}
+            pieData={pieData}
+            statsServicos={statsServicos}
+          />
+        )}
+        {aba === 'clientes' && (
+          <TabClientes
+            kpisClientes={kpisClientes}
+            topClientes={topClientes}
+            semRetorno={semRetorno}
+            sem30={sem30}
+            sem60={sem60}
+            sem90={sem90}
+          />
+        )}
       </div>
     </>
   )

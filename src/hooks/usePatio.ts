@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { isOSAtrasada } from '../lib/osStatus'
+import { getStatusEfetivo } from '../lib/agendamentoStatus'
 import type { OrdemServico, StatusOS } from '../types'
 
 const ACTIVE_STATUSES: StatusOS[] = ['em_andamento', 'aguardando_material', 'aguardando_aprovacao']
@@ -55,7 +56,11 @@ export function usePatio() {
   )
 
   const todayAgendamentos = agendamentos
-    .filter(a => a.data === todayStr && a.status !== 'concluido' && a.status !== 'cancelado')
+    .filter(a => {
+      if (a.data !== todayStr) return false
+      const ef = getStatusEfetivo(a, ordens)
+      return ef === 'agendado' || ef === 'em_andamento'
+    })
     .sort((a, b) => a.horario.localeCompare(b.horario))
 
   const concluidasHoje: ConcluidaHojeItem[] = ordens

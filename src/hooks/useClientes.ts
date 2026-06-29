@@ -69,13 +69,16 @@ interface GarantiaEnriquecida extends GarantiaType {
 export function useClientes() {
   const {
     clientes, veiculos, ordens, garantias,
-    adicionarCliente, editarCliente, deletarCliente,
+    adicionarCliente, editarCliente, deletarCliente, reativarCliente,
     adicionarVeiculo, editarVeiculo, deletarVeiculo,
     editarGarantia, deletarGarantia, registrarAcionamento,
   } = useApp()
 
   // ── Search ────────────────────────────────────────────────────
   const [search, setSearch] = useState('')
+
+  // ── Filtro de status (ativos por padrão) ───────────────────────
+  const [statusFiltro, setStatusFiltro] = useState<'ativo' | 'inativo'>('ativo')
 
   // ── Selected client ───────────────────────────────────────────
   const [detalhes, setDetalhes] = useState<Cliente | null>(null)
@@ -154,6 +157,7 @@ export function useClientes() {
 
   // ── Filtered list ─────────────────────────────────────────────
   const filtered = clientes
+    .filter(c => (c.status ?? 'ativo') === statusFiltro)
     .filter(c =>
       c.nome.toLowerCase().includes(search.toLowerCase()) ||
       c.telefone.includes(search) ||
@@ -232,10 +236,20 @@ export function useClientes() {
   // ── Delete client ─────────────────────────────────────────────
   const handleDelete = () => {
     if (!confirmarDelete) return
-    deletarCliente(confirmarDelete)
-    toast('Cliente removido.')
+    const resultado = deletarCliente(confirmarDelete)
+    if (resultado === 'inativado') {
+      toast.info('Cliente possui ordens de serviço vinculadas e foi inativado em vez de excluído.')
+    } else {
+      toast('Cliente removido.')
+    }
     setConfirmarDelete(null)
     if (detalhes?.id === confirmarDelete) setDetalhes(null)
+  }
+
+  // ── Reativar cliente ──────────────────────────────────────────
+  const handleReativar = (id: string) => {
+    reativarCliente(id)
+    toast.success('Cliente reativado.')
   }
 
   // ── Vehicle actions ───────────────────────────────────────────
@@ -310,6 +324,9 @@ export function useClientes() {
     // search + list
     search, setSearch, filtered,
 
+    // filtro de status (ativos/inativos)
+    statusFiltro, setStatusFiltro,
+
     // KPIs
     totalClientes, vipCount, novosCount, posVendaCount,
 
@@ -324,8 +341,8 @@ export function useClientes() {
     form, setForm, cepInput, setCepInput, cepResult,
     prepararNovo, prepararEditar, handleSalvarCliente, resetForm,
 
-    // delete client
-    confirmarDelete, setConfirmarDelete, handleDelete,
+    // delete / reativar client
+    confirmarDelete, setConfirmarDelete, handleDelete, handleReativar,
 
     // vehicle form
     veiculoForm, setVeiculoForm, placaResult,

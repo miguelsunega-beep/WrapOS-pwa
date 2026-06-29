@@ -168,9 +168,12 @@ export function useOrdemServico() {
   const totalOS = ordens.length
 
   // ── New OS form derived values ────────────────────────────────
+  // clientes inativos não aparecem na busca (silenciosamente, sem aviso)
   const clientesFiltrados = clientes.filter(c =>
-    c.nome.toLowerCase().includes(form.clienteSearch.toLowerCase()) ||
-    c.cpf.includes(form.clienteSearch),
+    (c.status ?? 'ativo') === 'ativo' && (
+      c.nome.toLowerCase().includes(form.clienteSearch.toLowerCase()) ||
+      c.cpf.includes(form.clienteSearch)
+    ),
   )
   const veiculosDoCliente = veiculos.filter(v => v.clienteId === form.clienteId)
 

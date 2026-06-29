@@ -1,41 +1,126 @@
 import { useState, useRef, useEffect } from 'react'
 import {
-  Calendar, Plus, ChevronLeft, ChevronRight,
-  Check, CheckCheck, Trash2, Pencil, FilePlus2,
-  User, Wrench, CalendarClock,
+  Plus, ChevronLeft, ChevronRight,
+  Check, Trash2, Pencil, FilePlus2, CheckCircle2, Repeat,
+  User, Wrench, CalendarClock, Car, Clock,
 } from 'lucide-react'
+import { DayPicker } from 'react-day-picker'
+import { ptBR } from 'date-fns/locale'
+import { format, isValid, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth } from 'date-fns'
+import 'react-day-picker/dist/style.css'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
 import { DateField } from '../components/DateField'
-import { useAgendamento, todayISO, statusConfig, DIAS_SEMANA } from '../hooks/useAgendamento'
+import { AgendaGrid } from '../components/AgendaGrid'
+import {
+  useAgendamento, todayISO, statusEfetivoConfig, DIAS_SEMANA,
+  TIPOS_SERVICO, STATUS_FILTROS,
+  type AppointmentVM,
+} from '../hooks/useAgendamento'
 
 const inputCls = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text placeholder-gray-500 focus:outline-none focus:border-accent/50 transition-colors'
 const labelCls = 'block text-xs font-medium text-gray-400 mb-1.5'
 
+const VIEWS: { key: 'dia' | 'semana' | 'mes'; label: string }[] = [
+  { key: 'dia',    label: 'Dia'    },
+  { key: 'semana', label: 'Semana' },
+  { key: 'mes',    label: 'Mês'    },
+]
+
+const parseISODate = (iso: string): Date | undefined => {
+  const d = new Date(iso + 'T12:00:00')
+  return isValid(d) ? d : undefined
+}
+
+interface MonthOverviewProps {
+  monthDate:    Date
+  diaSelecionado: string
+  todayISO:     string
+  getAppointmentsForDate: (iso: string) => AppointmentVM[]
+  onSelectDia:  (iso: string) => void
+}
+
+function MonthOverview({ monthDate, diaSelecionado, todayISO, getAppointmentsForDate, onSelectDia }: MonthOverviewProps) {
+  const inicio = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 })
+  const fim    = endOfWeek(endOfMonth(monthDate), { weekStartsOn: 1 })
+  const dias   = eachDayOfInterval({ start: inicio, end: fim })
+
+  return (
+    <div className="bg-surface-800 border border-ui-border rounded-[10px] overflow-hidden">
+      <div className="grid grid-cols-7 border-b border-ui-border">
+        {DIAS_SEMANA.map(d => (
+          <div key={d} className="py-2.5 text-center text-[10px] text-gray-600 uppercase tracking-wider">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {dias.map(date => {
+          const iso = format(date, 'yyyy-MM-dd')
+          const isToday = iso === todayISO
+          const isSel = iso === diaSelecionado
+          const fora = !isSameMonth(date, monthDate)
+          const ags = getAppointmentsForDate(iso)
+          const cores = Array.from(new Set(ags.map(a => a.tipo.cor)))
+          return (
+            <button
+              key={iso}
+              onClick={() => onSelectDia(iso)}
+              className={`min-h-[88px] p-2 text-left border-b border-r border-ui-border transition-colors hover:bg-surface-700/50 ${isSel ? 'bg-accent/5' : ''}`}
+            >
+              <span
+                className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                  isToday
+                    ? 'bg-accent text-white'
+                    : isSel
+                      ? 'ring-1 ring-accent/60 text-ui-text'
+                      : fora ? 'text-gray-700' : 'text-ui-text'
+                }`}
+              >
+                {date.getDate()}
+              </span>
+              {ags.length > 0 && (
+                <div className="flex items-center gap-1 mt-2 flex-wrap">
+                  {cores.slice(0, 4).map(cor => (
+                    <span key={cor} className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cor }} />
+                  ))}
+                  <span className="text-[10px] text-gray-500 ml-0.5">{ags.length}</span>
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function Agendamento() {
   const {
     clientes, veiculos, servicos,
-    diaSelecionado, setDiaSelecionado,
-    diasDaSemana, weekLabel, diaSelecionadoLabel, navWeek, goToday,
-    agsDia,
-    getNomeCliente, getTelCliente, getVeiculoLabel, getVeiculoSub,
-    getServicoNome, getInstalador, capacidadeDia,
-    handleStatus,
+    diaSelecionado,
+    diasDaSemana, weekLabel, diaSelecionadoLabel, navWeek, goToday, irParaData,
+    view, setView,
+    filtroTipos, toggleTipo, filtroStatus, toggleStatus,
+    appointmentsByDia, proximoAgendamento, getAppointmentsForDate,
+    getTelCliente, getVeiculoSub,
     detalhes, setDetalhes,
     detCliente, detVeiculo, detServico, detInstalador, detValorStr, detDataStr,
+    detStatusEfetivo, detOSVinculada,
     confirmarDelete, setConfirmarDelete, handleDelete,
     editForm, setEditForm, abrirEditar, handleSalvarEdicao,
     editVeiculosCliente, instaladoresAtivos,
     form, setForm, resetNovoForm, clientesFiltrados, veiculosCliente, selecionarCliente, handleSalvar,
-    handleConverterOS,
+    handleAprovarEntrada, handleVerOS,
+    reagendarData, setReagendarData, reagendarHorario, setReagendarHorario,
+    abrirReagendar, handleSalvarReagendamento,
   } = useAgendamento()
 
   // ── Pure UI state ─────────────────────────────────────────────
   const [novoOpen, setNovoOpen]     = useState(false)
   const [editOpen, setEditOpen]     = useState(false)
+  const [reagendarOpen, setReagendarOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -62,6 +147,34 @@ export function Agendamento() {
     if (handleSalvarEdicao()) setEditOpen(false)
   }
 
+  const onAbrirReagendar = () => {
+    if (!detalhes) return
+    setDetalhes(null)
+    abrirReagendar(detalhes)
+    setReagendarOpen(true)
+  }
+
+  const onSalvarReagendamento = () => {
+    if (handleSalvarReagendamento()) setReagendarOpen(false)
+  }
+
+  const diaAtualDate = diasDaSemana.find(d => d.iso === diaSelecionado)?.date
+    ?? new Date(diaSelecionado + 'T12:00:00')
+
+  const monthLabel = diaAtualDate
+    .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+    .replace(/^./, c => c.toUpperCase())
+
+  const periodoLabel = view === 'dia' ? diaSelecionadoLabel : view === 'mes' ? monthLabel : weekLabel
+
+  const navPeriodo = (dir: -1 | 1) => {
+    if (view === 'semana') { navWeek(dir); return }
+    const d = new Date(diaSelecionado + 'T12:00:00')
+    if (view === 'dia') d.setDate(d.getDate() + dir)
+    else d.setMonth(d.getMonth() + dir)
+    irParaData(d.toISOString().slice(0, 10))
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-5">
 
@@ -77,189 +190,206 @@ export function Agendamento() {
         </Button>
       </div>
 
-      {/* Week navigation */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* Controls row */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="inline-flex bg-surface-800 border border-ui-border rounded-lg p-1 gap-1">
+          {VIEWS.map(v => (
+            <button
+              key={v.key}
+              onClick={() => setView(v.key)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                view === v.key ? 'bg-accent text-white shadow-sm shadow-accent/30' : 'text-gray-500 hover:text-ui-text'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => navWeek(-1)}
+            onClick={() => navPeriodo(-1)}
             className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-500 hover:text-ui-text transition-colors"
           >
             <ChevronLeft size={16} />
           </button>
-          <span className="text-sm font-semibold text-ui-text min-w-[220px] text-center">{weekLabel}</span>
+          <span className="text-sm font-semibold text-ui-text min-w-[200px] text-center capitalize">{periodoLabel}</span>
           <button
-            onClick={() => navWeek(1)}
+            onClick={() => navPeriodo(1)}
             className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-500 hover:text-ui-text transition-colors"
           >
             <ChevronRight size={16} />
           </button>
         </div>
+
         <button
           onClick={goToday}
-          className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:bg-surface-700 hover:text-ui-text border border-ui-border transition-colors"
+          className="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:bg-surface-700 hover:text-ui-text border border-ui-border transition-colors"
         >
           Hoje
         </button>
       </div>
 
-      {/* Week cards Carrossel Mobile */}
-      <div className="flex overflow-x-auto pb-2 -mx-6 px-6 md:mx-0 md:px-0 md:grid md:grid-cols-7 gap-2 snap-x [&::-webkit-scrollbar]:hidden">
-        {diasDaSemana.map(({ date, iso, count }, i) => {
-          const isToday = iso === todayISO
-          const isSel = iso === diaSelecionado
-          return (
-            <button
-              key={iso}
-              onClick={() => setDiaSelecionado(iso)}
-              className={`min-w-[65px] md:min-w-0 shrink-0 snap-start text-center p-3 rounded-xl border transition-all ${
-                isSel
-                  ? 'border-accent/50 bg-accent/5'
-                  : 'border-ui-border bg-surface-800 hover:border-accent/25 hover:bg-surface-700'
-              }`}
+      {/* Sidebar + Grid */}
+      <div className="flex flex-col md:flex-row gap-5 items-start">
+
+        {/* ── Sidebar ──────────────────────────────────────────── */}
+        <aside className="w-full md:w-[262px] shrink-0 flex flex-col gap-4">
+
+          {/* Mini calendário */}
+          <Card padding={false} className="p-2">
+            <div className="wrapos-daypicker flex justify-center">
+              <DayPicker
+                mode="single"
+                locale={ptBR}
+                selected={parseISODate(diaSelecionado)}
+                defaultMonth={parseISODate(diaSelecionado)}
+                onSelect={(d) => { if (d) irParaData(format(d, 'yyyy-MM-dd')) }}
+              />
+            </div>
+          </Card>
+
+          {/* Próximo agendamento */}
+          {proximoAgendamento && (
+            <div
+              className="rounded-xl p-4 text-white shadow-lg cursor-pointer"
+              style={{ backgroundColor: 'var(--wrap-accent)' }}
+              onClick={() => setDetalhes(proximoAgendamento.ag)}
             >
-              <p className="text-[10px] text-gray-600 uppercase tracking-wider">{DIAS_SEMANA[i]}</p>
-              <p className={`text-xl font-bold mt-1 ${isToday ? 'text-accent' : isSel ? 'text-ui-text' : 'text-gray-400'}`}>
-                {date.getDate()}
-              </p>
-              {(() => {
-                const cap = capacidadeDia(count)
-                return cap ? (
-                  <div className="flex items-center justify-center gap-1 mt-1.5" title={cap.label}>
-                    <span
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ backgroundColor: cap.cor }}
-                    />
-                    <span className="text-[10px] text-gray-500">{count}</span>
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-gray-700 mt-1.5">—</p>
-                )
-              })()}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Schedule list */}
-      <Card padding={false}>
-        <div className="px-5 py-4 border-b border-ui-border flex flex-col md:flex-row md:items-center gap-2">
-          <div className="flex items-center gap-2">
-            <Calendar size={15} className="text-accent shrink-0" />
-            <h2 className="text-sm font-semibold text-ui-text">
-              Agenda — {diaSelecionadoLabel}
-            </h2>
-          </div>
-          <span className="md:ml-auto text-xs text-gray-600">
-            {agsDia.length} agendamento{agsDia.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-
-        {agsDia.length === 0 ? (
-          <div className="px-5 py-12 text-center text-gray-600 text-sm">
-            Nenhum agendamento para este dia.
-          </div>
-        ) : (
-          <div className="divide-y divide-ui-border flex flex-col">
-            {agsDia.map(ag => (
-              <div
-                key={ag.id}
-                onClick={() => setDetalhes(ag)}
-                className="group px-4 py-4 md:px-5 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 hover:bg-surface-600/40 transition-colors cursor-pointer"
-              >
-                {/* Mobile Top Row / Desktop Left */}
-                <div className="flex items-start md:items-center gap-3 md:gap-4 w-full md:w-auto">
-                  <div className="w-14 text-center shrink-0 pt-1 md:pt-0">
-                    <p className="text-sm font-bold text-accent">{ag.horario}</p>
-                  </div>
-                  <div className="w-px h-10 bg-ui-border shrink-0 hidden md:block" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 md:hidden mb-1.5">
-                      <Badge label={statusConfig[ag.status].label} variant={statusConfig[ag.status].variant} />
-                    </div>
-                    <p className="text-sm font-semibold text-ui-text">{getNomeCliente(ag.clienteId)}</p>
-                    <p className="text-xs text-gray-500">{getVeiculoLabel(ag.veiculoId)}</p>
-                  </div>
-                </div>
-
-                {/* Mobile Bottom / Desktop Right */}
-                <div className="flex-1 min-w-0 pl-[68px] md:pl-0 flex flex-col md:flex-row md:items-center md:justify-between w-full md:w-auto">
-                  <div className="mb-2 md:mb-0">
-                    <p className="text-xs text-gray-400 truncate max-w-[220px]">{getServicoNome(ag.servicoId)}</p>
-                    <p className="text-[11px] text-gray-600 mt-0.5">{getInstalador(ag.instaladorId)}</p>
-                  </div>
-                  <div className="hidden md:flex items-center gap-2">
-                    <Badge label={statusConfig[ag.status].label} variant={statusConfig[ag.status].variant} />
-                    <div
-                      className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2"
-                      onClick={e => e.stopPropagation()}
-                    >
-                      {ag.status === 'agendado' && (
-                        <button
-                          onClick={() => handleStatus(ag, 'confirmado')}
-                          title="Confirmar"
-                          className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-gray-500 hover:text-emerald-400 transition-colors"
-                        >
-                          <Check size={13} />
-                        </button>
-                      )}
-                      {(ag.status === 'agendado' || ag.status === 'confirmado') && (
-                        <button
-                          onClick={() => handleStatus(ag, 'concluido')}
-                          title="Concluir"
-                          className="p-1.5 rounded-lg hover:bg-blue-500/10 text-gray-500 hover:text-blue-400 transition-colors"
-                        >
-                          <CheckCheck size={13} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setConfirmarDelete(ag.id)}
-                        title="Excluir"
-                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
+              <div className="flex items-center justify-between gap-2">
+                <p
+                  className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider"
+                  style={{ color: '#ffd6da' }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
+                  Próximo agendamento
+                </p>
+                <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center shrink-0">
+                  <Car size={14} className="text-white" />
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </Card>
+              <p className="text-sm font-bold mt-2">{proximoAgendamento.modelo}</p>
+              <p className="text-xs text-white/75 font-mono mt-0.5">
+                {proximoAgendamento.cliente}{proximoAgendamento.placa ? ` · ${proximoAgendamento.placa}` : ''}
+              </p>
+              <div className="border-t border-white/20 my-2.5" />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium truncate">{proximoAgendamento.servicoNome}</span>
+                <span className="flex items-center gap-1 text-xs font-bold shrink-0 whitespace-nowrap">
+                  <Clock size={12} className="shrink-0" />
+                  {proximoAgendamento.dataLabel} · {proximoAgendamento.ag.horario}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Filtros */}
+          <Card padding={false} className="p-4">
+            <p className="text-xs font-semibold text-gray-400 mb-3">Filtros</p>
+
+            <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Tipo de Serviço</p>
+            <div className="space-y-2 mb-4">
+              {TIPOS_SERVICO.map(t => (
+                <label key={t.key} className="flex items-center gap-2 cursor-pointer text-xs select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!filtroTipos[t.key]}
+                    onChange={() => toggleTipo(t.key)}
+                    className="hidden"
+                  />
+                  <span
+                    className="w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0"
+                    style={filtroTipos[t.key]
+                      ? { backgroundColor: 'var(--wrap-accent)', borderColor: 'var(--wrap-accent)' }
+                      : { borderColor: 'var(--wrap-border2)' }}
+                  >
+                    {filtroTipos[t.key] && <Check size={11} className="text-white" />}
+                  </span>
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.cor }} />
+                  <span className="text-gray-300">{t.label}</span>
+                </label>
+              ))}
+            </div>
+
+            <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Status</p>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_FILTROS.map(s => (
+                <button
+                  key={s.key}
+                  onClick={() => toggleStatus(s.key)}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] border transition-colors"
+                  style={filtroStatus[s.key]
+                    ? { backgroundColor: `${s.cor}1f`, borderColor: `${s.cor}40`, color: s.cor }
+                    : { borderColor: 'var(--wrap-border2)', color: '#5a6070' }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: s.cor }} />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </Card>
+        </aside>
+
+        {/* ── Área da grade ────────────────────────────────────── */}
+        <div className="flex-1 min-w-0 w-full">
+          {view === 'mes' ? (
+            <MonthOverview
+              monthDate={diaAtualDate}
+              diaSelecionado={diaSelecionado}
+              todayISO={todayISO}
+              getAppointmentsForDate={getAppointmentsForDate}
+              onSelectDia={(iso) => { irParaData(iso); setView('semana') }}
+            />
+          ) : (
+            <AgendaGrid
+              dias={view === 'dia' ? [{ date: diaAtualDate, iso: diaSelecionado }] : diasDaSemana}
+              appointmentsByDia={appointmentsByDia}
+              todayISO={todayISO}
+              onSelect={setDetalhes}
+            />
+          )}
+        </div>
+      </div>
 
       {/* ── Modal Detalhes ──────────────────────────────────────── */}
       <Modal isOpen={!!detalhes} onClose={() => setDetalhes(null)} title="Detalhes do Agendamento" size="lg">
-        {detalhes && (
+        {detalhes && detStatusEfetivo && (
           <div className="space-y-4">
             {/* Status + actions */}
             <div className="flex items-center gap-2 flex-wrap">
               <Badge
-                label={statusConfig[detalhes.status].label}
-                variant={statusConfig[detalhes.status].variant}
+                label={statusEfetivoConfig[detStatusEfetivo].label}
+                variant={statusEfetivoConfig[detStatusEfetivo].variant}
               />
-              {detalhes.status === 'agendado' && (
-                <button
-                  onClick={() => handleStatus(detalhes, 'confirmado')}
-                  className="text-xs px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
-                >
-                  ✓ Confirmar
-                </button>
+              {detStatusEfetivo === 'agendado' && (
+                <>
+                  <button
+                    onClick={() => handleAprovarEntrada(detalhes)}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                  >
+                    <CheckCircle2 size={13} />
+                    Aprovar entrada
+                  </button>
+                  <button
+                    onClick={onAbrirReagendar}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+                  >
+                    <Repeat size={13} />
+                    Reagendar
+                  </button>
+                  <button
+                    onClick={() => setConfirmarDelete(detalhes.id)}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                  >
+                    <Trash2 size={13} />
+                    Cancelar
+                  </button>
+                </>
               )}
-              {(detalhes.status === 'agendado' || detalhes.status === 'confirmado') && (
-                <button
-                  onClick={() => handleStatus(detalhes, 'concluido')}
-                  className="text-xs px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
-                >
-                  ✓✓ Concluir
-                </button>
-              )}
-              {detalhes.status !== 'cancelado' && detalhes.status !== 'concluido' && (
-                <button
-                  onClick={() => handleStatus(detalhes, 'cancelado')}
-                  className="text-xs px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
-                >
-                  Cancelar
-                </button>
+              {(detalhes.reagendamentos ?? 0) > 0 && (
+                <span className="text-[11px] text-gray-600">
+                  Reagendado {detalhes.reagendamentos}x
+                </span>
               )}
             </div>
 
@@ -308,35 +438,50 @@ export function Agendamento() {
 
             {/* Footer */}
             <div className="flex justify-between items-center pt-1 border-t border-ui-border">
-              <button
-                onClick={() => setConfirmarDelete(detalhes.id)}
-                className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors"
-              >
-                <Trash2 size={13} />
-                Excluir agendamento
-              </button>
-              <div className="flex items-center gap-2">
-                {detalhes.status === 'confirmado' && (
-                  <button
-                    onClick={() => handleConverterOS(detalhes)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
-                  >
-                    <FilePlus2 size={13} />
-                    Converter em OS
-                  </button>
-                )}
+              {detStatusEfetivo === 'agendado' ? (
                 <button
                   onClick={() => { setDetalhes(null); abrirEditar(detalhes); setEditOpen(true) }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-600 text-gray-400 border border-ui-border hover:text-ui-text hover:bg-surface-500 transition-colors"
+                  className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-ui-text transition-colors"
                 >
                   <Pencil size={13} />
-                  Editar
+                  Editar dados
                 </button>
-                <Button variant="secondary" onClick={() => setDetalhes(null)}>Fechar</Button>
-              </div>
+              ) : detOSVinculada ? (
+                <button
+                  onClick={() => handleVerOS(detalhes)}
+                  className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  <FilePlus2 size={13} />
+                  Ver Ordem de Serviço
+                </button>
+              ) : <span />}
+              <Button variant="secondary" onClick={() => setDetalhes(null)}>Fechar</Button>
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* ── Modal Reagendar ─────────────────────────────────────── */}
+      <Modal isOpen={reagendarOpen} onClose={() => setReagendarOpen(false)} title="Reagendar" size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className={labelCls}>Nova data <span className="text-accent">*</span></label>
+            <DateField value={reagendarData} onChange={setReagendarData} />
+          </div>
+          <div>
+            <label className={labelCls}>Novo horário <span className="text-accent">*</span></label>
+            <input
+              type="time"
+              value={reagendarHorario}
+              onChange={e => setReagendarHorario(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1 border-t border-ui-border">
+            <Button variant="secondary" onClick={() => setReagendarOpen(false)}>Cancelar</Button>
+            <ActionButton onClick={onSalvarReagendamento}>Confirmar Reagendamento</ActionButton>
+          </div>
+        </div>
       </Modal>
 
       {/* ── Modal Novo Agendamento ──────────────────────────────── */}

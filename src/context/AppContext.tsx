@@ -287,7 +287,9 @@ interface AppContextType {
   // Clientes
   adicionarCliente: (c: Omit<Cliente, 'id'>) => string
   editarCliente: (id: string, c: Partial<Omit<Cliente, 'id'>>) => void
-  deletarCliente: (id: string) => void
+  /** Exclui de fato se o cliente não tiver OS vinculada; senão, apenas inativa. */
+  deletarCliente: (id: string) => 'excluido' | 'inativado'
+  reativarCliente: (id: string) => void
 
   // Veículos
   adicionarVeiculo: (v: Omit<Veiculo, 'id'>) => string
@@ -369,8 +371,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const editarCliente = (id: string, c: Partial<Omit<Cliente, 'id'>>) =>
     setClientes(prev => prev.map(x => x.id === id ? { ...x, ...c } : x))
 
-  const deletarCliente = (id: string) =>
+  const deletarCliente = (id: string): 'excluido' | 'inativado' => {
+    const temOSVinculada = ordens.some(o => o.clienteId === id)
+    if (temOSVinculada) {
+      setClientes(prev => prev.map(x => x.id === id ? { ...x, status: 'inativo' } : x))
+      return 'inativado'
+    }
     setClientes(prev => prev.filter(x => x.id !== id))
+    return 'excluido'
+  }
+
+  const reativarCliente = (id: string) =>
+    setClientes(prev => prev.map(x => x.id === id ? { ...x, status: 'ativo' } : x))
 
   // ── Veículos ────────────────────────────────────────────────
   const adicionarVeiculo = (v: Omit<Veiculo, 'id'>): string => {
@@ -588,7 +600,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       clientes, veiculos, ordens, agendamentos, instaladores, servicos,
       lancamentos, produtos, garantias, meta, configuracoes,
-      adicionarCliente, editarCliente, deletarCliente,
+      adicionarCliente, editarCliente, deletarCliente, reativarCliente,
       adicionarVeiculo, editarVeiculo, deletarVeiculo,
       adicionarOS, editarOS, deletarOS, mudarStatusOS,
       adicionarAgendamento, editarAgendamento, deletarAgendamento,

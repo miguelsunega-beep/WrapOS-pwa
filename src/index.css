@@ -68,34 +68,41 @@ textarea {
   border-radius: 0.5rem;
 }
 
-/* ── DateField (react-day-picker) ─────────────────────────────── */
-.wrapos-daypicker .rdp {
-  --rdp-cell-size: 32px;
+/* ── DateField / mini calendário (react-day-picker v10) ─────────── */
+.wrapos-daypicker .rdp-root {
   --rdp-accent-color: var(--wrap-accent);
-  --rdp-background-color: var(--wrap-border2);
+  --rdp-accent-background-color: color-mix(in srgb, var(--wrap-accent) 16%, transparent);
+  --rdp-day-width: 32px;
+  --rdp-day-height: 32px;
+  --rdp-day_button-width: 30px;
+  --rdp-day_button-height: 30px;
+  --rdp-nav-height: 2rem;
+  --rdp-nav_button-width: 1.75rem;
+  --rdp-nav_button-height: 1.75rem;
   margin: 0;
   font-size: 13px;
 }
 .wrapos-daypicker .rdp-caption_label,
-.wrapos-daypicker .rdp-head_cell,
-.wrapos-daypicker .rdp-day {
+.wrapos-daypicker .rdp-weekday,
+.wrapos-daypicker .rdp-day_button {
   color: var(--wrap-text);
 }
-.wrapos-daypicker .rdp-head_cell {
+.wrapos-daypicker .rdp-weekday {
   color: var(--wrap-muted);
   font-size: 11px;
   text-transform: uppercase;
 }
-.wrapos-daypicker .rdp-day_selected,
-.wrapos-daypicker .rdp-day_selected:hover {
+.wrapos-daypicker .rdp-selected .rdp-day_button {
   background-color: var(--wrap-accent);
   color: #fff;
+  border-color: var(--wrap-accent);
 }
-.wrapos-daypicker .rdp-day_today {
+.wrapos-daypicker .rdp-today:not(.rdp-selected) .rdp-day_button {
   color: var(--wrap-accent);
   font-weight: 700;
 }
-.wrapos-daypicker .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
+.wrapos-daypicker .rdp-day_button:hover:not([disabled]):not(.rdp-selected .rdp-day_button) {
   background-color: var(--wrap-border2);
 }
-.wrapos-daypicker .rdp-nav_button { color: var(--wrap-text); }
+.wrapos-daypicker .rdp-chevron { fill: var(--wrap-muted); }
+.wrapos-daypicker .rdp-outside .rdp-day_button { color: var(--wrap-muted); opacity: 0.5; }

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Car, Clock, CheckCircle2, DollarSign, CalendarDays, Package, LucideIcon } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { getStatusEfetivo } from '../lib/agendamentoStatus'
 
 const fmt = (n: number) =>
   n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
@@ -36,9 +37,13 @@ export function useHome() {
     const aguardandoMaterial  = ordens.filter(o => o.status === 'aguardando_material').length
     const aguardandoAprovacao = ordens.filter(o => o.status === 'aguardando_aprovacao').length
     const criticos = produtos.filter(p => p.quantidade <= p.minimo)
-    const agsHoje  = agendamentos.filter(
-      a => a.data === hoje && a.status !== 'concluido' && a.status !== 'cancelado'
-    )
+    // "Agenda de hoje" mostra só o que ainda precisa de ação: aguardando aprovação
+    // de entrada ou já em andamento — não o que já foi concluído/teve a OS cancelada.
+    const agsHoje  = agendamentos.filter(a => {
+      if (a.data !== hoje) return false
+      const ef = getStatusEfetivo(a, ordens)
+      return ef === 'agendado' || ef === 'em_andamento'
+    })
     const concluidasHoje = ordens.filter(o => o.status === 'concluido' && o.dataFinalizacao === hoje).length
     const concluidasMes  = ordens.filter(
       o => o.status === 'concluido' && (o.dataFinalizacao ?? '').slice(0, 7) === hoje.slice(0, 7)
