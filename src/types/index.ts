@@ -84,6 +84,9 @@ export interface OrdemServico {
   dataSaidaPrevista?: string
   agendamentoId?: string
   materiaisUsados?: MaterialUsado[]
+  /** true quando o veículo foi entregue ao cliente (saiu fisicamente do pátio). false = concluído mas ainda não retirado. */
+  entregue?: boolean
+  dataSaida?: string
 }
 
 export interface Agendamento {

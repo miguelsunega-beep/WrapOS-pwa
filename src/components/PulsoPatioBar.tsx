@@ -6,8 +6,9 @@ interface PulsoPatioBarProps {
 }
 
 export function PulsoPatioBar({ aguardando, execucao, concluido, onAbrir }: PulsoPatioBarProps) {
-  const noPatioTotal = aguardando + execucao
-  const barTotal     = noPatioTotal + concluido || 1
+  // Inclui concluído (aguardando retirada) no total físico do pátio
+  const noPatioTotal = aguardando + execucao + concluido
+  const barTotal     = noPatioTotal || 1
   const pAgua  = (aguardando / barTotal) * 100
   const pExec  = (execucao  / barTotal) * 100
   const pConc  = (concluido / barTotal) * 100

@@ -338,6 +338,7 @@ interface AppContextType {
   concluirOS: (id: string, materiaisUsados?: MaterialUsado[], pago?: boolean) => { created: string[] }
   registrarPagamentoOS: (id: string) => void
   cancelarOS: (id: string) => void
+  entregarVeiculo: (id: string) => void
 
   // Meta & Configurações
   atualizarMeta: (m: Partial<Omit<Meta, 'id'>>) => void
@@ -498,6 +499,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         dataFinalizacao: today,
         statusPagamento: (pago ? 'pago' : 'a_receber') as StatusPagamento,
         materiaisUsados: materiaisUsados ?? x.materiaisUsados,
+        entregue: false,
       } : x
     ))
 
@@ -576,6 +578,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOrdens(prev => prev.map(x => x.id === id ? { ...x, statusPagamento: 'pago' as StatusPagamento } : x))
   }
 
+  const entregarVeiculo = (id: string): void => {
+    const today = new Date().toISOString().split('T')[0]
+    setOrdens(prev => prev.map(x =>
+      x.id === id ? { ...x, entregue: true, dataSaida: today } : x
+    ))
+  }
+
   const cancelarOS = (id: string): void => {
     const os = ordens.find(x => x.id === id)
     if (!os || os.status === 'cancelado') return
@@ -609,7 +618,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       adicionarProduto, editarProduto, deletarProduto, registrarEntradaEstoque, baixarEstoque,
       adicionarLancamento, deletarLancamento,
       adicionarGarantia, editarGarantia, deletarGarantia, registrarAcionamento,
-      concluirOS, registrarPagamentoOS, cancelarOS,
+      concluirOS, registrarPagamentoOS, cancelarOS, entregarVeiculo,
       atualizarMeta, atualizarConfiguracoes,
     }}>
       {children}

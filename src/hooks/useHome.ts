@@ -146,11 +146,12 @@ export function useHome() {
   const faltam    = Math.max(0, metaMes - faturamentoMes)
 
   // ── Pulso do pátio ──────────────────────────────────────────────
-  // concluido = saiu do pátio; total exibido é só aguardando + execucao
+  // entregue === false → ainda no pátio (coluna Concluído do kanban)
+  // entregue !== false → saiu; getEtapaPatio retorna null → não conta
   const pulso = useMemo((): PulsoData => {
     let aguardando = 0, execucao = 0, concluido = 0
     for (const o of ordens) {
-      const etapa = getEtapaPatio(o.status)
+      const etapa = getEtapaPatio(o.status, o.entregue)
       if      (etapa === 'aguardando') aguardando++
       else if (etapa === 'execucao')   execucao++
       else if (etapa === 'concluido')  concluido++
@@ -158,6 +159,7 @@ export function useHome() {
     return { aguardando, execucao, concluido }
   }, [ordens])
 
+  // KPI "Carros no pátio" = apenas ativos (aguardando + execução)
   const noPatioCount = pulso.aguardando + pulso.execucao
 
   // ── KPIs ────────────────────────────────────────────────────────
