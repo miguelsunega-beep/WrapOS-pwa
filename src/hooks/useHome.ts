@@ -96,9 +96,9 @@ export function useHome() {
   const diasRestantes = diasDoMes - agora.getDate()
 
   // ── Meta ────────────────────────────────────────────────────────
-  const metaAtual   = (meta.mes === agora.getMonth() + 1 && meta.ano === agora.getFullYear()) ? meta : null
-  const metaMes     = metaAtual?.faturamento ?? 0
-  const metaDiariaOS = (metaAtual?.numeroOS ?? 0) > 0 ? (metaAtual!.numeroOS / diasDoMes) : 1
+  const metaMes      = meta.faturamento
+  const metaDiariaOS = meta.numeroOS > 0 ? (meta.numeroOS / diasDoMes) : 1
+  const metaVazia    = meta.faturamento === 0 && meta.numeroOS === 0
 
   // ── Sparklines (últimos 7 dias) ─────────────────────────────────
   const sparklines = useMemo(() => {
@@ -135,12 +135,6 @@ export function useHome() {
   const receitaOntem   = sparklines.receita[5]    ?? 0
   const concluidasHoje = sparklines.concluidas[6] ?? 0
 
-  const ticketHoje = sparklines.ticket[6] ?? 0
-  const ticketMedio7 = (() => {
-    const vals = sparklines.ticket.slice(0, 6).filter(v => v > 0)
-    return vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : 0
-  })()
-
   const faturamentoMes = useMemo(
     () => ordens
       .filter(o => o.status === 'concluido' && (o.dataFinalizacao ?? '').slice(0, 7) === hoje.slice(0, 7))
@@ -150,6 +144,21 @@ export function useHome() {
 
   const progresso = metaMes > 0 ? Math.min(100, Math.round((faturamentoMes / metaMes) * 100)) : 0
   const faltam    = Math.max(0, metaMes - faturamentoMes)
+
+  // ── Pulso do pátio ──────────────────────────────────────────────
+  // concluido = saiu do pátio; total exibido é só aguardando + execucao
+  const pulso = useMemo((): PulsoData => {
+    let aguardando = 0, execucao = 0, concluido = 0
+    for (const o of ordens) {
+      const etapa = getEtapaPatio(o.status)
+      if      (etapa === 'aguardando') aguardando++
+      else if (etapa === 'execucao')   execucao++
+      else if (etapa === 'concluido')  concluido++
+    }
+    return { aguardando, execucao, concluido }
+  }, [ordens])
+
+  const noPatioCount = pulso.aguardando + pulso.execucao
 
   // ── KPIs ────────────────────────────────────────────────────────
   const kpis: KpiData[] = [
@@ -162,20 +171,20 @@ export function useHome() {
       onClick:       () => navigate('/financeiro'),
     },
     {
-      label:         'Concluídas hoje',
-      value:         `${concluidasHoje} / ${Math.round(metaDiariaOS)}`,
-      variacaoPct:   Math.round(((concluidasHoje - metaDiariaOS) / metaDiariaOS) * 100),
-      variacaoLabel: 'vs meta diária',
-      sparkline:     sparklines.concluidas,
-      onClick:       () => navigate('/ordens'),
+      label:         'Carros no pátio',
+      value:         `${noPatioCount}`,
+      variacaoPct:   0,
+      variacaoLabel: 'no momento',
+      sparkline:     Array(7).fill(noPatioCount),
+      onClick:       () => navigate('/patio'),
     },
     {
-      label:         'Ticket médio',
-      value:         fmt(ticketHoje > 0 ? ticketHoje : ticketMedio7),
-      variacaoPct:   ticketMedio7 > 0 ? Math.round(((ticketHoje - ticketMedio7) / ticketMedio7) * 100) : 0,
-      variacaoLabel: '7 dias',
-      sparkline:     sparklines.ticket,
-      onClick:       () => navigate('/financeiro'),
+      label:         'Concluídas hoje',
+      value:         `${concluidasHoje}`,
+      variacaoPct:   Math.round(((concluidasHoje - metaDiariaOS) / metaDiariaOS) * 100),
+      variacaoLabel: `meta: ${Math.round(metaDiariaOS)}/dia`,
+      sparkline:     sparklines.concluidas,
+      onClick:       () => navigate('/ordens'),
     },
     {
       label:         'Faturamento do mês',
@@ -186,18 +195,6 @@ export function useHome() {
       onClick:       () => navigate('/financeiro'),
     },
   ]
-
-  // ── Pulso do pátio ──────────────────────────────────────────────
-  const pulso = useMemo((): PulsoData => {
-    let aguardando = 0, execucao = 0, concluido = 0
-    for (const o of ordens) {
-      const etapa = getEtapaPatio(o.status)
-      if      (etapa === 'aguardando') aguardando++
-      else if (etapa === 'execucao')   execucao++
-      else if (etapa === 'concluido')  concluido++
-    }
-    return { aguardando, execucao, concluido }
-  }, [ordens])
 
   // ── Carga da equipe ─────────────────────────────────────────────
   const equipe = useMemo((): MembroEquipe[] => {
@@ -250,7 +247,7 @@ export function useHome() {
         id:        'critico',
         badge:     'CRÍTICO',
         tema:      'amber',
-        titulo:    `${criticos.length} ${criticos.length === 1 ? 'item em falta' : 'itens em falta'}`,
+        titulo:    `${criticos.length} ${criticos.length === 1 ? 'Item em estoque crítico' : 'Itens em estoque crítico'}`,
         descricao: `${nomes}${extra} abaixo do mínimo`,
         cta:       'Repor estoque',
         onClick:   () => navigate('/estoque'),
@@ -336,6 +333,7 @@ export function useHome() {
     kpis,
     pulso,
     metaMes,
+    metaVazia,
     metaMesStr:        fmt(metaMes),
     faturamentoMesStr: fmt(faturamentoMes),
     progresso,
@@ -346,5 +344,6 @@ export function useHome() {
     irParaAgendamento: () => navigate('/agendamento'),
     irParaPatio:       () => navigate('/patio'),
     irParaNovaOS:      () => navigate('/ordens'),
+    irParaMetas:       () => navigate('/metas'),
   }
 }

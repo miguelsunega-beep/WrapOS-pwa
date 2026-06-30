@@ -6,10 +6,11 @@ interface PulsoPatioBarProps {
 }
 
 export function PulsoPatioBar({ aguardando, execucao, concluido, onAbrir }: PulsoPatioBarProps) {
-  const total = aguardando + execucao + concluido || 1
-  const pAgua  = (aguardando / total) * 100
-  const pExec  = (execucao  / total) * 100
-  const pConc  = (concluido / total) * 100
+  const noPatioTotal = aguardando + execucao
+  const barTotal     = noPatioTotal + concluido || 1
+  const pAgua  = (aguardando / barTotal) * 100
+  const pExec  = (execucao  / barTotal) * 100
+  const pConc  = (concluido / barTotal) * 100
 
   return (
     <div
@@ -20,7 +21,7 @@ export function PulsoPatioBar({ aguardando, execucao, concluido, onAbrir }: Puls
         <div className="flex items-baseline gap-2">
           <h2 className="text-sm font-semibold" style={{ color: 'var(--wrap-text)' }}>Pulso do pátio</h2>
           <span className="text-xs" style={{ color: 'var(--wrap-muted)' }}>
-            {aguardando + execucao + concluido} veículos
+            {noPatioTotal} no pátio
           </span>
         </div>
         <button

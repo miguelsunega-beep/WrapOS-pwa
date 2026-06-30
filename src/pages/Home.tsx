@@ -13,7 +13,7 @@ export function Home() {
     acoes,
     kpis,
     pulso,
-    metaMes,
+    metaVazia,
     metaMesStr,
     faturamentoMesStr,
     progresso,
@@ -24,10 +24,12 @@ export function Home() {
     irParaAgendamento,
     irParaPatio,
     irParaNovaOS,
+    irParaMetas,
   } = useHome()
 
   return (
     <div className="px-6 py-5 md:p-6 space-y-6">
+      <h1 className="sr-only">Início</h1>
 
       {/* ── Header ──────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
@@ -150,45 +152,63 @@ export function Home() {
         {/* ── RIGHT ─────────────────────────────────────────── */}
         <div className="space-y-4">
 
-          {/* Meta do mês */}
-          {metaMes > 0 && (
-            <div
-              className="rounded-[10px] p-5"
-              style={{ background: 'var(--wrap-surface)', border: '1px solid var(--wrap-border)' }}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--wrap-muted)' }}>
-                  Meta do mês
-                </p>
+          {/* Meta do mês — sempre visível */}
+          <div
+            className="rounded-[10px] p-5"
+            style={{ background: 'var(--wrap-surface)', border: '1px solid var(--wrap-border)' }}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--wrap-muted)' }}>
+                Meta do mês
+              </p>
+              {!metaVazia && (
                 <span className="text-xs font-bold" style={{ color: 'var(--wrap-text)' }}>
                   {progresso}%
                 </span>
-              </div>
-              <p className="text-2xl font-bold mt-1" style={{ color: 'var(--wrap-text)' }}>
-                {faturamentoMesStr}
-              </p>
-              <p className="text-xs" style={{ color: 'var(--wrap-muted)' }}>de {metaMesStr}</p>
-
-              <div
-                className="w-full h-1.5 rounded-full mt-3 overflow-hidden"
-                style={{ background: 'var(--wrap-border2)' }}
-              >
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${progresso}%`, background: 'var(--wrap-accent)' }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between mt-2">
-                <p className="text-xs" style={{ color: 'var(--wrap-muted)' }}>
-                  Faltam {faltamStr}
-                </p>
-                <p className="text-xs" style={{ color: 'var(--wrap-muted)' }}>
-                  {diasRestantes} dia{diasRestantes !== 1 ? 's' : ''} restante{diasRestantes !== 1 ? 's' : ''}
-                </p>
-              </div>
+              )}
             </div>
-          )}
+
+            {metaVazia ? (
+              <div className="mt-2">
+                <p className="text-sm" style={{ color: 'var(--wrap-muted)' }}>
+                  Nenhuma meta configurada este mês.
+                </p>
+                <button
+                  onClick={irParaMetas}
+                  className="mt-2 text-xs font-semibold transition-opacity hover:opacity-70"
+                  style={{ color: 'var(--wrap-accent)' }}
+                >
+                  Configurar agora →
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="text-2xl font-bold mt-1" style={{ color: 'var(--wrap-text)' }}>
+                  {faturamentoMesStr}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--wrap-muted)' }}>de {metaMesStr}</p>
+
+                <div
+                  className="w-full h-1.5 rounded-full mt-3 overflow-hidden"
+                  style={{ background: 'var(--wrap-border2)' }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${progresso}%`, background: 'var(--wrap-accent)' }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs" style={{ color: 'var(--wrap-muted)' }}>
+                    Faltam {faltamStr}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--wrap-muted)' }}>
+                    {diasRestantes} dia{diasRestantes !== 1 ? 's' : ''} restante{diasRestantes !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Carga da equipe */}
           {equipe.length > 0 && (

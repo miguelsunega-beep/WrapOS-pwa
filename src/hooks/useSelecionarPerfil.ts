@@ -4,12 +4,21 @@ import {
   initialInstaladores, initialLancamentos, initialProdutos, initialGarantias,
   initialMeta, initialConfiguracoes,
 } from '../context/AppContext'
-import type { Agendamento } from '../types'
+import type { Agendamento, Meta } from '../types'
 
 const addDays = (n: number): string => {
   const d = new Date()
   d.setDate(d.getDate() + n)
   return d.toISOString().slice(0, 10)
+}
+
+/**
+ * initialMeta (AppContext.tsx) tem mes/ano fixos em maio/2025. Para que novos
+ * perfis tenham a meta apontando para o mês corrente, geramos dinamicamente.
+ */
+function metaAtualDemo(): Meta {
+  const d = new Date()
+  return { ...initialMeta, mes: d.getMonth() + 1, ano: d.getFullYear() }
 }
 
 /**
@@ -80,7 +89,7 @@ export function useSelecionarPerfil({ onSelect }: { onSelect: (id: string) => vo
       localStorage.setItem(`wrapos_perfil_${id}_lancamentos`,  JSON.stringify(initialLancamentos))
       localStorage.setItem(`wrapos_perfil_${id}_produtos`,     JSON.stringify(initialProdutos))
       localStorage.setItem(`wrapos_perfil_${id}_garantias`,    JSON.stringify(initialGarantias))
-      localStorage.setItem(`wrapos_perfil_${id}_meta`,         JSON.stringify(initialMeta))
+      localStorage.setItem(`wrapos_perfil_${id}_meta`,         JSON.stringify(metaAtualDemo()))
     } else {
       localStorage.setItem(`wrapos_perfil_${id}_clientes`,     JSON.stringify([]))
       localStorage.setItem(`wrapos_perfil_${id}_veiculos`,     JSON.stringify([]))
@@ -90,7 +99,7 @@ export function useSelecionarPerfil({ onSelect }: { onSelect: (id: string) => vo
       localStorage.setItem(`wrapos_perfil_${id}_lancamentos`,  JSON.stringify([]))
       localStorage.setItem(`wrapos_perfil_${id}_produtos`,     JSON.stringify([]))
       localStorage.setItem(`wrapos_perfil_${id}_garantias`,    JSON.stringify([]))
-      localStorage.setItem(`wrapos_perfil_${id}_meta`,         JSON.stringify(initialMeta))
+      localStorage.setItem(`wrapos_perfil_${id}_meta`,         JSON.stringify(metaAtualDemo()))
     }
     localStorage.setItem(`wrapos_perfil_${id}_configuracoes`, JSON.stringify(cfg))
 
