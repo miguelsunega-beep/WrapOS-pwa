@@ -7,7 +7,7 @@ import {
 } from '@dnd-kit/core'
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import { Calendar, TrendingUp, LayoutGrid, AlertTriangle, CheckCircle2, Car } from 'lucide-react'
-import { OSDrawer } from '../components/OSDrawer'
+import { OSModal } from '../components/OSModal'
 import { ConcluirOSModal } from '../components/ConcluirOSModal'
 import { usePatio } from '../hooks/usePatio'
 import { getEtapaPatio } from '../lib/patioEtapa'
@@ -329,7 +329,6 @@ export function Patio() {
     moverEtapa,
     entregarVeiculo,
     instaladores,
-    numeroBoxes,
     irParaFinanceiro,
     irParaAgendamento,
   } = usePatio()
@@ -541,13 +540,12 @@ export function Patio() {
         onConcluded={fecharConcluir}
       />
 
-      {/* ── OS Drawer ── */}
-      <OSDrawer
+      {/* ── OS Modal ── */}
+      <OSModal
         os={drawerOS}
         cliente={drawerOS ? getCliente(drawerOS.clienteId) : null}
         veiculo={drawerOS ? getVeiculo(drawerOS.veiculoId) : null}
         instaladores={instaladores}
-        numeroBoxes={numeroBoxes}
         onClose={fecharDrawer}
         onConfirmarConcluir={handleOpenConfirm}
       />

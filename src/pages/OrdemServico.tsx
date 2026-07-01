@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  Plus, Search, Trash2, Check, X, PlayCircle, CheckCheck, PackageSearch,
-  DollarSign, Car, User, Wrench, MessageSquare, Edit2,
-  XCircle, Zap,
+  Plus, Search, Trash2, Check, X,
+  DollarSign, User, Wrench, MessageSquare, Zap,
 } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
@@ -11,23 +10,15 @@ import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
 import { CheckinRapido } from '../components/CheckinRapido'
 import { ConcluirOSModal } from '../components/ConcluirOSModal'
-import { StatusQuickEdit } from '../components/StatusQuickEdit'
+import { OSModal } from '../components/OSModal'
 import { DateField } from '../components/DateField'
 import { isOSAtrasada } from '../lib/osStatus'
 import {
   useOrdemServico,
-  statusConfig, fmt, fmtDate, FORMAS_PAGAMENTO, CORES_VEICULO_OS,
+  statusConfig, fmt, FORMAS_PAGAMENTO, CORES_VEICULO_OS,
 } from '../hooks/useOrdemServico'
 import type { StatusOS, OrdemServico, Veiculo } from '../types'
 import type { FiltroStatus } from '../hooks/useOrdemServico'
-
-// ── Next action config (icon refs — stays in page) ────────────────
-
-const nextAction: Partial<Record<StatusOS, { label: string; status: StatusOS; icon: typeof PlayCircle }>> = {
-  aguardando_aprovacao: { label: 'Aprovar',           status: 'em_andamento', icon: PlayCircle    },
-  aguardando_material:  { label: 'Material Recebido', status: 'em_andamento', icon: PackageSearch },
-  em_andamento:         { label: 'Finalizar OS',      status: 'concluido',    icon: CheckCheck    },
-}
 
 // ── Visual helpers ────────────────────────────────────────────────
 
@@ -199,15 +190,10 @@ export function OrdemServico() {
     search, setSearch,
     statusFilter, setStatusFilter,
     filtered, counts, totalOS,
-    detalhesOS, setDetalhesOS,
-    detCustoMateriais,
-    confirmarDelete, setConfirmarDelete, handleDelete,
-    editandoOS, editForm, setEditForm,
-    prepararEdicao, fecharEdicao, handleSalvarEdicao,
-    editValorTotal,
-    toggleServicoEdit, setValorServicoEdit,
+    osAberta, setOsAberta,
+    confirmarDelete, setConfirmarDelete, handleDelete, excluirOS,
     concluirOSData, setConcluirOSData,
-    abrirConcluir, handleConcluido,
+    abrirConcluir,
     form, setForm,
     criandoCliente, setCriandoCliente,
     novoCli, setNovoCli,
@@ -216,13 +202,11 @@ export function OrdemServico() {
     resetForm, selecionarCliente, handleCriarClienteInline,
     toggleServico, setValorServico,
     handleInstaladorChange, handleSalvar,
-    handleStatus, handleCancelarOS, handleRegistrarPagamento,
-    clienteNome, instNome, getVeiculo, veiculoLabel,
+    clienteNome, getCliente, getVeiculo, veiculoLabel,
   } = useOrdemServico()
 
   // ── UI state ──────────────────────────────────────────────────
   const [novaOSOpen, setNovaOSOpen]     = useState(false)
-  const [editarOSOpen, setEditarOSOpen] = useState(false)
   const [checkinOpen, setCheckinOpen]   = useState(false)
   const [dropdownOpen, setDropdown]     = useState(false)
   const dropdownRef                     = useRef<HTMLDivElement>(null)
@@ -238,17 +222,8 @@ export function OrdemServico() {
   }, [])
 
   // ── Wrapper functions ─────────────────────────────────────────
-  const onNova         = () => { resetForm(); setDropdown(false); setNovaOSOpen(true) }
-  const onSalvar       = () => { if (handleSalvar()) setNovaOSOpen(false) }
-  const onPrepararEdicao = (os: OrdemServico) => { prepararEdicao(os); setEditarOSOpen(true) }
-  const onSalvarEdicao = () => { if (handleSalvarEdicao()) setEditarOSOpen(false) }
-
-  // ── Pre-computed for details modal (no IIFE) ──────────────────
-  const detV        = detalhesOS ? getVeiculo(detalhesOS.veiculoId)  : undefined
-  const detNext     = detalhesOS ? nextAction[detalhesOS.status]     : undefined
-  const detPodeAcao = detalhesOS
-    ? (detalhesOS.status !== 'concluido' && detalhesOS.status !== 'cancelado')
-    : false
+  const onNova   = () => { resetForm(); setDropdown(false); setNovaOSOpen(true) }
+  const onSalvar = () => { if (handleSalvar()) setNovaOSOpen(false) }
 
   // ── Render ────────────────────────────────────────────────────
   return (
@@ -308,7 +283,7 @@ export function OrdemServico() {
       {/* Lista */}
       <OSList
         filtered={filtered}
-        onOpen={setDetalhesOS}
+        onOpen={setOsAberta}
         onConfirmarDelete={setConfirmarDelete}
         clienteNome={clienteNome}
         veiculoLabel={veiculoLabel}
@@ -673,266 +648,21 @@ export function OrdemServico() {
       </Modal>
 
       {/* ════════════════════════════════════════════════════════
-          MODAL: DETALHES OS
+          MODAL: OS (unificado — mesmo componente usado no Pátio)
       ════════════════════════════════════════════════════════ */}
-      {detalhesOS && (
-        <Modal
-          isOpen
-          onClose={() => setDetalhesOS(null)}
-          title={`OS #${detalhesOS.numero}`}
-          size="xl"
-        >
-          <div className="space-y-5">
-            {/* Status + botões de ação */}
-            <div className="flex items-center justify-between p-3 bg-surface-700 rounded-xl border border-ui-border">
-              <div className="flex items-center gap-3 flex-wrap">
-                <Badge label={statusConfig[detalhesOS.status].label} variant={statusConfig[detalhesOS.status].variant} />
-                {(detalhesOS.status === 'em_andamento' || detalhesOS.status === 'aguardando_material' || detalhesOS.status === 'aguardando_aprovacao') && (
-                  <StatusQuickEdit
-                    osId={detalhesOS.id}
-                    status={detalhesOS.status}
-                    variant="badge"
-                    onChanged={(novo) => setDetalhesOS(p => p ? { ...p, status: novo } : null)}
-                  />
-                )}
-                {isOSAtrasada(detalhesOS) && (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">ATRASADO</span>
-                )}
-                {detalhesOS.status === 'concluido' && detalhesOS.statusPagamento === 'a_receber' && (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">A RECEBER</span>
-                )}
-                {detalhesOS.dataFinalizacao && (
-                  <span className="text-xs text-gray-600">Finalizada em {fmtDate(detalhesOS.dataFinalizacao)}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {detalhesOS.status === 'concluido' && detalhesOS.statusPagamento === 'a_receber' && (
-                  <Button size="sm" onClick={() => handleRegistrarPagamento(detalhesOS.id)} className="bg-emerald-600 hover:bg-emerald-500 border-emerald-600 text-white">
-                    <Check size={14} />Registrar pagamento
-                  </Button>
-                )}
-                {detPodeAcao && (
-                  <Button size="sm" variant="secondary" onClick={() => onPrepararEdicao(detalhesOS)}>
-                    <Edit2 size={14} />Editar OS
-                  </Button>
-                )}
-                {detNext && (
-                  <Button
-                    size="sm"
-                    onClick={() => detNext.status === 'concluido' ? abrirConcluir(detalhesOS) : handleStatus(detalhesOS.id, detNext.status)}
-                  >
-                    <detNext.icon size={14} />{detNext.label}
-                  </Button>
-                )}
-                {detPodeAcao && (
-                  <Button size="sm" variant="danger" onClick={() => handleCancelarOS(detalhesOS.id)}>
-                    <XCircle size={14} />Cancelar OS
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><User size={11} />Cliente</p>
-                <p className="text-sm font-semibold text-ui-text">{clienteNome(detalhesOS.clienteId)}</p>
-              </div>
-              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><Car size={11} />Veículo</p>
-                <p className="text-sm font-semibold text-ui-text">{veiculoLabel(detalhesOS.veiculoId)}</p>
-                {detV && <p className="text-[11px] font-mono text-gray-500 mt-0.5">{detV.placa} · {detV.cor}</p>}
-              </div>
-              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><Wrench size={11} />Instalador</p>
-                <p className="text-sm font-semibold text-ui-text">{instNome(detalhesOS.instaladorId)}</p>
-              </div>
-            </div>
-
-            {/* Serviços */}
-            <div className="border border-ui-border rounded-xl overflow-hidden">
-              <div className="px-4 py-2.5 bg-surface-700 border-b border-ui-border">
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Serviços</p>
-              </div>
-              <table className="w-full">
-                <tbody className="divide-y divide-ui-border">
-                  {detalhesOS.servicos.map(s => (
-                    <tr key={s.servicoId}>
-                      <td className="px-4 py-2.5 text-sm text-ui-text">{s.nome}</td>
-                      <td className="px-4 py-2.5 text-sm font-bold text-right text-ui-text">{fmt(s.preco)}</td>
-                    </tr>
-                  ))}
-                  <tr className="bg-surface-700">
-                    <td className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Total</td>
-                    <td
-                      className="px-4 py-2.5 text-base font-bold text-accent text-right"
-                      style={{ color: detCustoMateriais > detalhesOS.valorTotal ? '#e8304a' : undefined }}
-                    >{fmt(detalhesOS.valorTotal)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Dados financeiros */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                <p className="text-[11px] text-gray-600 mb-1">Pagamento</p>
-                <p className="text-sm font-semibold text-ui-text">{detalhesOS.formaPagamento}</p>
-              </div>
-              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                <p className="text-[11px] text-gray-600 mb-1">Comissão</p>
-                <p className="text-sm font-semibold text-ui-text">{detalhesOS.comissao > 0 ? fmt(detalhesOS.comissao) : '—'}</p>
-              </div>
-              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                <p className="text-[11px] text-gray-600 mb-1">Abertura</p>
-                <p className="text-sm font-semibold text-ui-text">{fmtDate(detalhesOS.dataCriacao)}</p>
-              </div>
-            </div>
-            {detalhesOS.dataSaidaPrevista && (
-              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                <p className="text-[11px] text-gray-600 mb-1">Entrega prevista</p>
-                <p className="text-sm font-semibold text-ui-text">{fmtDate(detalhesOS.dataSaidaPrevista)}</p>
-              </div>
-            )}
-
-            {/* Observações */}
-            {detalhesOS.observacoes && (
-              <div className="p-3 bg-surface-700 rounded-xl border border-ui-border">
-                <p className="text-[11px] text-gray-600 flex items-center gap-1.5 mb-1.5"><MessageSquare size={11} />Observações</p>
-                <p className="text-sm text-gray-300">{detalhesOS.observacoes}</p>
-              </div>
-            )}
-
-            <div className="flex justify-between pt-4 border-t border-ui-border">
-              <Button variant="danger" size="sm" onClick={() => { setConfirmarDelete(detalhesOS.id); setDetalhesOS(null) }}>
-                <Trash2 size={13} />Excluir OS
-              </Button>
-              <Button variant="secondary" onClick={() => setDetalhesOS(null)}>Fechar</Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ════════════════════════════════════════════════════════
-          MODAL: EDITAR OS
-      ════════════════════════════════════════════════════════ */}
-      {editandoOS && (
-        <Modal
-          isOpen={editarOSOpen}
-          onClose={() => { setEditarOSOpen(false); fecharEdicao() }}
-          title={`Editar OS #${editandoOS.numero}`}
-          size="xl"
-        >
-          <div className="space-y-5 max-h-[65vh] overflow-y-auto pr-2 -mr-2">
-
-            {/* Serviços */}
-            <section className="space-y-3">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                <Wrench size={12} /> Serviços<span className="text-accent">*</span>
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {servicos.map(s => {
-                  const selObj = editForm.servicosSel.find(x => x.servicoId === s.id)
-                  const sel = !!selObj
-                  return (
-                    <div
-                      key={s.id}
-                      className={`flex items-center justify-between gap-2 p-3 rounded-xl border transition-all ${
-                        sel ? 'border-accent/60 bg-accent/8 ring-1 ring-accent/20' : 'border-ui-border bg-surface-700 hover:border-gray-500'
-                      }`}
-                    >
-                      <button type="button" onClick={() => toggleServicoEdit(s.id)} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
-                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all shrink-0 ${sel ? 'bg-accent border-accent' : 'border-gray-600'}`}>
-                          {sel && <Check size={12} className="text-white" />}
-                        </span>
-                        <span className="text-sm font-medium text-ui-text truncate">{s.nome}</span>
-                      </button>
-                      {sel && (
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="text-[12px] text-gray-500">R$</span>
-                          <input
-                            type="number" min={0} step={10}
-                            value={selObj!.valor || ''}
-                            onChange={e => setValorServicoEdit(s.id, parseFloat(e.target.value) || 0)}
-                            placeholder="0"
-                            className="w-24 bg-surface-600 border border-ui-border rounded-lg px-2 py-1.5 text-sm text-right text-ui-text focus:border-accent/50 outline-none"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-
-            {/* Financeiro & Logística */}
-            <section className="space-y-3">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                <DollarSign size={12} /> Financeiro &amp; Logística
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FieldWrap>
-                  <Label>Forma de Pagamento</Label>
-                  <select
-                    value={editForm.formaPagamento}
-                    onChange={e => setEditForm(f => ({ ...f, formaPagamento: e.target.value }))}
-                    className={selectCls}
-                  >
-                    {FORMAS_PAGAMENTO.map(fp => <option className="bg-surface-700 text-ui-text" key={fp}>{fp}</option>)}
-                  </select>
-                </FieldWrap>
-
-                <FieldWrap>
-                  <Label>Instalador</Label>
-                  <select
-                    value={editForm.instaladorId}
-                    onChange={e => setEditForm(f => ({ ...f, instaladorId: e.target.value }))}
-                    className={selectCls}
-                  >
-                    <option className="bg-surface-700 text-ui-text" value="">— Selecionar —</option>
-                    {instaladores.filter(i => i.ativo).map(i => (
-                      <option className="bg-surface-700 text-ui-text" key={i.id} value={i.id}>{i.nome}</option>
-                    ))}
-                  </select>
-                </FieldWrap>
-              </div>
-
-              {/* Valor total */}
-              <div className="flex items-center justify-between p-3 bg-surface-700 rounded-xl border border-ui-border">
-                <Label>Valor Total da OS</Label>
-                <span className="text-lg font-bold text-ui-text">{fmt(editValorTotal)}</span>
-              </div>
-            </section>
-
-            {/* Observações */}
-            <section className="space-y-3">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                <MessageSquare size={12} /> Observações
-              </p>
-              <textarea
-                value={editForm.observacoes}
-                onChange={e => setEditForm(f => ({ ...f, observacoes: e.target.value }))}
-                rows={3}
-                className="w-full bg-surface-700 border border-ui-border rounded-xl px-3 py-2.5 text-sm text-ui-text placeholder-gray-500 focus:border-accent/50 outline-none resize-none"
-              />
-            </section>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-ui-border">
-            <Button variant="secondary" onClick={() => { setEditarOSOpen(false); fecharEdicao() }}>
-              Cancelar
-            </Button>
-            <ActionButton onClick={onSalvarEdicao}>
-              <Check size={15} /> Salvar Alterações
-            </ActionButton>
-          </div>
-        </Modal>
-      )}
+      <OSModal
+        os={osAberta}
+        cliente={osAberta ? getCliente(osAberta.clienteId) : null}
+        veiculo={osAberta ? getVeiculo(osAberta.veiculoId) ?? null : null}
+        instaladores={instaladores}
+        onClose={() => setOsAberta(null)}
+        onConfirmarConcluir={abrirConcluir}
+        onExcluir={excluirOS}
+      />
 
       <ConcluirOSModal
         os={concluirOSData}
         onClose={() => setConcluirOSData(null)}
-        onConcluded={handleConcluido}
       />
 
       {/* ════════════════════════════════════════════════════════

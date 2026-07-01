@@ -69,7 +69,7 @@ test.describe('Cenário 3 — Cancelamento de OS', () => {
       modalDetalhes.getByText('Cancelado', { exact: true }),
       'esperava que o status mudasse para "Cancelado" no modal de detalhes após clicar em "Cancelar OS"',
     ).toBeVisible()
-    await modalDetalhes.getByRole('button', { name: 'Fechar' }).click()
+    await modalDetalhes.getByRole('button', { name: 'Fechar', exact: true }).click()
 
     // ── Não aparece mais no Pátio ──────────────────────────────────────
     await irPara(page, 'Pátio')

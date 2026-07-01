@@ -108,7 +108,7 @@ test.describe('Cenário 1 — Fluxo principal de uma OS, do início ao fim', () 
     // ════════════════════════════════════════════════════════════════
     // 3. OS aparece no Pátio / "Carros no Pátio" aumenta em 1
     // ════════════════════════════════════════════════════════════════
-    await modalDetalhes.getByRole('button', { name: 'Fechar' }).click()
+    await modalDetalhes.getByRole('button', { name: 'Fechar', exact: true }).click()
 
     await irPara(page, 'Início')
     const carrosPatioAposCriar = parseInt0(await kpiValor(page, 'Carros no pátio').textContent())
@@ -146,7 +146,7 @@ test.describe('Cenário 1 — Fluxo principal de uma OS, do início ao fim', () 
       modalDetalhes2.getByText('Em Andamento', { exact: true }).first(),
       'esperava que, após clicar em "Aprovar", o status mudasse para "Em Andamento" no modal de detalhes',
     ).toBeVisible()
-    await modalDetalhes2.getByRole('button', { name: 'Fechar' }).click()
+    await modalDetalhes2.getByRole('button', { name: 'Fechar', exact: true }).click()
 
     // status mudou na lista de OS
     await expect(

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
-import type { StatusOS, BadgeVariant, OrdemServico, MaterialUsado } from '../types'
+import type { StatusOS, BadgeVariant, OrdemServico } from '../types'
 
 // ── Constants ──────────────────────────────────────────────────────
 export const statusConfig: Record<StatusOS, { label: string; variant: BadgeVariant }> = {
@@ -58,14 +58,6 @@ export interface FormState {
   dataSaidaPrevista: string
 }
 
-export interface EditFormState {
-  servicosSel:    ServicoSelecionado[]
-  formaPagamento: string
-  instaladorId:   string
-  box:            number
-  observacoes:    string
-}
-
 const blankForm: FormState = {
   clienteSearch: '',
   clienteId: '',
@@ -85,8 +77,8 @@ const blankForm: FormState = {
 // ── Hook ───────────────────────────────────────────────────────────
 export function useOrdemServico() {
   const {
-    ordens, clientes, veiculos, servicos, instaladores, produtos,
-    adicionarOS, editarOS, mudarStatusOS, deletarOS, cancelarOS,
+    ordens, clientes, veiculos, servicos, instaladores,
+    adicionarOS, deletarOS, cancelarOS,
     adicionarCliente, adicionarVeiculo, registrarPagamentoOS,
   } = useApp()
   const location = useLocation()
@@ -95,17 +87,21 @@ export function useOrdemServico() {
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState<FiltroStatus>('todos')
 
-  // ── Selected OS for details modal ─────────────────────────────
-  const [detalhesOS, setDetalhesOS] = useState<OrdemServico | null>(null)
+  // ── OS aberta no OSModal ────────────────────────────────────────
+  const [osAberta, setOsAberta] = useState<OrdemServico | null>(null)
+
+  // Mantém osAberta sincronizada com o estado central (evita snapshot desatualizado
+  // após ações como Aprovar/Cancelar/Registrar pagamento feitas dentro do próprio modal).
+  useEffect(() => {
+    setOsAberta(prev => {
+      if (!prev) return prev
+      const updated = ordens.find(o => o.id === prev.id)
+      return updated ?? prev
+    })
+  }, [ordens])
 
   // ── Delete confirm ────────────────────────────────────────────
   const [confirmarDelete, setConfirmarDelete] = useState<string | null>(null)
-
-  // ── Edit OS ───────────────────────────────────────────────────
-  const [editandoOS, setEditandoOS] = useState<OrdemServico | null>(null)
-  const [editForm, setEditForm]     = useState<EditFormState>({
-    servicosSel: [], formaPagamento: 'PIX', instaladorId: '', box: 1, observacoes: '',
-  })
 
   // ── Concluir OS ───────────────────────────────────────────────
   const [concluirOSData, setConcluirOSData] = useState<OrdemServico | null>(null)
@@ -123,7 +119,7 @@ export function useOrdemServico() {
     const state = location.state as { openOSId?: string; statusFilter?: string } | null
     if (state?.openOSId) {
       const os = ordens.find(o => o.id === state.openOSId)
-      if (os) setDetalhesOS(os)
+      if (os) setOsAberta(os)
     }
     if (state?.statusFilter === 'abertos') {
       setStatusFilter('abertos')
@@ -134,6 +130,7 @@ export function useOrdemServico() {
   // ── Lookup helpers ────────────────────────────────────────────
   const clienteNome  = (id: string) => clientes.find(c => c.id === id)?.nome ?? '—'
   const instNome     = (id: string) => instaladores.find(i => i.id === id)?.nome ?? '—'
+  const getCliente   = (id: string) => clientes.find(c => c.id === id) ?? null
   const getVeiculo   = (id: string) => veiculos.find(v => v.id === id)
   const veiculoLabel = (id: string) => {
     const v = getVeiculo(id)
@@ -185,20 +182,6 @@ export function useOrdemServico() {
       : form.comissaoFixo
     : 0
 
-  // ── Edit form derived ─────────────────────────────────────────
-  const editValorTotal = editForm.servicosSel.reduce((sum, s) => sum + (s.valor || 0), 0)
-
-  // ── Details modal derived (replaces IIFE) ─────────────────────
-  const detCustoMateriais = detalhesOS
-    ? (detalhesOS.materiaisUsados ?? []).reduce((sum, m) => {
-        const origem = (m as MaterialUsado).origem ?? 'estoque'
-        if (origem === 'estoque') {
-          const p = produtos.find(x => x.id === m.produtoId)
-          return sum + (p ? p.valorUnitario * m.quantidade : 0)
-        }
-        return sum + ((m as MaterialUsado).custo ?? 0)
-      }, 0)
-    : 0
 
   // ── Form actions ──────────────────────────────────────────────
   const resetForm = () => {
@@ -256,17 +239,6 @@ export function useOrdemServico() {
   const setValorServico = (id: string, valor: number) =>
     setForm(f => ({ ...f, servicosSel: f.servicosSel.map(s => s.servicoId === id ? { ...s, valor } : s) }))
 
-  const toggleServicoEdit = (id: string) =>
-    setEditForm(f => ({
-      ...f,
-      servicosSel: f.servicosSel.some(s => s.servicoId === id)
-        ? f.servicosSel.filter(s => s.servicoId !== id)
-        : [...f.servicosSel, { servicoId: id, valor: 0 }],
-    }))
-
-  const setValorServicoEdit = (id: string, valor: number) =>
-    setEditForm(f => ({ ...f, servicosSel: f.servicosSel.map(s => s.servicoId === id ? { ...s, valor } : s) }))
-
   const handleInstaladorChange = (id: string) => {
     const padrao = instaladores.find(i => i.id === id)?.comissaoPadrao ?? 12
     setForm(f => ({ ...f, instaladorId: id, comissaoPerc: padrao }))
@@ -299,86 +271,35 @@ export function useOrdemServico() {
     return true
   }
 
-  // ── Edit OS ───────────────────────────────────────────────────
-  const prepararEdicao = (os: OrdemServico) => {
-    setEditandoOS(os)
-    setEditForm({
-      servicosSel:    os.servicos.map(s => ({ servicoId: s.servicoId, valor: s.preco ?? 0 })),
-      formaPagamento: os.formaPagamento,
-      instaladorId:   os.instaladorId,
-      box:            os.box,
-      observacoes:    os.observacoes,
-    })
-  }
-
-  const handleSalvarEdicao = (): boolean => {
-    if (!editandoOS)                                   return false
-    if (editForm.servicosSel.length === 0)             { toast.error('Selecione ao menos um serviço.');          return false }
-    if (!editForm.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return false }
-
-    const servicosAtualizados = editForm.servicosSel.map(sel => {
-      const cat           = servicos.find(s => s.id === sel.servicoId)
-      const nomeExistente = editandoOS.servicos.find(s => s.servicoId === sel.servicoId)?.nome
-      return { servicoId: sel.servicoId, nome: nomeExistente ?? cat?.nome ?? 'Serviço', preco: sel.valor }
-    })
-
-    const updates = {
-      servicos:       servicosAtualizados,
-      valorTotal:     editValorTotal,
-      formaPagamento: editForm.formaPagamento,
-      instaladorId:   editForm.instaladorId,
-      box:            editForm.box,
-      observacoes:    editForm.observacoes,
-    }
-
-    editarOS(editandoOS.id, updates)
-    setDetalhesOS(prev => prev ? { ...prev, ...updates } : null)
-    toast.success('OS atualizada com sucesso!')
-    setEditandoOS(null)
-    return true
-  }
-
-  const fecharEdicao = () => setEditandoOS(null)
-
   // ── Status / lifecycle handlers ───────────────────────────────
-  const handleStatus = (id: string, status: StatusOS) => {
-    mudarStatusOS(id, status)
-    toast.success(`Status: "${statusConfig[status].label}"`)
-    if (detalhesOS?.id === id) setDetalhesOS(p => p ? { ...p, status } : null)
-  }
-
   const handleDelete = () => {
     if (!confirmarDelete) return
     deletarOS(confirmarDelete)
     toast('OS removida.')
-    if (detalhesOS?.id === confirmarDelete) setDetalhesOS(null)
+    if (osAberta?.id === confirmarDelete) setOsAberta(null)
     setConfirmarDelete(null)
+  }
+
+  /** Exclusão via OSModal, que já tem sua própria confirmação inline. */
+  const excluirOS = (id: string) => {
+    deletarOS(id)
+    toast('OS removida.')
   }
 
   const handleCancelarOS = (id: string) => {
     cancelarOS(id)
     toast.success('OS cancelada.')
-    if (detalhesOS?.id === id) setDetalhesOS(p => p ? { ...p, status: 'cancelado' as StatusOS } : null)
   }
 
   const handleRegistrarPagamento = (id: string) => {
     registrarPagamentoOS(id)
     toast.success('Pagamento registrado! Receita lançada no Financeiro.')
-    setDetalhesOS(p => p ? { ...p, statusPagamento: 'pago' } : null)
   }
 
-  const abrirConcluir = (os: OrdemServico) => setConcluirOSData(os)
-
-  const handleConcluido = (osId: string, pago: boolean) => {
-    if (detalhesOS?.id === osId) {
-      const today = new Date().toISOString().split('T')[0]
-      setDetalhesOS(p => p ? {
-        ...p,
-        status:          'concluido' as StatusOS,
-        statusPagamento: pago ? 'pago' : 'a_receber',
-        dataFinalizacao: today,
-      } : null)
-    }
+  const abrirConcluir = (osId: string) => {
+    const os = ordens.find(o => o.id === osId) ?? null
+    setOsAberta(null)
+    setConcluirOSData(os)
   }
 
   return {
@@ -392,22 +313,15 @@ export function useOrdemServico() {
     // list
     filtered, counts, totalOS,
 
-    // details modal
-    detalhesOS, setDetalhesOS,
-    detCustoMateriais,
+    // OS aberta no OSModal
+    osAberta, setOsAberta,
 
     // delete
-    confirmarDelete, setConfirmarDelete, handleDelete,
-
-    // edit OS
-    editandoOS, editForm, setEditForm,
-    prepararEdicao, fecharEdicao, handleSalvarEdicao,
-    editValorTotal,
-    toggleServicoEdit, setValorServicoEdit,
+    confirmarDelete, setConfirmarDelete, handleDelete, excluirOS,
 
     // conclude OS
     concluirOSData, setConcluirOSData,
-    abrirConcluir, handleConcluido,
+    abrirConcluir,
 
     // new OS form
     form, setForm,
@@ -420,9 +334,9 @@ export function useOrdemServico() {
     handleInstaladorChange, handleSalvar,
 
     // status/lifecycle
-    handleStatus, handleCancelarOS, handleRegistrarPagamento,
+    handleCancelarOS, handleRegistrarPagamento,
 
     // lookup helpers
-    clienteNome, instNome, getVeiculo, veiculoLabel,
+    clienteNome, instNome, getCliente, getVeiculo, veiculoLabel,
   }
 }
