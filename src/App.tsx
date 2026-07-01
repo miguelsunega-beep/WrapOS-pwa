@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { AppProvider } from './context/AppContext'
 import { MainLayout }      from './layouts/MainLayout'
 import { SelecionarPerfil } from './pages/SelecionarPerfil'
+import { ProtectedRoute } from './components/ProtectedRoute'
 
 // Lazy Loading das páginas pesadas (Code Splitting)
 const OrdemServico  = lazy(() => import('./pages/OrdemServico').then(m => ({ default: m.OrdemServico })))
@@ -33,36 +34,38 @@ export default function App() {
           },
         }}
       />
-      {!perfilAtivo ? (
-        <SelecionarPerfil onSelect={setPerfilAtivo} />
-      ) : (
-        <AppProvider>
-          <BrowserRouter>
-            <Suspense fallback={<div className="flex h-screen items-center justify-center text-ui-text font-medium text-sm">Carregando módulo...</div>}>
-              <Routes>
-                <Route path="/" element={<MainLayout />}>
-                  <Route index               element={<Home />} />
-                  <Route path="patio"        element={<Patio />}         />
-                  <Route path="ordens"       element={<OrdemServico />}  />
-                  <Route path="agendamento"  element={<Agendamento />}   />
-                  <Route path="clientes"     element={<Clientes />}      />
-                  <Route path="financeiro"   element={<Financeiro />}    />
-                  <Route path="estoque"      element={<Estoque />}       />
-                  <Route path="equipe"       element={<Equipe />}        />
-                  <Route path="configuracoes" element={<Configuracoes />}/>
-                  {/* Legacy redirects */}
-                  <Route path="operacional"  element={<Navigate to="/patio"         replace />} />
-                  <Route path="relatorios"   element={<Navigate to="/financeiro"    replace />} />
-                  <Route path="garantia"     element={<Navigate to="/clientes"      replace />} />
-                  <Route path="precificacao" element={<Navigate to="/configuracoes" replace />} />
-                  <Route path="metas"        element={<Navigate to="/equipe"        replace />} />
-                  <Route path="avisos"       element={<Navigate to="/patio"         replace />} />
-                </Route>
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
-        </AppProvider>
-      )}
+      <ProtectedRoute>
+        {!perfilAtivo ? (
+          <SelecionarPerfil onSelect={setPerfilAtivo} />
+        ) : (
+          <AppProvider>
+            <BrowserRouter>
+              <Suspense fallback={<div className="flex h-screen items-center justify-center text-ui-text font-medium text-sm">Carregando módulo...</div>}>
+                <Routes>
+                  <Route path="/" element={<MainLayout />}>
+                    <Route index               element={<Home />} />
+                    <Route path="patio"        element={<Patio />}         />
+                    <Route path="ordens"       element={<OrdemServico />}  />
+                    <Route path="agendamento"  element={<Agendamento />}   />
+                    <Route path="clientes"     element={<Clientes />}      />
+                    <Route path="financeiro"   element={<Financeiro />}    />
+                    <Route path="estoque"      element={<Estoque />}       />
+                    <Route path="equipe"       element={<Equipe />}        />
+                    <Route path="configuracoes" element={<Configuracoes />}/>
+                    {/* Legacy redirects */}
+                    <Route path="operacional"  element={<Navigate to="/patio"         replace />} />
+                    <Route path="relatorios"   element={<Navigate to="/financeiro"    replace />} />
+                    <Route path="garantia"     element={<Navigate to="/clientes"      replace />} />
+                    <Route path="precificacao" element={<Navigate to="/configuracoes" replace />} />
+                    <Route path="metas"        element={<Navigate to="/equipe"        replace />} />
+                    <Route path="avisos"       element={<Navigate to="/patio"         replace />} />
+                  </Route>
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+          </AppProvider>
+        )}
+      </ProtectedRoute>
     </ThemeProvider>
   )
 }
