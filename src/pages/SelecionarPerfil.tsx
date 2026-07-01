@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Film, Plus, Trash2, X, ChevronRight } from 'lucide-react'
+import { Film, Plus, Trash2, X, ChevronRight, LogOut } from 'lucide-react'
 import { useSelecionarPerfil } from '../hooks/useSelecionarPerfil'
+import { useAuth } from '../hooks/useAuth'
 
 export function SelecionarPerfil({ onSelect }: { onSelect: (id: string) => void }) {
   const {
@@ -16,13 +17,23 @@ export function SelecionarPerfil({ onSelect }: { onSelect: (id: string) => void 
     initials,
   } = useSelecionarPerfil({ onSelect })
 
+  const { user, signOut } = useAuth()
+
   const [showForm,    setShowForm]    = useState(false)
   const [deletandoId, setDeletandoId] = useState<string | null>(null)
 
   const inputCls = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent/50 transition-colors'
 
   return (
-    <div className="min-h-screen bg-surface-900 flex flex-col items-center justify-center p-6">
+    <div className="relative min-h-screen bg-surface-900 flex flex-col items-center justify-center p-6">
+      <button
+        onClick={signOut}
+        className="absolute top-4 right-4 flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors"
+      >
+        <LogOut size={13} />
+        Sair
+      </button>
+
       {/* Logo */}
       <div className="flex items-center gap-2.5 mb-2">
         <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shrink-0">
@@ -35,7 +46,10 @@ export function SelecionarPerfil({ onSelect }: { onSelect: (id: string) => void 
       </div>
 
       <h1 className="text-xl font-bold text-white mt-6 mb-1">Selecionar Perfil</h1>
-      <p className="text-gray-500 text-sm mb-8">Escolha um perfil para continuar</p>
+      <p className="text-gray-500 text-sm mb-1">Escolha um perfil para continuar</p>
+      {user?.email && (
+        <p className="text-gray-500 text-sm mb-8">Logado como {user.email}</p>
+      )}
 
       <div className="w-full max-w-xl">
         {/* Profile grid */}

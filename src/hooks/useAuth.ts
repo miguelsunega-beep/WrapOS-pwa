@@ -73,6 +73,8 @@ export function useAuth() {
 
   async function signOut() {
     await supabase.auth.signOut()
+    sessionStorage.removeItem('wrapos_perfil_ativo')
+    window.location.href = '/'
   }
 
   return { user, usuario, loading, signIn, signUp, signOut }

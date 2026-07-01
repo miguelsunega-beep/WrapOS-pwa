@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useApp }   from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { useAuth }  from '../hooks/useAuth'
 import { CheckinRapido }    from '../components/CheckinRapido'
 import { SearchSpotlight }  from '../components/SearchSpotlight'
 import { todayLocal } from '../lib/dateUtils'
@@ -150,6 +151,7 @@ function inactiveItemStyle(): CSSProperties {
 export function MainLayout() {
   const { configuracoes, produtos, garantias } = useApp()
   const { theme, toggleTheme } = useTheme()
+  const { user, signOut } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
 
@@ -367,6 +369,26 @@ export function MainLayout() {
                 </button>
               </div>
             )}
+
+            {/* Conta logada (Supabase Auth) */}
+            <div
+              className={`px-3 py-2 flex items-center gap-2 ${sidebarCollapsed ? 'justify-center' : ''}`}
+              style={{ borderTop: '1px solid var(--wrap-border)' }}
+            >
+              {!sidebarCollapsed && (
+                <p className="text-[10px] truncate flex-1" style={mutedText} title={user?.email ?? undefined}>
+                  {user?.email}
+                </p>
+              )}
+              <button
+                onClick={signOut}
+                title={sidebarCollapsed ? (user?.email ? `Sair (${user.email})` : 'Sair da conta') : 'Sair da conta'}
+                className="p-1 rounded hover:bg-[var(--wrap-surface2)] transition-colors shrink-0"
+                style={mutedText}
+              >
+                <LogOut size={12} />
+              </button>
+            </div>
 
             {/* Collapse toggle */}
             {!isTablet && (
@@ -657,6 +679,22 @@ export function MainLayout() {
                   className="p-1 rounded hover:bg-[var(--wrap-surface2)] transition-colors shrink-0"
                   style={mutedText}
                   title="Trocar perfil"
+                >
+                  <LogOut size={13} />
+                </button>
+              </div>
+              <div
+                style={{ borderTop: '1px solid var(--wrap-border)' }}
+                className="px-3 py-2 flex items-center gap-2"
+              >
+                <p className="text-[10px] truncate flex-1" style={mutedText} title={user?.email ?? undefined}>
+                  {user?.email}
+                </p>
+                <button
+                  onClick={signOut}
+                  className="p-1 rounded hover:bg-[var(--wrap-surface2)] transition-colors shrink-0"
+                  style={mutedText}
+                  title="Sair da conta"
                 >
                   <LogOut size={13} />
                 </button>
