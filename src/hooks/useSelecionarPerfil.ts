@@ -5,6 +5,7 @@ import {
   initialMeta, initialConfiguracoes,
 } from '../context/AppContext'
 import type { Agendamento, Meta } from '../types'
+import { todayLocal } from '../lib/dateUtils'
 
 const addDays = (n: number): string => {
   const d = new Date()
@@ -107,7 +108,7 @@ export function useSelecionarPerfil({ onSelect }: { onSelect: (id: string) => vo
       id,
       nome:     nomeLoja.trim(),
       cidade:   cidade.trim(),
-      criadoEm: new Date().toISOString().slice(0, 10),
+      criadoEm: todayLocal(),
     }
     localStorage.setItem(PERFIS_KEY, JSON.stringify([...perfis, novoPerfil]))
 

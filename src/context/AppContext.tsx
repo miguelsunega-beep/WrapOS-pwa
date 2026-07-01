@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { todayLocal } from '../lib/dateUtils'
 import type {
   Cliente, Veiculo, OrdemServico, Servico, Agendamento, Instalador,
   LancamentoFinanceiro, Produto, Garantia, Meta, Configuracoes,
@@ -427,7 +428,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ── Ordens de Serviço ────────────────────────────────────────
   const adicionarOS = (os: Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>): number => {
     const numero = Math.max(0, ...ordens.map(o => o.numero)) + 1
-    setOrdens(prev => [...prev, { ...os, id: uid(), numero, dataCriacao: new Date().toISOString().split('T')[0] }])
+    setOrdens(prev => [...prev, { ...os, id: uid(), numero, dataCriacao: todayLocal() }])
     return numero
   }
 
@@ -525,7 +526,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const concluirOS = (id: string, materiaisUsados?: MaterialUsado[], pago: boolean = true): { created: string[] } => {
     const os = ordens.find(x => x.id === id)
     if (!os || os.status === 'concluido') return { created: [] }
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayLocal()
     const nomeCliente = clientes.find(c => c.id === os.clienteId)?.nome ?? ''
     const created: string[] = []
 
@@ -609,7 +610,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const registrarPagamentoOS = (id: string): void => {
     const os = ordens.find(x => x.id === id)
     if (!os) return
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayLocal()
     const nomeCliente = clientes.find(c => c.id === os.clienteId)?.nome ?? ''
     if (!lancamentos.some(l => l.osId === id && l.tipo === 'entrada')) {
       setLancamentos(prev => [...prev, {
@@ -622,7 +623,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const entregarVeiculo = (id: string): void => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayLocal()
     setOrdens(prev => prev.map(x =>
       x.id === id ? { ...x, entregue: true, dataSaida: today } : x
     ))

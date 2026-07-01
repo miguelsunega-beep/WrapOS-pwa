@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
-import type { StatusOS, BadgeVariant, OrdemServico } from '../types'
+import { todayLocal } from '../lib/dateUtils'
+import type { StatusOS, BadgeVariant, OrdemServico, Agendamento } from '../types'
 
 // ── Constants ──────────────────────────────────────────────────────
 export const statusConfig: Record<StatusOS, { label: string; variant: BadgeVariant }> = {
@@ -56,6 +57,8 @@ export interface FormState {
   comissaoFixo:      number
   observacoes:       string
   dataSaidaPrevista: string
+  /** Preenchido automaticamente quando o usuário vincula a OS a um agendamento existente. */
+  agendamentoId?:    string
 }
 
 const blankForm: FormState = {
@@ -77,7 +80,7 @@ const blankForm: FormState = {
 // ── Hook ───────────────────────────────────────────────────────────
 export function useOrdemServico() {
   const {
-    ordens, clientes, veiculos, servicos, instaladores,
+    ordens, clientes, veiculos, servicos, instaladores, agendamentos,
     adicionarOS, deletarOS, cancelarOS,
     adicionarCliente, adicionarVeiculo, registrarPagamentoOS,
   } = useApp()
@@ -113,6 +116,14 @@ export function useOrdemServico() {
     nome: '', telefone: '',
     marca: '', modelo: '', ano: new Date().getFullYear(), cor: '', placa: '',
   })
+
+  // ── Agendamento sugerido (vinculação OS ↔ Agendamento) ───────────
+  /**
+   * Quando o usuário tenta salvar uma Nova OS e existe um agendamento
+   * no mesmo dia para o mesmo cliente ou veículo, guardamos aqui para
+   * perguntar se ele quer vincular antes de salvar.
+   */
+  const [agendamentoSugerido, setAgendamentoSugerido] = useState<Agendamento | null>(null)
 
   // ── Auto-open from navigation state (Dashboard → OS click) ────
   useEffect(() => {
@@ -203,7 +214,7 @@ export function useOrdemServico() {
       telefone:      novoCli.telefone.trim(),
       email:         '', cpf: '',
       comoConheceu:  'Cadastro via OS',
-      dataCadastro:  new Date().toISOString().split('T')[0],
+      dataCadastro:  todayLocal(),
       totalGasto:    0,
     })
 
@@ -245,11 +256,9 @@ export function useOrdemServico() {
   }
 
   // ── Save new OS ───────────────────────────────────────────────
-  const handleSalvar = (): boolean => {
-    if (!form.clienteId)                           { toast.error('Selecione um cliente.');                   return false }
-    if (form.servicosSel.length === 0)             { toast.error('Selecione ao menos um serviço.');          return false }
-    if (!form.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return false }
 
+  /** Núcleo de persistência — chamado tanto pelo fluxo direto quanto após confirmação de vínculo. */
+  const _persistirOS = (agendamentoId?: string, boxOverride?: number) => {
     adicionarOS({
       clienteId:         form.clienteId,
       veiculoId:         form.veiculoId,
@@ -260,12 +269,99 @@ export function useOrdemServico() {
       valorTotal:        valorTotalNova,
       formaPagamento:    form.formaPagamento,
       instaladorId:      form.instaladorId,
-      box:               form.box,
+      box:               boxOverride ?? form.box,
       comissao:          comissaoValor,
       observacoes:       form.observacoes,
       dataSaidaPrevista: form.dataSaidaPrevista || undefined,
       status:            'aguardando_aprovacao',
+      agendamentoId,
     })
+  }
+
+  /** Verifica conflito de box: já existe outra OS ativa hoje no mesmo box? */
+  const _checarConflitoBox = (): boolean => {
+    const hoje = todayLocal()
+    const conflito = ordens.some(o =>
+      o.id !== undefined &&           // garante que não compara consigo mesma (nova OS não tem id ainda)
+      o.box === form.box &&
+      o.dataCriacao === hoje &&
+      o.status !== 'cancelado' &&
+      o.status !== 'concluido'
+    )
+    return conflito
+  }
+
+  const handleSalvar = (): boolean => {
+    if (!form.clienteId)                           { toast.error('Selecione um cliente.');                   return false }
+    if (form.servicosSel.length === 0)             { toast.error('Selecione ao menos um serviço.');          return false }
+    if (!form.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return false }
+
+    // ── 1. Verificar se há agendamento para este cliente/veículo hoje ──
+    const hoje = todayLocal()
+    const agMatchado = agendamentos.find(ag => {
+      // Só considera agendamentos do dia atual sem OS vinculada ainda
+      if (ag.data !== hoje) return false
+      const jaTemOS = ordens.some(o => o.agendamentoId === ag.id)
+      if (jaTemOS) return false
+      // Verifica match por cliente ou veículo
+      const mesmoCliente = ag.clienteId === form.clienteId
+      const mesmoVeiculo = form.veiculoId ? ag.veiculoId === form.veiculoId : false
+      return mesmoCliente || mesmoVeiculo
+    })
+
+    if (agMatchado) {
+      // Guarda o agendamento encontrado e deixa a página perguntar ao usuário
+      setAgendamentoSugerido(agMatchado)
+      return false // impede o fechamento do modal até o usuário decidir
+    }
+
+    // ── 2. Verificar conflito de box (aviso não-bloqueante) ──────────
+    if (_checarConflitoBox()) {
+      toast.warning(`Box ${form.box} já está em uso hoje por outra OS ativa.`)
+    }
+
+    _persistirOS()
+    toast.success('OS criada com sucesso!')
+    resetForm()
+    return true
+  }
+
+  /** Chamado quando o usuário confirma que quer vincular ao agendamento sugerido. */
+  const confirmarVincularAgendamento = (): boolean => {
+    if (!agendamentoSugerido) return false
+
+    const boxAg = agendamentoSugerido.box
+
+    // Verifica conflito de box com o box do agendamento (aviso não-bloqueante)
+    const hoje = todayLocal()
+    const conflitoBoxAg = ordens.some(o =>
+      o.box === boxAg &&
+      o.dataCriacao === hoje &&
+      o.status !== 'cancelado' &&
+      o.status !== 'concluido'
+    )
+    if (conflitoBoxAg) {
+      toast.warning(`Box ${boxAg} (do agendamento) já está em uso hoje por outra OS ativa.`)
+    }
+
+    // Passa o box do agendamento diretamente (evita problema de state assíncrono)
+    _persistirOS(agendamentoSugerido.id, boxAg)
+    toast.success('OS criada e vinculada ao agendamento!')
+    setAgendamentoSugerido(null)
+    resetForm()
+    return true
+  }
+
+  /** Chamado quando o usuário recusa a vinculação e quer salvar a OS sem agendamento. */
+  const recusarVincularAgendamento = (): boolean => {
+    setAgendamentoSugerido(null)
+
+    // Verifica conflito de box (aviso não-bloqueante)
+    if (_checarConflitoBox()) {
+      toast.warning(`Box ${form.box} já está em uso hoje por outra OS ativa.`)
+    }
+
+    _persistirOS()
     toast.success('OS criada com sucesso!')
     resetForm()
     return true
@@ -332,6 +428,10 @@ export function useOrdemServico() {
     resetForm, selecionarCliente, handleCriarClienteInline,
     toggleServico, setValorServico,
     handleInstaladorChange, handleSalvar,
+
+    // agendamento linking
+    agendamentoSugerido, setAgendamentoSugerido,
+    confirmarVincularAgendamento, recusarVincularAgendamento,
 
     // status/lifecycle
     handleCancelarOS, handleRegistrarPagamento,

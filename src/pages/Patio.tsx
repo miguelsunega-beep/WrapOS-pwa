@@ -61,6 +61,7 @@ interface KanbanCardItemProps {
 
 function KanbanCardItem({ card, etapa, onOpenDrawer, onEntregar, isOverlay, dragListeners }: KanbanCardItemProps) {
   const isConcluido = etapa === 'concluido'
+  const [confirmEntregaOpen, setConfirmEntregaOpen] = useState(false)
 
   const barColor  = card.atrasada ? '#e8304a' : 'var(--wrap-accent)'
   const timeColor = card.atrasada ? '#e8304a' : card.progresso >= 80 ? '#f59e0b' : '#34d399'
@@ -127,7 +128,7 @@ function KanbanCardItem({ card, etapa, onOpenDrawer, onEntregar, isOverlay, drag
 
         {isConcluido && (
           <button
-            onClick={e => { e.stopPropagation(); onEntregar(card.id) }}
+            onClick={e => { e.stopPropagation(); setConfirmEntregaOpen(true) }}
             className="shrink-0 text-[9px] font-semibold px-2 py-1 rounded-lg transition-opacity hover:opacity-70"
             style={{ background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)' }}
           >
@@ -139,14 +140,49 @@ function KanbanCardItem({ card, etapa, onOpenDrawer, onEntregar, isOverlay, drag
   )
 
   if (isConcluido) {
-    // Concluído: sem cursor-pointer (não confunde o seletor dos testes)
     return (
-      <div
-        {...(dragListeners as React.HTMLAttributes<HTMLDivElement>)}
-        style={{ touchAction: 'none' }}
-      >
-        {inner}
-      </div>
+      <>
+        {confirmEntregaOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60" onClick={() => setConfirmEntregaOpen(false)} />
+            <div
+              className="relative rounded-xl p-5 space-y-4 w-full max-w-[320px]"
+              style={{ background: 'var(--wrap-surface)', border: '1px solid var(--wrap-border2)' }}
+            >
+              <p className="text-[13px] font-bold" style={{ color: 'var(--wrap-text)' }}>
+                Confirmar entrega do veículo?
+              </p>
+              <p className="text-[12px]" style={{ color: 'var(--wrap-muted)' }}>
+                {card.veiculoLabel}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmEntregaOpen(false)}
+                  className="flex-1 py-2.5 rounded-lg text-[12px] font-semibold"
+                  style={{ background: 'var(--wrap-surface)', color: 'var(--wrap-muted)', border: '1px solid var(--wrap-border)' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => { setConfirmEntregaOpen(false); onEntregar(card.id) }}
+                  className="flex-1 py-2.5 rounded-lg text-[12px] font-bold"
+                  style={{ background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.35)' }}
+                >
+                  Confirmar entrega
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div
+          className="cursor-pointer"
+          onClick={() => onOpenDrawer(card)}
+          {...(dragListeners as React.HTMLAttributes<HTMLDivElement>)}
+          style={{ touchAction: 'none' }}
+        >
+          {inner}
+        </div>
+      </>
     )
   }
 

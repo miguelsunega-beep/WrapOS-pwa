@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Plus, Search, Trash2, Check, X,
-  DollarSign, User, Wrench, MessageSquare, Zap,
+  DollarSign, User, Wrench, MessageSquare, Zap, Link, Link2Off,
 } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
@@ -202,6 +202,8 @@ export function OrdemServico() {
     resetForm, selecionarCliente, handleCriarClienteInline,
     toggleServico, setValorServico,
     handleInstaladorChange, handleSalvar,
+    agendamentoSugerido, setAgendamentoSugerido,
+    confirmarVincularAgendamento, recusarVincularAgendamento,
     clienteNome, getCliente, getVeiculo, veiculoLabel,
   } = useOrdemServico()
 
@@ -677,6 +679,54 @@ export function OrdemServico() {
       </Modal>
 
       <CheckinRapido open={checkinOpen} onClose={() => setCheckinOpen(false)} />
+
+      {/* ════════════════════════════════════════════════════════
+          MODAL: VINCULAR AGENDAMENTO
+      ════════════════════════════════════════════════════════ */}
+      <Modal
+        isOpen={!!agendamentoSugerido}
+        onClose={() => setAgendamentoSugerido(null)}
+        title="Agendamento encontrado"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-300">
+            Existe um agendamento para este veículo/cliente hoje:
+          </p>
+          {agendamentoSugerido && (
+            <div className="flex items-center gap-3 p-3.5 bg-surface-700 rounded-xl border border-ui-border">
+              <div className="w-9 h-9 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
+                <Link size={16} className="text-accent" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ui-text">
+                  Box {agendamentoSugerido.box} &mdash; {agendamentoSugerido.horario}
+                </p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Agendado para hoje
+                </p>
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-gray-500">
+            Deseja vincular esta OS ao agendamento? O box será definido conforme o agendamento.
+          </p>
+          <div className="flex flex-col gap-2 pt-1">
+            <button
+              onClick={() => { confirmarVincularAgendamento(); setNovaOSOpen(false) }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm bg-accent text-white hover:bg-accent/90 transition-colors"
+            >
+              <Link size={15} /> Sim, vincular ao agendamento
+            </button>
+            <button
+              onClick={() => { recusarVincularAgendamento(); setNovaOSOpen(false) }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium text-sm border border-ui-border text-gray-400 hover:text-ui-text hover:border-gray-600 transition-colors"
+            >
+              <Link2Off size={14} /> Não, criar OS sem vínculo
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

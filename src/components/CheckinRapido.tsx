@@ -8,6 +8,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { DateField } from './DateField'
 import { usePlacaLookup } from '../hooks/usePlacaLookup'
+import { todayLocal } from '../lib/dateUtils'
 import type { Cliente, Veiculo, Instalador, OrdemServico } from '../types'
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -506,7 +507,7 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
     adicionarCliente, adicionarVeiculo, adicionarOS,
   } = useApp()
 
-  const hoje = new Date().toISOString().split('T')[0]
+  const hoje = todayLocal()
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const stepDir = useRef<1 | -1>(1)
@@ -561,7 +562,7 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
     setNovaMarca(''); setNovoModelo(''); setNovoAno(new Date().getFullYear()); setNovaCor('')
     setShowExtras(false)
     setServicoSel(''); setServicoValor(''); setObsOS('')
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayLocal()
     setMesmoDia(true); setDataEntrada(today); setDataSaida(today)
     setInstSel('')
     setErrors({})
@@ -641,7 +642,7 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
         telefone: novoTel.trim(),
         email: '', cpf: '',
         comoConheceu: 'Check-in Rápido',
-        dataCadastro: new Date().toISOString().split('T')[0],
+        dataCadastro: todayLocal(),
         totalGasto: 0,
       })
     }

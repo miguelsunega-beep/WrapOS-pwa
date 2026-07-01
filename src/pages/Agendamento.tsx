@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import {
   Plus, ChevronLeft, ChevronRight,
   Check, Trash2, Pencil, FilePlus2, CheckCircle2, Repeat,
-  User, Wrench, CalendarClock, Car, Clock,
+  User, Wrench, CalendarClock, Car, Clock, UserPlus,
 } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import { ptBR } from 'date-fns/locale'
@@ -15,6 +15,7 @@ import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
 import { DateField } from '../components/DateField'
 import { AgendaGrid } from '../components/AgendaGrid'
+import { VeiculoInlineForm } from '../components/VeiculoInlineForm'
 import {
   useAgendamento, todayISO, statusEfetivoConfig, DIAS_SEMANA,
   TIPOS_SERVICO, STATUS_FILTROS,
@@ -487,60 +488,115 @@ export function Agendamento() {
       {/* ── Modal Novo Agendamento ──────────────────────────────── */}
       <Modal isOpen={novoOpen} onClose={() => setNovoOpen(false)} title="Novo Agendamento" size="lg">
         <div className="space-y-5">
-          {/* ── Seção 1: Quem ── */}
+          {/* Seção 1: Quem */}
           <section className="space-y-3">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-              <User size={12} /> Cliente &amp; Veículo
-            </p>
-
-            {/* Cliente autocomplete */}
-            <div>
-              <label className={labelCls}>Cliente <span className="text-accent">*</span></label>
-              <div className="relative" ref={dropdownRef}>
-                <input
-                  value={form.clienteSearch}
-                  onChange={e => {
-                    setForm(p => ({ ...p, clienteSearch: e.target.value, clienteId: '', veiculoId: '' }))
-                    setDropdownOpen(true)
-                  }}
-                  onFocus={() => { if (form.clienteSearch.length > 0) setDropdownOpen(true) }}
-                  placeholder="Buscar cliente pelo nome..."
-                  className={inputCls}
-                />
-                {dropdownOpen && clientesFiltrados.length > 0 && (
-                  <div className="absolute z-20 top-full mt-1 w-full bg-surface-700 border border-ui-border rounded-xl shadow-xl overflow-hidden">
-                    {clientesFiltrados.slice(0, 6).map(c => (
-                      <button
-                        key={c.id}
-                        onMouseDown={() => { selecionarCliente(c); setDropdownOpen(false) }}
-                        className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-surface-600 hover:text-ui-text transition-colors flex items-center justify-between"
-                      >
-                        <span>{c.nome}</span>
-                        <span className="text-xs text-gray-600">{c.telefone}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+            <div className="flex items-center justify-between">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                <User size={12} /> Cliente &amp; Veículo
+              </p>
+              {/* Toggle: cliente existente vs novo */}
+              <button
+                type="button"
+                onClick={() => setForm(p => ({
+                  ...p,
+                  criandoCliente: !p.criandoCliente,
+                  clienteSearch: '', clienteId: '', veiculoId: '',
+                  novoClienteNome: '', novoClienteTel: '',
+                }))}
+                className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors"
+                style={form.criandoCliente
+                  ? { background: 'rgba(var(--wrap-accent-rgb)/0.12)', color: 'var(--wrap-accent)', border: '1px solid rgba(var(--wrap-accent-rgb)/0.3)' }
+                  : { background: 'var(--wrap-surface)', color: '#6b7280', border: '1px solid var(--wrap-border)' }
+                }
+              >
+                <UserPlus size={12} />
+                {form.criandoCliente ? 'Cliente existente' : 'Novo cliente'}
+              </button>
             </div>
 
-            {/* Veículo — only when client selected */}
-            {form.clienteId && (
-              <div>
-                <label className={labelCls}>Veículo</label>
-                <select
-                  value={form.veiculoId}
-                  onChange={e => setForm(p => ({ ...p, veiculoId: e.target.value }))}
-                  className={inputCls}
-                >
-                  <option value="">Sem veículo específico</option>
-                  {veiculosCliente.map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.marca} {v.modelo} {v.ano} — {v.placa}
-                    </option>
-                  ))}
-                </select>
+            {form.criandoCliente ? (
+              /* Novo cliente inline */
+              <div className="space-y-3 p-4 rounded-xl border" style={{ background: 'rgba(var(--wrap-accent-rgb)/0.04)', borderColor: 'rgba(var(--wrap-accent-rgb)/0.2)' }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Nome <span className="text-accent">*</span></label>
+                    <input
+                      placeholder="Nome completo"
+                      value={form.novoClienteNome}
+                      onChange={e => setForm(p => ({ ...p, novoClienteNome: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Telefone <span className="text-accent">*</span></label>
+                    <input
+                      placeholder="(11) 99999-9999"
+                      value={form.novoClienteTel}
+                      onChange={e => setForm(p => ({ ...p, novoClienteTel: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                </div>
+                <div className="border-t border-ui-border pt-3">
+                  <VeiculoInlineForm
+                    value={form.novoVeiculoForm}
+                    onChange={v => setForm(p => ({ ...p, novoVeiculoForm: v }))}
+                    showTitle
+                  />
+                </div>
               </div>
+            ) : (
+              /* Cliente existente */
+              <>
+                <div>
+                  <label className={labelCls}>Cliente <span className="text-accent">*</span></label>
+                  <div className="relative" ref={dropdownRef}>
+                    <input
+                      value={form.clienteSearch}
+                      onChange={e => {
+                        setForm(p => ({ ...p, clienteSearch: e.target.value, clienteId: '', veiculoId: '' }))
+                        setDropdownOpen(true)
+                      }}
+                      onFocus={() => { if (form.clienteSearch.length > 0) setDropdownOpen(true) }}
+                      placeholder="Buscar cliente pelo nome..."
+                      className={inputCls}
+                    />
+                    {dropdownOpen && clientesFiltrados.length > 0 && (
+                      <div className="absolute z-20 top-full mt-1 w-full bg-surface-700 border border-ui-border rounded-xl shadow-xl overflow-hidden">
+                        {clientesFiltrados.slice(0, 6).map(c => (
+                          <button
+                            key={c.id}
+                            onMouseDown={() => { selecionarCliente(c); setDropdownOpen(false) }}
+                            className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-surface-600 hover:text-ui-text transition-colors flex items-center justify-between"
+                          >
+                            <span>{c.nome}</span>
+                            <span className="text-xs text-gray-600">{c.telefone}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Veículo — only when client selected */}
+                {form.clienteId && (
+                  <div>
+                    <label className={labelCls}>Veículo</label>
+                    <select
+                      value={form.veiculoId}
+                      onChange={e => setForm(p => ({ ...p, veiculoId: e.target.value }))}
+                      className={inputCls}
+                    >
+                      <option value="">Sem veículo específico</option>
+                      {veiculosCliente.map(v => (
+                        <option key={v.id} value={v.id}>
+                          {v.marca} {v.modelo} {v.ano} — {v.placa}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
             )}
           </section>
 

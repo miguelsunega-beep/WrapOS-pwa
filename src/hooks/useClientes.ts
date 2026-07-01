@@ -3,6 +3,8 @@ import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
 import { usePlacaLookup } from './usePlacaLookup'
 import { useCepLookup } from './useCepLookup'
+import { todayLocal } from '../lib/dateUtils'
+import { blankVeiculoForm, type VeiculoFormData } from '../components/VeiculoInlineForm'
 import type { Cliente, BadgeVariant, StatusOS, Garantia as GarantiaType, Veiculo } from '../types'
 
 // ── Formatters / helpers ──────────────────────────────────────────
@@ -197,8 +199,17 @@ export function useClientes() {
         })
     : []
 
+  // ── Novo veículo inline (ao criar cliente novo) ───────────────
+  const [cadastrarVeiculoNovo, setCadastrarVeiculoNovo] = useState(false)
+  const [novoVeiculoForm, setNovoVeiculoForm] = useState<VeiculoFormData>(blankVeiculoForm)
+
   // ── Client form actions ───────────────────────────────────────
-  const resetForm = () => { setForm(blankForm); setCepInput('') }
+  const resetForm = () => {
+    setForm(blankForm)
+    setCepInput('')
+    setCadastrarVeiculoNovo(false)
+    setNovoVeiculoForm(blankVeiculoForm)
+  }
 
   const prepararNovo = () => { resetForm(); setEditando(false) }
 
@@ -221,13 +232,30 @@ export function useClientes() {
       setDetalhes(c => c ? { ...c, ...form } : null)
       toast.success('Cliente atualizado!')
     } else {
-      adicionarCliente({
+      const clienteId = adicionarCliente({
         nome: form.nome, telefone: form.telefone, email: form.email,
         cpf: form.cpf, comoConheceu: form.comoConheceu, cidade: form.cidade,
-        dataCadastro: new Date().toISOString().split('T')[0],
+        dataCadastro: todayLocal(),
         totalGasto: 0,
       })
-      toast.success('Cliente cadastrado com sucesso!')
+      // Se o usuário preencheu veículo inline, cria junto
+      if (cadastrarVeiculoNovo && novoVeiculoForm.placa.trim()) {
+        if (!novoVeiculoForm.marca.trim() || !novoVeiculoForm.modelo.trim()) {
+          toast.error('Marca e Modelo do veículo são obrigatórios.')
+          return false
+        }
+        adicionarVeiculo({
+          clienteId,
+          placa:  novoVeiculoForm.placa.toUpperCase(),
+          marca:  novoVeiculoForm.marca,
+          modelo: novoVeiculoForm.modelo,
+          ano:    Number(novoVeiculoForm.ano) || new Date().getFullYear(),
+          cor:    novoVeiculoForm.cor,
+        })
+        toast.success('Cliente e veículo cadastrados com sucesso!')
+      } else {
+        toast.success('Cliente cadastrado com sucesso!')
+      }
     }
     resetForm()
     return true
@@ -340,6 +368,10 @@ export function useClientes() {
     // client form
     form, setForm, cepInput, setCepInput, cepResult,
     prepararNovo, prepararEditar, handleSalvarCliente, resetForm,
+
+    // novo veículo inline (ao criar cliente)
+    cadastrarVeiculoNovo, setCadastrarVeiculoNovo,
+    novoVeiculoForm, setNovoVeiculoForm,
 
     // delete / reativar client
     confirmarDelete, setConfirmarDelete, handleDelete, handleReativar,
