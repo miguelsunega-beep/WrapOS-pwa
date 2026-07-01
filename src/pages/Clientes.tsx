@@ -9,6 +9,7 @@ import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
+import { VeiculoInlineForm } from '../components/VeiculoInlineForm'
 import {
   useClientes,
   fmt, fmtDate, initials, isVip,
@@ -41,6 +42,8 @@ export function Clientes() {
     editando,
     form, setForm, cepInput, setCepInput, cepResult,
     prepararNovo, prepararEditar, handleSalvarCliente, resetForm,
+    cadastrarVeiculoNovo, setCadastrarVeiculoNovo,
+    novoVeiculoForm, setNovoVeiculoForm,
     confirmarDelete, setConfirmarDelete, handleDelete, handleReativar,
     veiculoForm, setVeiculoForm, placaResult,
     editVeiculoId, resetVeiculo, prepararEditarVeiculo, handleSalvarVeiculo,
@@ -329,6 +332,41 @@ export function Clientes() {
               </Field>
             </div>
           </div>
+
+          {/* Seção de veículo (apenas no modo criar, não no editar) */}
+          {!editando && (
+            <div className="border border-ui-border rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setCadastrarVeiculoNovo(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-colors hover:bg-surface-600/30"
+                style={{ color: cadastrarVeiculoNovo ? 'var(--wrap-accent)' : '#6b7280' }}
+              >
+                <span className="flex items-center gap-2">
+                  <Car size={14} />
+                  Cadastrar veículo agora (opcional)
+                </span>
+                <span
+                  className="relative rounded-full transition-colors shrink-0"
+                  style={{ height: 20, width: 36, background: cadastrarVeiculoNovo ? 'var(--wrap-accent)' : 'var(--surface-500)' }}
+                >
+                  <span
+                    className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform"
+                    style={{ width: 16, height: 16, transform: cadastrarVeiculoNovo ? 'translateX(16px)' : 'translateX(0)' }}
+                  />
+                </span>
+              </button>
+              {cadastrarVeiculoNovo && (
+                <div className="px-4 pb-4 pt-2 border-t border-ui-border">
+                  <VeiculoInlineForm
+                    value={novoVeiculoForm}
+                    onChange={setNovoVeiculoForm}
+                    showTitle={false}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-3 justify-end pt-2 border-t border-ui-border">
             <Button variant="secondary" onClick={() => { setNovoOpen(false); resetForm() }}>

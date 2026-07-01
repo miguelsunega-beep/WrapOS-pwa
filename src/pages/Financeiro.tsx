@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   ArrowUpRight, ArrowDownRight,
   Plus, Trash2, BarChart2, Eye, EyeOff,
+  ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
@@ -30,10 +31,13 @@ export function Financeiro() {
     setTipo,
     salvarLancamento,
     resetForm,
+    ordensPendentes,
+    confirmarRecebimentoOS,
   } = useFinanceiro()
 
   const [aba,         setAba]        = useState<'lancamentos' | 'relatorios'>('lancamentos')
   const [kpisOcultos, setKpisOcultos] = useState(false)
+  const [aReceberExpandido, setAReceberExpandido] = useState(false)
   const [modalOpen,   setModalOpen]  = useState(false)
   const [confirmar,   setConfirmar]  = useState<string | null>(null)
 
@@ -150,17 +154,52 @@ export function Financeiro() {
         </div>
 
         {aReceber > 0 && (
-          <div className="mt-3 flex items-center justify-between px-4 py-3 rounded-xl border border-amber-500/25 bg-amber-500/8">
-            <div className="flex items-center gap-2">
-              <ArrowDownRight size={15} className="text-amber-400" />
-              <div>
-                <p className="text-xs font-semibold text-amber-400">A Receber</p>
-                <p className="text-[11px] text-gray-500 mt-0.5">valores entregues e ainda não recebidos</p>
+          <div className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/8 overflow-hidden transition-all duration-300">
+            <div
+              className="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-amber-500/5 transition-colors"
+              onClick={() => setAReceberExpandido(!aReceberExpandido)}
+            >
+              <div className="flex items-center gap-2">
+                <ArrowDownRight size={15} className="text-amber-400" />
+                <div>
+                  <p className="text-xs font-semibold text-amber-400 flex items-center gap-1">
+                    A Receber
+                    {aReceberExpandido ? <ChevronUp size={14} className="opacity-75" /> : <ChevronDown size={14} className="opacity-75" />}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">valores entregues e ainda não recebidos</p>
+                </div>
               </div>
+              <p className={`text-lg font-bold text-amber-400 ${kpisOcultos ? 'blur-md select-none pointer-events-none' : ''}`}>
+                {aReceberStr}
+              </p>
             </div>
-            <p className={`text-lg font-bold text-amber-400 ${kpisOcultos ? 'blur-md select-none pointer-events-none' : ''}`}>
-              {aReceberStr}
-            </p>
+
+            {aReceberExpandido && (
+              <div className="border-t border-amber-500/15 divide-y divide-amber-500/10 px-4 pb-2 max-h-60 overflow-y-auto">
+                {ordensPendentes.map(os => (
+                  <div key={os.id} className="py-2.5 flex items-center justify-between text-xs text-gray-300">
+                    <div>
+                      <p className="font-semibold text-amber-400/90">OS #{os.numero}</p>
+                      <p className="text-gray-500 text-[11px] mt-0.5">{os.clienteNome}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className={`font-bold ${kpisOcultos ? 'blur-sm select-none pointer-events-none' : ''}`}>
+                        {os.valorFormatado}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          confirmarRecebimentoOS(os.id)
+                        }}
+                        className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                      >
+                        Confirmar recebimento
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

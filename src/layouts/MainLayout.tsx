@@ -12,6 +12,7 @@ import { useApp }   from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CheckinRapido }    from '../components/CheckinRapido'
 import { SearchSpotlight }  from '../components/SearchSpotlight'
+import { todayLocal } from '../lib/dateUtils'
 
 // ── breakpoint com 3 faixas: mobile / tablet / desktop ──────────
 type Breakpoint = 'mobile' | 'tablet' | 'desktop'
@@ -188,11 +189,11 @@ export function MainLayout() {
   useEffect(() => { setDrawerOpen(false) }, [location.pathname])
 
   // ── Alerts ────────────────────────────────────────────────────
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = todayLocal()
   const em30Str  = (() => {
     const d = new Date()
     d.setDate(d.getDate() + 30)
-    return d.toISOString().slice(0, 10)
+    return d.toLocaleDateString('sv-SE')
   })()
 
   const estoqueCritico  = produtos.filter(p => p.quantidade <= p.minimo)

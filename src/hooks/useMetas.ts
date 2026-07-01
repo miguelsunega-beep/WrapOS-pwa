@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
+import { todayLocal } from '../lib/dateUtils'
 
-const mesAtual = new Date().toISOString().slice(0, 7)
+const mesAtual = todayLocal().slice(0, 7)
 
 export const diasRestantes = (() => {
   const t = new Date()

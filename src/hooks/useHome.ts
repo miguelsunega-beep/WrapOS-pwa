@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext'
 import { getStatusEfetivo } from '../lib/agendamentoStatus'
 import { getEtapaPatio } from '../lib/patioEtapa'
 import { isOSAtrasada } from '../lib/osStatus'
+import { todayLocal } from '../lib/dateUtils'
 
 const fmt = (n: number) =>
   n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
@@ -91,7 +92,7 @@ export function useHome() {
   } = useApp()
 
   const agora      = new Date()
-  const hoje       = agora.toISOString().slice(0, 10)
+  const hoje       = todayLocal()
   const diasDoMes  = new Date(agora.getFullYear(), agora.getMonth() + 1, 0).getDate()
   const diasRestantes = diasDoMes - agora.getDate()
 
@@ -106,7 +107,7 @@ export function useHome() {
     for (let i = 6; i >= 0; i--) {
       const d = new Date()
       d.setDate(d.getDate() - i)
-      dias.push(d.toISOString().slice(0, 10))
+      dias.push(d.toLocaleDateString('sv-SE'))
     }
 
     const receita = dias.map(d =>

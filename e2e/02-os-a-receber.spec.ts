@@ -43,19 +43,14 @@ test.describe('Cenário 2 — OS concluída como "a receber"', () => {
     const modalDetalhes = modalAberto(page)
     await expect(modalDetalhes).toContainText(CLIENTE)
     await modalDetalhes.getByRole('button', { name: 'Aprovar' }).click()
-    await modalDetalhes.getByRole('button', { name: 'Finalizar OS' }).click()
+    await modalDetalhes.getByRole('button', { name: 'Concluir', exact: true }).click()
+    // o OSModal fecha sozinho ao clicar em "Concluir", antes de abrir o ConcluirOSModal.
 
     const modalConcluir = modalAberto(page)
     await expect(modalConcluir.getByText(/Concluir OS #/)).toBeVisible()
     await modalConcluir.getByRole('button', { name: '⏳ A receber' }).click()
     await modalConcluir.getByRole('button', { name: 'Concluir OS' }).click()
-    // o modal "Concluir OS #" fecha, mas o modal de detalhes da OS continua aberto por
-    // baixo dele (não fecha ao concluir) — por isso não dá para checar "not visible" no
-    // overlay genérico (".fixed.inset-0.z-50" ainda resolve para o modal de detalhes).
     await expect(page.getByText(/Concluir OS #/)).toHaveCount(0)
-
-    // precisa fechar o modal de detalhes manualmente antes de navegar
-    await modalDetalhes.getByRole('button', { name: 'Fechar' }).click()
 
     // ── Aparece no banner "A Receber" do Financeiro ─────────────────
     await irPara(page, 'Financeiro')
@@ -91,7 +86,7 @@ test.describe('Cenário 2 — OS concluída como "a receber"', () => {
       modalDetalhes2.getByText('A RECEBER', { exact: true }),
       'esperava que o selo "A RECEBER" desaparecesse da OS depois de registrar o pagamento',
     ).toHaveCount(0)
-    await modalDetalhes2.getByRole('button', { name: 'Fechar' }).click()
+    await modalDetalhes2.getByRole('button', { name: 'Fechar', exact: true }).click()
 
     // ── Passou a contar como receita e o banner foi atualizado ─────
     await irPara(page, 'Financeiro')

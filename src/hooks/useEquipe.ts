@@ -4,8 +4,9 @@ import { Users, CheckCircle, ClipboardList, TrendingUp } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import type { Instalador } from '../types'
+import { todayLocal } from '../lib/dateUtils'
 
-const mesAtual = new Date().toISOString().slice(0, 7)
+const mesAtual = todayLocal().slice(0, 7)
 
 export const diasRestantes = (() => {
   const t = new Date()

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
 import { getOSVinculada, getStatusEfetivo, type StatusEfetivoAgendamento } from '../lib/agendamentoStatus'
+import { todayLocal } from '../lib/dateUtils'
+import { blankVeiculoForm, type VeiculoFormData } from '../components/VeiculoInlineForm'
 import type { Agendamento, BadgeVariant, Cliente } from '../types'
 
 // ── Module-level constants ────────────────────────────────────────
@@ -106,6 +108,11 @@ export interface AgForm {
   horario:       string
   dataSaida:     string
   mesmoDia:      boolean
+  // Novo cliente inline
+  criandoCliente:    boolean
+  novoClienteNome:   string
+  novoClienteTel:    string
+  novoVeiculoForm:   VeiculoFormData
 }
 
 export interface DiaSemana {
@@ -120,6 +127,7 @@ export function useAgendamento() {
   const {
     agendamentos, clientes, veiculos, servicos, instaladores, ordens,
     adicionarAgendamento, editarAgendamento, deletarAgendamento, adicionarOS,
+    adicionarCliente, adicionarVeiculo,
   } = useApp()
 
   // ── Week navigation ───────────────────────────────────────────
@@ -332,6 +340,10 @@ export function useAgendamento() {
     horario:       '09:00',
     dataSaida:     diaSelecionado,
     mesmoDia:      true,
+    criandoCliente:  false,
+    novoClienteNome: '',
+    novoClienteTel:  '',
+    novoVeiculoForm: blankVeiculoForm,
   })
 
   const [form, setForm] = useState<AgForm>(makeInitForm)
@@ -350,7 +362,35 @@ export function useAgendamento() {
   }
 
   const handleSalvar = (): boolean => {
-    if (!form.clienteId) { toast.error('Selecione um cliente.'); return false }
+    let clienteId = form.clienteId
+    let veiculoId = form.veiculoId
+
+    // Fluxo de novo cliente inline
+    if (form.criandoCliente) {
+      if (!form.novoClienteNome.trim()) { toast.error('Informe o nome do cliente.'); return false }
+      if (!form.novoClienteTel.trim())  { toast.error('Informe o telefone.'); return false }
+      if (!form.novoVeiculoForm.placa.trim()) { toast.error('Informe a placa do veículo.'); return false }
+      if (!form.novoVeiculoForm.marca.trim()) { toast.error('Informe a marca do veículo.'); return false }
+      if (!form.novoVeiculoForm.modelo.trim()) { toast.error('Informe o modelo do veículo.'); return false }
+      clienteId = adicionarCliente({
+        nome: form.novoClienteNome.trim(),
+        telefone: form.novoClienteTel.trim(),
+        email: '', cpf: '',
+        comoConheceu: 'Agendamento',
+        dataCadastro: todayLocal(),
+        totalGasto: 0,
+      })
+      veiculoId = adicionarVeiculo({
+        clienteId,
+        placa:  form.novoVeiculoForm.placa.toUpperCase(),
+        marca:  form.novoVeiculoForm.marca,
+        modelo: form.novoVeiculoForm.modelo,
+        ano:    Number(form.novoVeiculoForm.ano) || new Date().getFullYear(),
+        cor:    form.novoVeiculoForm.cor,
+      })
+    }
+
+    if (!clienteId) { toast.error('Selecione um cliente.'); return false }
     if (!form.data)      { toast.error('Informe a data.');        return false }
     if (!form.horario)   { toast.error('Informe o horário.');     return false }
     const conflito = agendamentos.some(a =>
@@ -361,8 +401,8 @@ export function useAgendamento() {
     )
     if (conflito) { toast.error('Conflito: já existe agendamento neste horário.'); return false }
     adicionarAgendamento({
-      clienteId:    form.clienteId,
-      veiculoId:    form.veiculoId,
+      clienteId,
+      veiculoId,
       servicoId:    form.servicoId,
       instaladorId: form.instaladorId,
       box:          1,

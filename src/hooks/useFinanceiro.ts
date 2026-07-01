@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight } from 'lucide-react
 import type { LucideIcon } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { todayLocal } from '../lib/dateUtils'
 import type { LancamentoFinanceiro } from '../types'
 
 const fmt = (v: number) =>
@@ -35,7 +36,7 @@ const initForm = (): LancForm => ({
   categoria: 'OS',
   descricao: '',
   valor: '',
-  data: new Date().toISOString().slice(0, 10),
+  data: todayLocal(),
   formaPagamento: 'PIX',
 })
 
@@ -55,7 +56,7 @@ export interface LancamentoEnriquecido extends LancamentoFinanceiro {
 }
 
 export function useFinanceiro() {
-  const { lancamentos, ordens, adicionarLancamento, deletarLancamento } = useApp()
+  const { lancamentos, ordens, clientes, registrarPagamentoOS, adicionarLancamento, deletarLancamento } = useApp()
   const { theme } = useTheme()
 
   // ── Chart / tooltip colors ─────────────────────────────────────
@@ -161,6 +162,22 @@ export function useFinanceiro() {
     return true
   }
 
+  // ── Pending orders to receive ────────────────────────────────
+  const ordensPendentes = ordens
+    .filter(o => o.statusPagamento === 'a_receber')
+    .map(o => ({
+      id: o.id,
+      numero: o.numero,
+      clienteNome: clientes.find(c => c.id === o.clienteId)?.nome ?? 'Cliente desconhecido',
+      valor: o.valorTotal,
+      valorFormatado: fmt(o.valorTotal),
+    }))
+
+  const confirmarRecebimentoOS = (id: string) => {
+    registrarPagamentoOS(id)
+    toast.success('Pagamento registrado! Receita lançada no Financeiro.')
+  }
+
   return {
     meses,
     mesSel,
@@ -185,5 +202,7 @@ export function useFinanceiro() {
     setTipo,
     salvarLancamento,
     resetForm,
+    ordensPendentes,
+    confirmarRecebimentoOS,
   }
 }

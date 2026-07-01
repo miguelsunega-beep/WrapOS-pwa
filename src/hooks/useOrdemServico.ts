@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
-import type { StatusOS, BadgeVariant, OrdemServico, MaterialUsado } from '../types'
+import { todayLocal } from '../lib/dateUtils'
+import type { StatusOS, BadgeVariant, OrdemServico, Agendamento } from '../types'
 
 // ── Constants ──────────────────────────────────────────────────────
 export const statusConfig: Record<StatusOS, { label: string; variant: BadgeVariant }> = {
@@ -56,14 +57,8 @@ export interface FormState {
   comissaoFixo:      number
   observacoes:       string
   dataSaidaPrevista: string
-}
-
-export interface EditFormState {
-  servicosSel:    ServicoSelecionado[]
-  formaPagamento: string
-  instaladorId:   string
-  box:            number
-  observacoes:    string
+  /** Preenchido automaticamente quando o usuário vincula a OS a um agendamento existente. */
+  agendamentoId?:    string
 }
 
 const blankForm: FormState = {
@@ -85,8 +80,8 @@ const blankForm: FormState = {
 // ── Hook ───────────────────────────────────────────────────────────
 export function useOrdemServico() {
   const {
-    ordens, clientes, veiculos, servicos, instaladores, produtos,
-    adicionarOS, editarOS, mudarStatusOS, deletarOS, cancelarOS,
+    ordens, clientes, veiculos, servicos, instaladores, agendamentos,
+    adicionarOS, deletarOS, cancelarOS,
     adicionarCliente, adicionarVeiculo, registrarPagamentoOS,
   } = useApp()
   const location = useLocation()
@@ -95,17 +90,21 @@ export function useOrdemServico() {
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState<FiltroStatus>('todos')
 
-  // ── Selected OS for details modal ─────────────────────────────
-  const [detalhesOS, setDetalhesOS] = useState<OrdemServico | null>(null)
+  // ── OS aberta no OSModal ────────────────────────────────────────
+  const [osAberta, setOsAberta] = useState<OrdemServico | null>(null)
+
+  // Mantém osAberta sincronizada com o estado central (evita snapshot desatualizado
+  // após ações como Aprovar/Cancelar/Registrar pagamento feitas dentro do próprio modal).
+  useEffect(() => {
+    setOsAberta(prev => {
+      if (!prev) return prev
+      const updated = ordens.find(o => o.id === prev.id)
+      return updated ?? prev
+    })
+  }, [ordens])
 
   // ── Delete confirm ────────────────────────────────────────────
   const [confirmarDelete, setConfirmarDelete] = useState<string | null>(null)
-
-  // ── Edit OS ───────────────────────────────────────────────────
-  const [editandoOS, setEditandoOS] = useState<OrdemServico | null>(null)
-  const [editForm, setEditForm]     = useState<EditFormState>({
-    servicosSel: [], formaPagamento: 'PIX', instaladorId: '', box: 1, observacoes: '',
-  })
 
   // ── Concluir OS ───────────────────────────────────────────────
   const [concluirOSData, setConcluirOSData] = useState<OrdemServico | null>(null)
@@ -118,12 +117,20 @@ export function useOrdemServico() {
     marca: '', modelo: '', ano: new Date().getFullYear(), cor: '', placa: '',
   })
 
+  // ── Agendamento sugerido (vinculação OS ↔ Agendamento) ───────────
+  /**
+   * Quando o usuário tenta salvar uma Nova OS e existe um agendamento
+   * no mesmo dia para o mesmo cliente ou veículo, guardamos aqui para
+   * perguntar se ele quer vincular antes de salvar.
+   */
+  const [agendamentoSugerido, setAgendamentoSugerido] = useState<Agendamento | null>(null)
+
   // ── Auto-open from navigation state (Dashboard → OS click) ────
   useEffect(() => {
     const state = location.state as { openOSId?: string; statusFilter?: string } | null
     if (state?.openOSId) {
       const os = ordens.find(o => o.id === state.openOSId)
-      if (os) setDetalhesOS(os)
+      if (os) setOsAberta(os)
     }
     if (state?.statusFilter === 'abertos') {
       setStatusFilter('abertos')
@@ -134,6 +141,7 @@ export function useOrdemServico() {
   // ── Lookup helpers ────────────────────────────────────────────
   const clienteNome  = (id: string) => clientes.find(c => c.id === id)?.nome ?? '—'
   const instNome     = (id: string) => instaladores.find(i => i.id === id)?.nome ?? '—'
+  const getCliente   = (id: string) => clientes.find(c => c.id === id) ?? null
   const getVeiculo   = (id: string) => veiculos.find(v => v.id === id)
   const veiculoLabel = (id: string) => {
     const v = getVeiculo(id)
@@ -185,20 +193,6 @@ export function useOrdemServico() {
       : form.comissaoFixo
     : 0
 
-  // ── Edit form derived ─────────────────────────────────────────
-  const editValorTotal = editForm.servicosSel.reduce((sum, s) => sum + (s.valor || 0), 0)
-
-  // ── Details modal derived (replaces IIFE) ─────────────────────
-  const detCustoMateriais = detalhesOS
-    ? (detalhesOS.materiaisUsados ?? []).reduce((sum, m) => {
-        const origem = (m as MaterialUsado).origem ?? 'estoque'
-        if (origem === 'estoque') {
-          const p = produtos.find(x => x.id === m.produtoId)
-          return sum + (p ? p.valorUnitario * m.quantidade : 0)
-        }
-        return sum + ((m as MaterialUsado).custo ?? 0)
-      }, 0)
-    : 0
 
   // ── Form actions ──────────────────────────────────────────────
   const resetForm = () => {
@@ -220,7 +214,7 @@ export function useOrdemServico() {
       telefone:      novoCli.telefone.trim(),
       email:         '', cpf: '',
       comoConheceu:  'Cadastro via OS',
-      dataCadastro:  new Date().toISOString().split('T')[0],
+      dataCadastro:  todayLocal(),
       totalGasto:    0,
     })
 
@@ -256,28 +250,15 @@ export function useOrdemServico() {
   const setValorServico = (id: string, valor: number) =>
     setForm(f => ({ ...f, servicosSel: f.servicosSel.map(s => s.servicoId === id ? { ...s, valor } : s) }))
 
-  const toggleServicoEdit = (id: string) =>
-    setEditForm(f => ({
-      ...f,
-      servicosSel: f.servicosSel.some(s => s.servicoId === id)
-        ? f.servicosSel.filter(s => s.servicoId !== id)
-        : [...f.servicosSel, { servicoId: id, valor: 0 }],
-    }))
-
-  const setValorServicoEdit = (id: string, valor: number) =>
-    setEditForm(f => ({ ...f, servicosSel: f.servicosSel.map(s => s.servicoId === id ? { ...s, valor } : s) }))
-
   const handleInstaladorChange = (id: string) => {
     const padrao = instaladores.find(i => i.id === id)?.comissaoPadrao ?? 12
     setForm(f => ({ ...f, instaladorId: id, comissaoPerc: padrao }))
   }
 
   // ── Save new OS ───────────────────────────────────────────────
-  const handleSalvar = (): boolean => {
-    if (!form.clienteId)                           { toast.error('Selecione um cliente.');                   return false }
-    if (form.servicosSel.length === 0)             { toast.error('Selecione ao menos um serviço.');          return false }
-    if (!form.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return false }
 
+  /** Núcleo de persistência — chamado tanto pelo fluxo direto quanto após confirmação de vínculo. */
+  const _persistirOS = (agendamentoId?: string, boxOverride?: number) => {
     adicionarOS({
       clienteId:         form.clienteId,
       veiculoId:         form.veiculoId,
@@ -288,97 +269,133 @@ export function useOrdemServico() {
       valorTotal:        valorTotalNova,
       formaPagamento:    form.formaPagamento,
       instaladorId:      form.instaladorId,
-      box:               form.box,
+      box:               boxOverride ?? form.box,
       comissao:          comissaoValor,
       observacoes:       form.observacoes,
       dataSaidaPrevista: form.dataSaidaPrevista || undefined,
       status:            'aguardando_aprovacao',
+      agendamentoId,
     })
+  }
+
+  /** Verifica conflito de box: já existe outra OS ativa hoje no mesmo box? */
+  const _checarConflitoBox = (): boolean => {
+    const hoje = todayLocal()
+    const conflito = ordens.some(o =>
+      o.id !== undefined &&           // garante que não compara consigo mesma (nova OS não tem id ainda)
+      o.box === form.box &&
+      o.dataCriacao === hoje &&
+      o.status !== 'cancelado' &&
+      o.status !== 'concluido'
+    )
+    return conflito
+  }
+
+  const handleSalvar = (): boolean => {
+    if (!form.clienteId)                           { toast.error('Selecione um cliente.');                   return false }
+    if (form.servicosSel.length === 0)             { toast.error('Selecione ao menos um serviço.');          return false }
+    if (!form.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return false }
+
+    // ── 1. Verificar se há agendamento para este cliente/veículo hoje ──
+    const hoje = todayLocal()
+    const agMatchado = agendamentos.find(ag => {
+      // Só considera agendamentos do dia atual sem OS vinculada ainda
+      if (ag.data !== hoje) return false
+      const jaTemOS = ordens.some(o => o.agendamentoId === ag.id)
+      if (jaTemOS) return false
+      // Verifica match por cliente ou veículo
+      const mesmoCliente = ag.clienteId === form.clienteId
+      const mesmoVeiculo = form.veiculoId ? ag.veiculoId === form.veiculoId : false
+      return mesmoCliente || mesmoVeiculo
+    })
+
+    if (agMatchado) {
+      // Guarda o agendamento encontrado e deixa a página perguntar ao usuário
+      setAgendamentoSugerido(agMatchado)
+      return false // impede o fechamento do modal até o usuário decidir
+    }
+
+    // ── 2. Verificar conflito de box (aviso não-bloqueante) ──────────
+    if (_checarConflitoBox()) {
+      toast.warning(`Box ${form.box} já está em uso hoje por outra OS ativa.`)
+    }
+
+    _persistirOS()
     toast.success('OS criada com sucesso!')
     resetForm()
     return true
   }
 
-  // ── Edit OS ───────────────────────────────────────────────────
-  const prepararEdicao = (os: OrdemServico) => {
-    setEditandoOS(os)
-    setEditForm({
-      servicosSel:    os.servicos.map(s => ({ servicoId: s.servicoId, valor: s.preco ?? 0 })),
-      formaPagamento: os.formaPagamento,
-      instaladorId:   os.instaladorId,
-      box:            os.box,
-      observacoes:    os.observacoes,
-    })
-  }
+  /** Chamado quando o usuário confirma que quer vincular ao agendamento sugerido. */
+  const confirmarVincularAgendamento = (): boolean => {
+    if (!agendamentoSugerido) return false
 
-  const handleSalvarEdicao = (): boolean => {
-    if (!editandoOS)                                   return false
-    if (editForm.servicosSel.length === 0)             { toast.error('Selecione ao menos um serviço.');          return false }
-    if (!editForm.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return false }
+    const boxAg = agendamentoSugerido.box
 
-    const servicosAtualizados = editForm.servicosSel.map(sel => {
-      const cat           = servicos.find(s => s.id === sel.servicoId)
-      const nomeExistente = editandoOS.servicos.find(s => s.servicoId === sel.servicoId)?.nome
-      return { servicoId: sel.servicoId, nome: nomeExistente ?? cat?.nome ?? 'Serviço', preco: sel.valor }
-    })
-
-    const updates = {
-      servicos:       servicosAtualizados,
-      valorTotal:     editValorTotal,
-      formaPagamento: editForm.formaPagamento,
-      instaladorId:   editForm.instaladorId,
-      box:            editForm.box,
-      observacoes:    editForm.observacoes,
+    // Verifica conflito de box com o box do agendamento (aviso não-bloqueante)
+    const hoje = todayLocal()
+    const conflitoBoxAg = ordens.some(o =>
+      o.box === boxAg &&
+      o.dataCriacao === hoje &&
+      o.status !== 'cancelado' &&
+      o.status !== 'concluido'
+    )
+    if (conflitoBoxAg) {
+      toast.warning(`Box ${boxAg} (do agendamento) já está em uso hoje por outra OS ativa.`)
     }
 
-    editarOS(editandoOS.id, updates)
-    setDetalhesOS(prev => prev ? { ...prev, ...updates } : null)
-    toast.success('OS atualizada com sucesso!')
-    setEditandoOS(null)
+    // Passa o box do agendamento diretamente (evita problema de state assíncrono)
+    _persistirOS(agendamentoSugerido.id, boxAg)
+    toast.success('OS criada e vinculada ao agendamento!')
+    setAgendamentoSugerido(null)
+    resetForm()
     return true
   }
 
-  const fecharEdicao = () => setEditandoOS(null)
+  /** Chamado quando o usuário recusa a vinculação e quer salvar a OS sem agendamento. */
+  const recusarVincularAgendamento = (): boolean => {
+    setAgendamentoSugerido(null)
 
-  // ── Status / lifecycle handlers ───────────────────────────────
-  const handleStatus = (id: string, status: StatusOS) => {
-    mudarStatusOS(id, status)
-    toast.success(`Status: "${statusConfig[status].label}"`)
-    if (detalhesOS?.id === id) setDetalhesOS(p => p ? { ...p, status } : null)
+    // Verifica conflito de box (aviso não-bloqueante)
+    if (_checarConflitoBox()) {
+      toast.warning(`Box ${form.box} já está em uso hoje por outra OS ativa.`)
+    }
+
+    _persistirOS()
+    toast.success('OS criada com sucesso!')
+    resetForm()
+    return true
   }
 
+  // ── Status / lifecycle handlers ───────────────────────────────
   const handleDelete = () => {
     if (!confirmarDelete) return
     deletarOS(confirmarDelete)
     toast('OS removida.')
-    if (detalhesOS?.id === confirmarDelete) setDetalhesOS(null)
+    if (osAberta?.id === confirmarDelete) setOsAberta(null)
     setConfirmarDelete(null)
+  }
+
+  /** Exclusão via OSModal, que já tem sua própria confirmação inline. */
+  const excluirOS = (id: string) => {
+    deletarOS(id)
+    toast('OS removida.')
   }
 
   const handleCancelarOS = (id: string) => {
     cancelarOS(id)
     toast.success('OS cancelada.')
-    if (detalhesOS?.id === id) setDetalhesOS(p => p ? { ...p, status: 'cancelado' as StatusOS } : null)
   }
 
   const handleRegistrarPagamento = (id: string) => {
     registrarPagamentoOS(id)
     toast.success('Pagamento registrado! Receita lançada no Financeiro.')
-    setDetalhesOS(p => p ? { ...p, statusPagamento: 'pago' } : null)
   }
 
-  const abrirConcluir = (os: OrdemServico) => setConcluirOSData(os)
-
-  const handleConcluido = (osId: string, pago: boolean) => {
-    if (detalhesOS?.id === osId) {
-      const today = new Date().toISOString().split('T')[0]
-      setDetalhesOS(p => p ? {
-        ...p,
-        status:          'concluido' as StatusOS,
-        statusPagamento: pago ? 'pago' : 'a_receber',
-        dataFinalizacao: today,
-      } : null)
-    }
+  const abrirConcluir = (osId: string) => {
+    const os = ordens.find(o => o.id === osId) ?? null
+    setOsAberta(null)
+    setConcluirOSData(os)
   }
 
   return {
@@ -392,22 +409,15 @@ export function useOrdemServico() {
     // list
     filtered, counts, totalOS,
 
-    // details modal
-    detalhesOS, setDetalhesOS,
-    detCustoMateriais,
+    // OS aberta no OSModal
+    osAberta, setOsAberta,
 
     // delete
-    confirmarDelete, setConfirmarDelete, handleDelete,
-
-    // edit OS
-    editandoOS, editForm, setEditForm,
-    prepararEdicao, fecharEdicao, handleSalvarEdicao,
-    editValorTotal,
-    toggleServicoEdit, setValorServicoEdit,
+    confirmarDelete, setConfirmarDelete, handleDelete, excluirOS,
 
     // conclude OS
     concluirOSData, setConcluirOSData,
-    abrirConcluir, handleConcluido,
+    abrirConcluir,
 
     // new OS form
     form, setForm,
@@ -419,10 +429,14 @@ export function useOrdemServico() {
     toggleServico, setValorServico,
     handleInstaladorChange, handleSalvar,
 
+    // agendamento linking
+    agendamentoSugerido, setAgendamentoSugerido,
+    confirmarVincularAgendamento, recusarVincularAgendamento,
+
     // status/lifecycle
-    handleStatus, handleCancelarOS, handleRegistrarPagamento,
+    handleCancelarOS, handleRegistrarPagamento,
 
     // lookup helpers
-    clienteNome, instNome, getVeiculo, veiculoLabel,
+    clienteNome, instNome, getCliente, getVeiculo, veiculoLabel,
   }
 }

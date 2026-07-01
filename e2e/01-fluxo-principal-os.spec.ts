@@ -108,7 +108,7 @@ test.describe('Cenário 1 — Fluxo principal de uma OS, do início ao fim', () 
     // ════════════════════════════════════════════════════════════════
     // 3. OS aparece no Pátio / "Carros no Pátio" aumenta em 1
     // ════════════════════════════════════════════════════════════════
-    await modalDetalhes.getByRole('button', { name: 'Fechar' }).click()
+    await modalDetalhes.getByRole('button', { name: 'Fechar', exact: true }).click()
 
     await irPara(page, 'Início')
     const carrosPatioAposCriar = parseInt0(await kpiValor(page, 'Carros no pátio').textContent())
@@ -146,7 +146,7 @@ test.describe('Cenário 1 — Fluxo principal de uma OS, do início ao fim', () 
       modalDetalhes2.getByText('Em Andamento', { exact: true }).first(),
       'esperava que, após clicar em "Aprovar", o status mudasse para "Em Andamento" no modal de detalhes',
     ).toBeVisible()
-    await modalDetalhes2.getByRole('button', { name: 'Fechar' }).click()
+    await modalDetalhes2.getByRole('button', { name: 'Fechar', exact: true }).click()
 
     // status mudou na lista de OS
     await expect(
@@ -174,9 +174,9 @@ test.describe('Cenário 1 — Fluxo principal de uma OS, do início ao fim', () 
     await modalConcluir.getByRole('button', { name: 'Concluir OS' }).click()
     await expect(modalConcluir).not.toBeVisible()
 
-    // saiu do Pátio
+    // saiu do Pátio (não deve estar nas colunas ativas Aguardando/Execução)
     await expect(
-      page.locator('div.cursor-pointer').filter({ hasText: CLIENTE }),
+      page.locator('[data-etapa="aguardando"], [data-etapa="execucao"]').locator('div.cursor-pointer').filter({ hasText: CLIENTE }),
       `esperava que o card de "${CLIENTE}" desaparecesse do Pátio depois de concluir a OS`,
     ).toHaveCount(0)
 

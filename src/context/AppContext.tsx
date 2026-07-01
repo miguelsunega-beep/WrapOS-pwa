@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { todayLocal } from '../lib/dateUtils'
 import type {
   Cliente, Veiculo, OrdemServico, Servico, Agendamento, Instalador,
   LancamentoFinanceiro, Produto, Garantia, Meta, Configuracoes,
@@ -6,6 +7,30 @@ import type {
 } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
+
+/**
+ * Compara os materiais de origem 'estoque' entre a lista antiga e a nova de uma OS,
+ * retornando o delta de quantidade por produto (positivo = precisa baixar do estoque,
+ * negativo = precisa devolver ao estoque). Soma quantidades quando o mesmo produto
+ * aparece em mais de uma linha.
+ */
+function diffEstoqueDeltas(antigos: MaterialUsado[], novos: MaterialUsado[]): Map<string, number> {
+  const somarPorProduto = (materiais: MaterialUsado[]) => {
+    const mapa = new Map<string, number>()
+    materiais.filter(m => m.origem === 'estoque' && m.produtoId).forEach(m => {
+      mapa.set(m.produtoId!, (mapa.get(m.produtoId!) ?? 0) + m.quantidade)
+    })
+    return mapa
+  }
+  const antigoPorProduto = somarPorProduto(antigos)
+  const novoPorProduto   = somarPorProduto(novos)
+  const deltas = new Map<string, number>()
+  new Set([...antigoPorProduto.keys(), ...novoPorProduto.keys()]).forEach(produtoId => {
+    const delta = (novoPorProduto.get(produtoId) ?? 0) - (antigoPorProduto.get(produtoId) ?? 0)
+    if (delta !== 0) deltas.set(produtoId, delta)
+  })
+  return deltas
+}
 
 function calcularPrazoMeses(nomesServicos: string[]): number {
   const all = nomesServicos.join(' ').toLowerCase()
@@ -301,6 +326,8 @@ interface AppContextType {
   editarOS: (id: string, os: Partial<Omit<OrdemServico, 'id'>>) => void
   deletarOS: (id: string) => void
   mudarStatusOS: (id: string, status: StatusOS) => void
+  /** Persiste os materiais usados de uma OS, ajustando o estoque pela diferença (delta) em relação aos materiais anteriores. */
+  salvarMateriaisOS: (osId: string, novosMateriais: MaterialUsado[]) => void
 
   // Agendamentos
   adicionarAgendamento: (a: Omit<Agendamento, 'id'>) => void
@@ -401,12 +428,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ── Ordens de Serviço ────────────────────────────────────────
   const adicionarOS = (os: Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>): number => {
     const numero = Math.max(0, ...ordens.map(o => o.numero)) + 1
-    setOrdens(prev => [...prev, { ...os, id: uid(), numero, dataCriacao: new Date().toISOString().split('T')[0] }])
+    setOrdens(prev => [...prev, { ...os, id: uid(), numero, dataCriacao: todayLocal() }])
     return numero
   }
 
   const editarOS = (id: string, os: Partial<Omit<OrdemServico, 'id'>>) =>
     setOrdens(prev => prev.map(x => x.id === id ? { ...x, ...os } : x))
+
+  const salvarMateriaisOS = (osId: string, novosMateriais: MaterialUsado[]) => {
+    const os = ordens.find(x => x.id === osId)
+    if (!os) return
+    const deltas = diffEstoqueDeltas(os.materiaisUsados ?? [], novosMateriais)
+    deltas.forEach((delta, produtoId) => {
+      if (delta > 0) baixarEstoque(produtoId, delta)
+      else registrarEntradaEstoque(produtoId, -delta)
+    })
+    setOrdens(prev => prev.map(x => x.id === osId ? { ...x, materiaisUsados: novosMateriais } : x))
+  }
 
   const deletarOS = (id: string) =>
     setOrdens(prev => prev.filter(x => x.id !== id))
@@ -488,7 +526,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const concluirOS = (id: string, materiaisUsados?: MaterialUsado[], pago: boolean = true): { created: string[] } => {
     const os = ordens.find(x => x.id === id)
     if (!os || os.status === 'concluido') return { created: [] }
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayLocal()
     const nomeCliente = clientes.find(c => c.id === os.clienteId)?.nome ?? ''
     const created: string[] = []
 
@@ -533,11 +571,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMeta(prev => ({ ...prev, numeroOS: prev.numeroOS + 1 }))
 
     if (materiaisUsados?.length) {
-      materiaisUsados.forEach(m => {
-        const origem = m.origem ?? 'estoque'
-        if (origem === 'estoque' && m.produtoId) {
+      // Só ajusta o estoque pela diferença em relação ao que já estava salvo em `os.materiaisUsados`
+      // (que já foi baixado por salvarMateriaisOS) — evita baixa duplicada.
+      const deltas = diffEstoqueDeltas(os.materiaisUsados ?? [], materiaisUsados)
+      deltas.forEach((delta, produtoId) => {
+        if (delta > 0) {
           setProdutos(prev => prev.map(p =>
-            p.id === m.produtoId ? { ...p, quantidade: Math.max(0, p.quantidade - m.quantidade) } : p
+            p.id === produtoId ? { ...p, quantidade: Math.max(0, p.quantidade - delta) } : p
+          ))
+        } else {
+          setProdutos(prev => prev.map(p =>
+            p.id === produtoId ? { ...p, quantidade: p.quantidade - delta } : p
           ))
         }
       })
@@ -566,7 +610,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const registrarPagamentoOS = (id: string): void => {
     const os = ordens.find(x => x.id === id)
     if (!os) return
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayLocal()
     const nomeCliente = clientes.find(c => c.id === os.clienteId)?.nome ?? ''
     if (!lancamentos.some(l => l.osId === id && l.tipo === 'entrada')) {
       setLancamentos(prev => [...prev, {
@@ -579,7 +623,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const entregarVeiculo = (id: string): void => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayLocal()
     setOrdens(prev => prev.map(x =>
       x.id === id ? { ...x, entregue: true, dataSaida: today } : x
     ))
@@ -611,7 +655,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       lancamentos, produtos, garantias, meta, configuracoes,
       adicionarCliente, editarCliente, deletarCliente, reativarCliente,
       adicionarVeiculo, editarVeiculo, deletarVeiculo,
-      adicionarOS, editarOS, deletarOS, mudarStatusOS,
+      adicionarOS, editarOS, deletarOS, mudarStatusOS, salvarMateriaisOS,
       adicionarAgendamento, editarAgendamento, deletarAgendamento,
       adicionarInstalador, editarInstalador, deletarInstalador,
       adicionarServico, editarServico, deletarServico,
