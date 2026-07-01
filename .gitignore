@@ -11,8 +11,10 @@ dist-ssr
 /test-results/
 /playwright-report/
 /playwright/.cache/
+/e2e/.auth/
 
 /src/generated/prisma
 .env
 /production-stable
 /WrapOS-pwa/
+.env*

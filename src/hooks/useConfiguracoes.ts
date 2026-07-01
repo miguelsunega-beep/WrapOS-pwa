@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Bell, Shield, Palette } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { exportarBackup, importarBackup } from '../utils/backup'
 import type { Servico } from '../types'
 
 const inferirCategoria = (nome: string): string => {
@@ -126,6 +127,46 @@ export function useConfiguracoes() {
     toast.success('Serviço excluído.')
   }
 
+  // ── Backup ───────────────────────────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [arquivoImportar, setArquivoImportar] = useState<File | null>(null)
+  const [confirmarImportOpen, setConfirmarImportOpen] = useState(false)
+
+  const handleExportarBackup = () => {
+    exportarBackup()
+    toast.success('Backup exportado com sucesso!')
+  }
+
+  const abrirSeletorImportar = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleArquivoSelecionado = (arquivo: File | null) => {
+    if (!arquivo) return
+    setArquivoImportar(arquivo)
+    setConfirmarImportOpen(true)
+  }
+
+  const cancelarImportarBackup = () => {
+    setConfirmarImportOpen(false)
+    setArquivoImportar(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const confirmarImportarBackup = async () => {
+    if (!arquivoImportar) return
+    try {
+      await importarBackup(arquivoImportar)
+      toast.success('Backup importado com sucesso! Recarregando...')
+      setConfirmarImportOpen(false)
+      setArquivoImportar(null)
+      setTimeout(() => window.location.reload(), 800)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao importar backup.')
+      cancelarImportarBackup()
+    }
+  }
+
   return {
     loja,        setLoja,       handleSalvarLoja,
     op,          setOp,         handleSalvarOp,
@@ -138,5 +179,12 @@ export function useConfiguracoes() {
     resetServico,
     salvarServico,
     deletarServicoById,
+    fileInputRef,
+    confirmarImportOpen,
+    handleExportarBackup,
+    abrirSeletorImportar,
+    handleArquivoSelecionado,
+    cancelarImportarBackup,
+    confirmarImportarBackup,
   }
 }

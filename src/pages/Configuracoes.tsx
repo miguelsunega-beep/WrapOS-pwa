@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Settings, Store, Bell, Tag, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Settings, Store, Bell, Tag, Plus, Pencil, Trash2, Download, Upload, DatabaseBackup } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
@@ -20,6 +20,13 @@ export function Configuracoes() {
     resetServico,
     salvarServico,
     deletarServicoById,
+    fileInputRef,
+    confirmarImportOpen,
+    handleExportarBackup,
+    abrirSeletorImportar,
+    handleArquivoSelecionado,
+    cancelarImportarBackup,
+    confirmarImportarBackup,
   } = useConfiguracoes()
 
   const [servModalOpen, setServModalOpen] = useState(false)
@@ -185,6 +192,37 @@ export function Configuracoes() {
         </div>
       </Card>
 
+      {/* Backup */}
+      <Card>
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center shrink-0">
+            <DatabaseBackup size={15} className="text-blue-400" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-ui-text">Backup</h2>
+            <p className="text-[11px] text-gray-600">Exporte ou restaure os dados deste navegador enquanto a migração para a nuvem não é concluída</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={handleExportarBackup}>
+            <Download size={13} /> Exportar backup agora
+          </Button>
+          <Button size="sm" variant="secondary" onClick={abrirSeletorImportar}>
+            <Upload size={13} /> Importar backup
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={e => {
+              handleArquivoSelecionado(e.target.files?.[0] ?? null)
+              e.target.value = ''
+            }}
+          />
+        </div>
+      </Card>
+
       {/* Serviços e Precificação */}
       <Card padding={false}>
         <div className="px-5 py-4 border-b border-ui-border flex items-center justify-between">
@@ -261,6 +299,15 @@ export function Configuracoes() {
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setServDeletarId(null)}>Cancelar</Button>
           <Button variant="danger" onClick={handleDeletarServico}><Trash2 size={14} /> Excluir</Button>
+        </div>
+      </Modal>
+
+      {/* Modal Confirmar Importação de Backup */}
+      <Modal isOpen={confirmarImportOpen} onClose={cancelarImportarBackup} title="Importar Backup" size="sm">
+        <p className="text-sm text-gray-400 mb-5">Isso vai substituir os dados atuais deste navegador. Continuar?</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={cancelarImportarBackup}>Cancelar</Button>
+          <Button variant="danger" onClick={confirmarImportarBackup}><Upload size={14} /> Substituir dados</Button>
         </div>
       </Modal>
     </div>

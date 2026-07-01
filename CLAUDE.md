@@ -2,7 +2,7 @@
 
 ## Stack
 React 18 + TypeScript 5.2 + Vite 5 + Tailwind + Framer Motion + Recharts + Sonner + lucide-react
-Testes: Playwright (e2e/) — 6 specs cobrindo fluxo principal de OS, OS a receber, cancelamento, exclusão de cliente, estoque crítico
+Testes: Playwright (e2e/) — 6 specs cobrindo fluxo principal de OS, OS a receber, cancelamento, exclusão de cliente, estoque crítico. A suíte roda atrás do login do Supabase Auth: `e2e/global-setup.ts` loga uma vez com um usuário de teste já confirmado (credenciais em `.env.e2e.local`, nunca commitado) e salva a sessão em `e2e/.auth/user.json` (gitignored), reaproveitada por todos os specs via `storageState` no `playwright.config.ts`. Para rodar localmente, crie `.env.e2e.local` com `E2E_TEST_EMAIL` e `E2E_TEST_PASSWORD` de uma conta confirmada no Supabase Auth do projeto.
 
 ## Estrutura real
 - src/context/AppContext.tsx — estado global, 11 entidades, CRUD e cascade (protegido — ver regras abaixo)
@@ -11,8 +11,9 @@ Testes: Playwright (e2e/) — 6 specs cobrindo fluxo principal de OS, OS a receb
 - src/pages/ — Home (Início), Patio, OrdemServico, Agendamento, Clientes, Financeiro, Estoque, Equipe, Metas, Avisos, Relatorios, Configuracoes, SelecionarPerfil
 - src/hooks/ — um hook por página, contém toda a lógica de negócio (useHome, usePatio, useOrdemServico, useAgendamento, useClientes, useFinanceiro, useEstoque, useEquipe, useMetas, useAvisos, useRelatorios, useConfiguracoes, useSelecionarPerfil, + usePlacaLookup, useCepLookup)
 - src/lib/ — funções puras de status/regra reaproveitadas entre hooks (agendamentoStatus.ts, osStatus.ts, patioEtapa.ts)
-- src/components/ — ActionButton, Badge, Button, Card, Modal, Table, BoxCard, CarSilhouette, AgendaGrid, CheckinRapido, ConcluirOSModal, DateField, OSDrawer, SearchSpotlight, StatusQuickEdit
+- src/components/ — ActionButton, Badge, Button, Card, Modal, Table, BoxCard, CarSilhouette, AgendaGrid, CheckinRapido, ConcluirOSModal, DateField, OSDrawer, SearchSpotlight, StatusQuickEdit, LoginPage, ProtectedRoute
 - src/types/index.ts — todos os tipos TypeScript
+- src/utils/backup.ts — exportarBackup()/importarBackup() para backup manual do localStorage (ver "Backup manual" abaixo)
 
 ## Padrão de arquitetura (importante)
 - **Toda lógica de negócio fica em hooks**, nunca na página (`.tsx` de página só renderiza, usa o hook correspondente). Página overgrown → extrair pra hook, não reescrever do zero.
@@ -25,10 +26,16 @@ clientes, veiculos, ordens, agendamentos, instaladores, lancamentos, produtos, g
 ## Arquitetura de Dados
 - **Persistência ATUAL**: localStorage via `usePersistedState` em `AppContext.tsx` (11 entidades, namespace por perfil). Migração para Supabase está em andamento, mas ainda não ligada no runtime do app.
 - **Banco**: Supabase (Postgres gerenciado), projeto "wrapos pwa latest version", região sa-east-1. Schema aplicado manualmente via SQL Editor do Supabase (não via migration automatizada).
-- **Auth**: Supabase Auth (não Firebase). Ainda não implementado no frontend.
+- **Auth**: Supabase Auth (não Firebase). Implementado no frontend: `src/hooks/useAuth.ts` (signIn/signUp/signOut + estado de sessão) e `src/components/ProtectedRoute.tsx` (gate em torno de todo `App.tsx`, mostra `LoginPage` quando não há sessão). **Cadastro público está desabilitado**: `LoginPage.tsx` só expõe login (email/senha) e "Esqueci minha senha" (`supabase.auth.resetPasswordForEmail`). `signUp` continua exportado em `useAuth.ts` só para uso manual/scripts — novas contas são criadas por convite, não pela UI.
 - **Prisma**: mantido **apenas** como schema-as-code (`prisma/schema.prisma`) para gerar SQL via `npx prisma migrate diff` — não há `PrismaClient` rodando no app. **Nunca rodar `npx prisma db push` ou `npx prisma migrate dev`** — a rede bloqueia conexão direta nas portas 5432/6543.
 - **Para alterar o banco**: editar `prisma/schema.prisma`, gerar o SQL com `npx prisma migrate diff --from-schema prisma/schema.prisma --to-schema prisma/schema-new.prisma --script`, e aplicar manualmente no SQL Editor do Supabase.
 - Docker/Express/Firebase foram removidos do projeto e **não devem ser reintroduzidos**.
+
+## Backup manual (rede de segurança até a migração pro Supabase)
+Enquanto todos os dados de negócio (clientes, ordens, agendamentos, financeiro, estoque etc.) vivem só no `localStorage` do navegador, sem backup automático, `src/utils/backup.ts` oferece:
+- `exportarBackup()` — varre todas as chaves do `localStorage` que começam com `wrapos_` (inclui as por perfil, `wrapos_perfil_<id>_<entidade>`) e baixa um JSON `wrapos-backup-{data}.json`.
+- `importarBackup(arquivo: File)` — lê um JSON nesse mesmo formato e restaura as chaves no `localStorage`.
+UI em Configurações (`src/pages/Configuracoes.tsx` + `src/hooks/useConfiguracoes.ts`), seção "Backup", com confirmação explícita em modal antes de sobrescrever dados na importação. Após importar, a página recarrega (`window.location.reload()`) porque `usePersistedState` só lê do `localStorage` na montagem inicial.
 
 ## Design System — atenção: dois sistemas coexistem
 1. `src/index.css` define `--surface-900/800/700`, `--ui-border`, `--ui-text` — **esse é o que está plugado no tailwind.config** (classes `bg-surface-700`, `text-ui-text`, `border-ui-border`). Usar esse pra qualquer componente/página nova.
