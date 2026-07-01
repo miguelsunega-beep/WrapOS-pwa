@@ -258,24 +258,36 @@ export function useOrdemServico() {
   // ── Save new OS ───────────────────────────────────────────────
 
   /** Núcleo de persistência — chamado tanto pelo fluxo direto quanto após confirmação de vínculo. */
-  const _persistirOS = (agendamentoId?: string, boxOverride?: number) => {
-    adicionarOS({
-      clienteId:         form.clienteId,
-      veiculoId:         form.veiculoId,
-      servicos:          form.servicosSel.map(sel => {
-        const s = servicos.find(x => x.id === sel.servicoId)!
+  const _persistirOS = (agendamentoId?: string, boxOverride?: number): boolean => {
+    try {
+      const servicosMapeados = form.servicosSel.map(sel => {
+        const s = servicos.find(x => x.id === sel.servicoId)
+        if (!s) {
+          throw new Error(`O serviço selecionado (ID: ${sel.servicoId}) não foi encontrado na base de dados.`)
+        }
         return { servicoId: sel.servicoId, nome: s.nome, preco: sel.valor }
-      }),
-      valorTotal:        valorTotalNova,
-      formaPagamento:    form.formaPagamento,
-      instaladorId:      form.instaladorId,
-      box:               boxOverride ?? form.box,
-      comissao:          comissaoValor,
-      observacoes:       form.observacoes,
-      dataSaidaPrevista: form.dataSaidaPrevista || undefined,
-      status:            'aguardando_aprovacao',
-      agendamentoId,
-    })
+      })
+
+      adicionarOS({
+        clienteId:         form.clienteId,
+        veiculoId:         form.veiculoId,
+        servicos:          servicosMapeados,
+        valorTotal:        valorTotalNova,
+        formaPagamento:    form.formaPagamento,
+        instaladorId:      form.instaladorId,
+        box:               boxOverride ?? form.box,
+        comissao:          comissaoValor,
+        observacoes:       form.observacoes,
+        dataSaidaPrevista: form.dataSaidaPrevista || undefined,
+        status:            'aguardando_aprovacao',
+        agendamentoId,
+      })
+      return true
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao salvar a OS.')
+      console.error(err)
+      return false
+    }
   }
 
   /** Verifica conflito de box: já existe outra OS ativa hoje no mesmo box? */
@@ -320,7 +332,8 @@ export function useOrdemServico() {
       toast.warning(`Box ${form.box} já está em uso hoje por outra OS ativa.`)
     }
 
-    _persistirOS()
+    const salvo = _persistirOS()
+    if (!salvo) return false
     toast.success('OS criada com sucesso!')
     resetForm()
     return true
@@ -345,7 +358,8 @@ export function useOrdemServico() {
     }
 
     // Passa o box do agendamento diretamente (evita problema de state assíncrono)
-    _persistirOS(agendamentoSugerido.id, boxAg)
+    const salvo = _persistirOS(agendamentoSugerido.id, boxAg)
+    if (!salvo) return false
     toast.success('OS criada e vinculada ao agendamento!')
     setAgendamentoSugerido(null)
     resetForm()
@@ -361,7 +375,8 @@ export function useOrdemServico() {
       toast.warning(`Box ${form.box} já está em uso hoje por outra OS ativa.`)
     }
 
-    _persistirOS()
+    const salvo = _persistirOS()
+    if (!salvo) return false
     toast.success('OS criada com sucesso!')
     resetForm()
     return true

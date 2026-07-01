@@ -427,7 +427,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ── Ordens de Serviço ────────────────────────────────────────
   const adicionarOS = (os: Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>): number => {
-    const numero = Math.max(0, ...ordens.map(o => o.numero)) + 1
+    const numerosValidos = ordens
+      .map(o => Number(o.numero))
+      .filter(n => !isNaN(n) && isFinite(n))
+    const numero = (numerosValidos.length > 0 ? Math.max(...numerosValidos) : 0) + 1
     setOrdens(prev => [...prev, { ...os, id: uid(), numero, dataCriacao: todayLocal() }])
     return numero
   }
