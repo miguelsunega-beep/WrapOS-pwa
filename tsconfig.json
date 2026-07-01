@@ -16,6 +16,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "backend"],
+  "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
