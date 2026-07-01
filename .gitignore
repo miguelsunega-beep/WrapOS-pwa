@@ -11,3 +11,6 @@ dist-ssr
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+/src/generated/prisma
+.env
