@@ -22,6 +22,14 @@ Testes: Playwright (e2e/) — 6 specs cobrindo fluxo principal de OS, OS a receb
 ## Entidades no AppContext
 clientes, veiculos, ordens, agendamentos, instaladores, lancamentos, produtos, garantias, meta, configuracoes, servicos
 
+## Arquitetura de Dados
+- **Persistência ATUAL**: localStorage via `usePersistedState` em `AppContext.tsx` (11 entidades, namespace por perfil). Migração para Supabase está em andamento, mas ainda não ligada no runtime do app.
+- **Banco**: Supabase (Postgres gerenciado), projeto "wrapos pwa latest version", região sa-east-1. Schema aplicado manualmente via SQL Editor do Supabase (não via migration automatizada).
+- **Auth**: Supabase Auth (não Firebase). Ainda não implementado no frontend.
+- **Prisma**: mantido **apenas** como schema-as-code (`prisma/schema.prisma`) para gerar SQL via `npx prisma migrate diff` — não há `PrismaClient` rodando no app. **Nunca rodar `npx prisma db push` ou `npx prisma migrate dev`** — a rede bloqueia conexão direta nas portas 5432/6543.
+- **Para alterar o banco**: editar `prisma/schema.prisma`, gerar o SQL com `npx prisma migrate diff --from-schema prisma/schema.prisma --to-schema prisma/schema-new.prisma --script`, e aplicar manualmente no SQL Editor do Supabase.
+- Docker/Express/Firebase foram removidos do projeto e **não devem ser reintroduzidos**.
+
 ## Design System — atenção: dois sistemas coexistem
 1. `src/index.css` define `--surface-900/800/700`, `--ui-border`, `--ui-text` — **esse é o que está plugado no tailwind.config** (classes `bg-surface-700`, `text-ui-text`, `border-ui-border`). Usar esse pra qualquer componente/página nova.
 2. `src/styles/tokens.css` define `--wrap-bg`, `--wrap-surface`, `--wrap-text`, `--wrap-accent` etc — sistema mais antigo, ainda usado em ~199 lugares no código existente, importado em `main.tsx`. Não remover sem revisar todo uso primeiro.
