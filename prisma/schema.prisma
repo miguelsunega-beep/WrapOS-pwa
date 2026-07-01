@@ -49,7 +49,7 @@ model Loja {
 
 model Usuario {
   id          String   @id @default(uuid())
-  firebaseUid String   @unique
+  authUserId  String   @unique // uuid de auth.users (Supabase) — sem FK, fora do schema do Prisma
   nome        String
   email       String
   role        Role
