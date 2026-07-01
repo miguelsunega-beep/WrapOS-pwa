@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { auth } from '../lib/firebase';
 import logger from '../lib/logger';
+import prisma from '../lib/prisma';
 
 export const authMiddleware = async (
   req: Request,
@@ -26,8 +27,23 @@ export const authMiddleware = async (
 
     const decodedToken = await auth.verifyIdToken(token);
 
-    // Injeta o token decodificado (contendo o uid) no objeto de request
-    req.user = decodedToken;
+    // Busca o usuário no banco de dados com base no firebaseUid
+    const dbUser = await prisma.usuario.findUnique({
+      where: { firebaseUid: decodedToken.uid },
+    });
+
+    if (!dbUser) {
+      logger.warn({ uid: decodedToken.uid }, 'Usuário não encontrado no banco de dados');
+      res.status(401).json({ error: 'Unauthorized: User not registered in database' });
+      return;
+    }
+
+    // Injeta o token decodificado, lojaId e role no objeto de request
+    req.user = {
+      ...decodedToken,
+      lojaId: dbUser.lojaId,
+      role: dbUser.role,
+    };
 
     next();
   } catch (error) {

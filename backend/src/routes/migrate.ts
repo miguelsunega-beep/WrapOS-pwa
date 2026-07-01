@@ -1,10 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authMiddleware } from '../middleware/authMiddleware';
 import logger from '../lib/logger';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Aplica o middleware de autenticação
 router.use(authMiddleware);
@@ -18,9 +17,10 @@ interface MigrationPayload {
 router.post('/', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user?.uid;
-    if (!userId) {
-      logger.error('userId ausente no request');
-      res.status(401).json({ error: 'Unauthorized: User authentication required' });
+    const lojaId = req.user?.lojaId;
+    if (!userId || !lojaId) {
+      logger.error('userId ou lojaId ausente no request');
+      res.status(401).json({ error: 'Unauthorized: User authentication and store assignment required' });
       return;
     }
 
@@ -46,6 +46,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
           cidade: c.cidade || null,
           status: c.status || 'ativo',
           userId: userId,
+          lojaId: lojaId,
         },
         create: {
           id: c.id,
@@ -59,6 +60,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
           cidade: c.cidade || null,
           status: c.status || 'ativo',
           userId: userId,
+          lojaId: lojaId,
         },
       });
     }
@@ -75,6 +77,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
           cor: v.cor,
           placa: v.placa,
           userId: userId,
+          lojaId: lojaId,
         },
         create: {
           id: v.id,
@@ -85,6 +88,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
           cor: v.cor,
           placa: v.placa,
           userId: userId,
+          lojaId: lojaId,
         },
       });
     }
@@ -114,6 +118,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
           entregue: o.entregue !== undefined ? o.entregue : false,
           dataSaida: o.dataSaida ? new Date(o.dataSaida) : null,
           userId: userId,
+          lojaId: lojaId,
         },
         create: {
           id: o.id,
@@ -137,6 +142,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
           entregue: o.entregue !== undefined ? o.entregue : false,
           dataSaida: o.dataSaida ? new Date(o.dataSaida) : null,
           userId: userId,
+          lojaId: lojaId,
         },
       });
     }

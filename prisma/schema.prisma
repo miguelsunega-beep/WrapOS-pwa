@@ -27,9 +27,45 @@ enum StatusPagamento {
   a_receber
 }
 
+enum Role {
+  OWNER
+  MANAGER
+  OPERATOR
+}
+
+model Loja {
+  id        String   @id @default(uuid())
+  nome      String
+  plano     String
+  createdAt DateTime @default(now())
+
+  usuarios Usuario[]
+  clientes Cliente[]
+  veiculos Veiculo[]
+  ordens   OrdemServico[]
+
+  @@map("lojas")
+}
+
+model Usuario {
+  id          String   @id @default(uuid())
+  firebaseUid String   @unique
+  nome        String
+  email       String
+  role        Role
+  lojaId      String
+  createdAt   DateTime @default(now())
+
+  loja        Loja     @relation(fields: [lojaId], references: [id])
+
+  @@index([lojaId])
+  @@map("usuarios")
+}
+
 model Cliente {
   id           String        @id @default(uuid())
   userId       String        @default("default-user-id")
+  lojaId       String
   nome         String
   telefone     String
   email        String
@@ -40,16 +76,19 @@ model Cliente {
   cidade       String?
   status       StatusCliente @default(ativo)
 
+  loja     Loja           @relation(fields: [lojaId], references: [id])
   veiculos Veiculo[]
   ordens   OrdemServico[]
 
   @@index([userId])
+  @@index([lojaId])
   @@map("clientes")
 }
 
 model Veiculo {
   id        String @id @default(uuid())
   userId    String @default("default-user-id")
+  lojaId    String
   clienteId String
   marca     String
   modelo    String
@@ -57,16 +96,19 @@ model Veiculo {
   cor       String
   placa     String
 
+  loja    Loja           @relation(fields: [lojaId], references: [id])
   cliente Cliente        @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   ordens  OrdemServico[]
 
   @@index([userId])
+  @@index([lojaId])
   @@map("veiculos")
 }
 
 model OrdemServico {
   id                String           @id @default(uuid())
   userId            String           @default("default-user-id")
+  lojaId            String
   numero            Int              @unique @default(autoincrement())
   clienteId         String
   veiculoId         String
@@ -87,9 +129,11 @@ model OrdemServico {
   entregue          Boolean?         @default(false)
   dataSaida         DateTime?
 
+  loja    Loja    @relation(fields: [lojaId], references: [id])
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Restrict)
   veiculo Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Restrict)
 
   @@index([userId])
+  @@index([lojaId])
   @@map("ordens_servico")
 }
