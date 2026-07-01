@@ -64,7 +64,6 @@ model Usuario {
 
 model Cliente {
   id           String        @id @default(uuid())
-  userId       String        @default("default-user-id")
   lojaId       String
   nome         String
   telefone     String
@@ -80,14 +79,12 @@ model Cliente {
   veiculos Veiculo[]
   ordens   OrdemServico[]
 
-  @@index([userId])
   @@index([lojaId])
   @@map("clientes")
 }
 
 model Veiculo {
   id        String @id @default(uuid())
-  userId    String @default("default-user-id")
   lojaId    String
   clienteId String
   marca     String
@@ -100,14 +97,12 @@ model Veiculo {
   cliente Cliente        @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   ordens  OrdemServico[]
 
-  @@index([userId])
   @@index([lojaId])
   @@map("veiculos")
 }
 
 model OrdemServico {
   id                String           @id @default(uuid())
-  userId            String           @default("default-user-id")
   lojaId            String
   numero            Int              @unique @default(autoincrement())
   clienteId         String
@@ -133,7 +128,6 @@ model OrdemServico {
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Restrict)
   veiculo Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Restrict)
 
-  @@index([userId])
   @@index([lojaId])
   @@map("ordens_servico")
 }
