@@ -28,9 +28,22 @@
 -- eles estão documentados com a mesma expressão confirmada, e as 8 tabelas
 -- novas (Fase 1.1) replicam literalmente o mesmo padrão.
 --
--- Exceção: a tabela "lojas" não teve nenhuma policy confirmada em produção
--- até agora — a seção dela abaixo continua sendo uma reconstrução de melhor
--- esforço (não confirmada), sinalizada explicitamente.
+-- Exceção de nome/coluna: a tabela "lojas" não tem coluna "lojaId" (é a
+-- própria tabela raiz) — sua policy, "lojas_por_usuario", também foi
+-- inspecionada e confirmada em produção, e compara "id" (não "lojaId") com
+-- o lojaId do usuário logado:
+--
+--   alter policy "lojas_por_usuario"
+--   on "public"."lojas"
+--   to public
+--   using (
+--     (id IN ( SELECT usuarios."lojaId"
+--      FROM usuarios
+--      WHERE (usuarios."authUserId" = (auth.uid())::text)))
+--   );
+--
+-- Com essa confirmação, as 13 tabelas do projeto têm policy com padrão
+-- verificado em produção — nenhuma pendente.
 --
 -- IMPORTANTE: aplicar este arquivo NÃO é automático. Não existe migration
 -- runner rodando isso contra o banco. Sempre que uma policy mudar (aqui ou
@@ -38,23 +51,24 @@
 --   1. Rode o SQL relevante no SQL Editor do Supabase.
 --   2. Atualize este arquivo para refletir exatamente o que foi aplicado.
 --
--- Estado atual (2026-07-01): RLS já foi habilitado manualmente via Dashboard
--- nas 8 tabelas novas (agendamentos, instaladores, lancamentos_financeiro,
--- produtos, garantias, metas, configuracoes, servicos) — falta só aplicar as
--- policies abaixo (as instruções ALTER TABLE ... ENABLE ROW LEVEL SECURITY
--- seguem aqui apenas por completude/idempotência; rodá-las de novo não
--- quebra nada).
+-- Estado atual (2026-07-01): as 13 tabelas (5 originais + 8 novas da Fase 1.1)
+-- têm policy documentada aqui com padrão confirmado em produção — nenhuma
+-- pendente. RLS já foi habilitado manualmente via Dashboard nas 8 tabelas
+-- novas (agendamentos, instaladores, lancamentos_financeiro, produtos,
+-- garantias, metas, configuracoes, servicos); as instruções
+-- ALTER TABLE ... ENABLE ROW LEVEL SECURITY seguem aqui em todas as tabelas
+-- apenas por completude/idempotência — rodá-las de novo não quebra nada.
 -- ============================================================================
 
 
 -- ── lojas ────────────────────────────────────────────────────────────────
--- NÃO CONFIRMADO em produção — nenhuma policy desta tabela foi inspecionada
--- ainda. Reconstrução de melhor esforço (a loja não tem "lojaId", tem "id").
--- Revisar/confirmar contra o Dashboard antes de confiar neste bloco.
+-- Padrão confirmado em produção. Único caso que difere das demais tabelas:
+-- compara "id" (a própria linha da loja) com o lojaId do usuário, já que
+-- "lojas" não tem coluna "lojaId" (é a tabela raiz do multi-tenant).
 ALTER TABLE lojas ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "lojas_por_loja" ON "public"."lojas";
-CREATE POLICY "lojas_por_loja"
+DROP POLICY IF EXISTS "lojas_por_usuario" ON "public"."lojas";
+CREATE POLICY "lojas_por_usuario"
 ON "public"."lojas"
 FOR ALL
 TO public
