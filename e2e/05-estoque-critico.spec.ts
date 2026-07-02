@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { criarPerfil, irPara, kpiValor, parseInt0, modalAberto, linhaDaTabela } from './helpers'
+import { abrirApp, irPara, kpiValor, parseInt0, modalAberto, linhaDaTabela } from './helpers'
 
 const NOME_PRODUTO = 'Produto Crítico E2E'
 
@@ -12,7 +12,7 @@ async function lerAvisoEstoqueCriticoHome(page: import('@playwright/test').Page)
 
 test.describe('Cenário 5 — Estoque crítico', () => {
   test('produto abaixo do mínimo gera aviso; entrada de estoque suficiente remove o aviso', async ({ page }) => {
-    await criarPerfil(page, 'Loja E2E — Estoque Crítico')
+    await abrirApp(page)
 
     // ── Linha de base (dados de exemplo já trazem 2 itens críticos) ─
     await irPara(page, 'Início')

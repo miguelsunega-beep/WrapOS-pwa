@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { criarPerfil, irPara, modalAberto } from './helpers'
+import { abrirApp, irPara, modalAberto } from './helpers'
 
 test('repro: Felipe Santos inativo aparece no autocomplete da Nova OS?', async ({ page }) => {
-  await criarPerfil(page, 'Debug Repro')
+  await abrirApp(page)
 
   await irPara(page, 'Clientes')
   await page.getByRole('button', { name: 'Inativos', exact: true }).click()

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import {
-  criarPerfil, irPara, parseBRL, parseInt0,
+  abrirApp, irPara, parseBRL, parseInt0,
   kpiValor, modalAberto, rankingFaturamento, metaCardAtual,
 } from './helpers'
 
@@ -16,7 +16,7 @@ const COMISSAO_ESPERADA = VALOR_SERVICO * (PERCENTUAL_COMISSAO / 100) // 450
 
 test.describe('Cenário 1 — Fluxo principal de uma OS, do início ao fim', () => {
   test('criar → aprovar → concluir como pago reflete em Pátio, Início, Financeiro, Relatórios e Metas', async ({ page }) => {
-    await criarPerfil(page, 'Loja E2E — Fluxo OS')
+    await abrirApp(page)
 
     // ── Linha de base: tela Início ──────────────────────────────────
     const receitaDiaInicial     = parseBRL(await kpiValor(page, 'Receita do dia').textContent())

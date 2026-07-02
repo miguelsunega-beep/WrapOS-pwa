@@ -56,7 +56,7 @@ export default async function globalSetup(config: FullConfig) {
   await page.getByPlaceholder('••••••••').fill(password)
   await page.getByRole('button', { name: 'Entrar' }).click()
 
-  await page.getByRole('button', { name: 'Novo Perfil' }).waitFor({ timeout: 20_000 })
+  await page.getByRole('heading', { name: 'Início' }).waitFor({ timeout: 20_000 })
 
   const authDir = path.resolve(process.cwd(), 'e2e/.auth')
   fs.mkdirSync(authDir, { recursive: true })

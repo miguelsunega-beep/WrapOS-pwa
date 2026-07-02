@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { criarPerfil, irPara, modalAberto, linhaDaTabela } from './helpers'
+import { abrirApp, irPara, modalAberto, linhaDaTabela } from './helpers'
 
 test.describe('Cenário 4 — Exclusão / inativação de cliente', () => {
   test('cliente sem OS vinculada é excluído permanentemente', async ({ page }) => {
     const NOME_CLIENTE = 'Cliente Sem OS E2E'
 
-    await criarPerfil(page, 'Loja E2E — Exclusão Cliente')
+    await abrirApp(page)
 
     await irPara(page, 'Clientes')
     await page.getByRole('button', { name: 'Novo Cliente' }).click()
@@ -44,7 +44,7 @@ test.describe('Cenário 4 — Exclusão / inativação de cliente', () => {
     const NOME_CLIENTE = 'Cliente Com OS E2E'
     const SERVICO      = 'Higienização'
 
-    await criarPerfil(page, 'Loja E2E — Inativação Cliente')
+    await abrirApp(page)
 
     // ── Criar cliente + veículo ────────────────────────────────────────
     await irPara(page, 'Clientes')

@@ -1,11 +1,13 @@
-import { useState, lazy, Suspense } from 'react'
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { ThemeProvider } from './context/ThemeContext'
 import { AppProvider } from './context/AppContext'
 import { MainLayout }      from './layouts/MainLayout'
-import { SelecionarPerfil } from './pages/SelecionarPerfil'
+import { MigrarPerfilAntigo } from './pages/MigrarPerfilAntigo'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { useMigrarPerfilAntigo } from './hooks/useMigrarPerfilAntigo'
+import type { Usuario } from './hooks/useAuth'
 
 // Lazy Loading das páginas pesadas (Code Splitting)
 const OrdemServico  = lazy(() => import('./pages/OrdemServico').then(m => ({ default: m.OrdemServico })))
@@ -18,9 +20,64 @@ const Configuracoes = lazy(() => import('./pages/Configuracoes').then(m => ({ de
 const Patio         = lazy(() => import('./pages/Patio').then(m => ({ default: m.Patio })))
 const Home          = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
 
-export default function App() {
-  const [perfilAtivo, setPerfilAtivo] = useState<string | null>(null)
+/**
+ * usuario.lojaId é o identificador que hoje faz o papel do antigo
+ * "perfilId": usePersistedState (AppContext.tsx) continua lendo
+ * sessionStorage['wrapos_perfil_ativo'] normalmente, só que agora essa
+ * chave é preenchida com a loja do usuário logado em vez de um id
+ * escolhido na extinta tela SelecionarPerfil.
+ */
+function AppAutenticado({ usuario }: { usuario: Usuario }) {
+  if (sessionStorage.getItem('wrapos_perfil_ativo') !== usuario.lojaId) {
+    sessionStorage.setItem('wrapos_perfil_ativo', usuario.lojaId)
+  }
 
+  const { precisaEscolher, perfisAntigos, migrar, ignorar, getStats, initials } =
+    useMigrarPerfilAntigo(usuario.lojaId)
+
+  if (precisaEscolher) {
+    return (
+      <MigrarPerfilAntigo
+        perfisAntigos={perfisAntigos}
+        migrar={migrar}
+        ignorar={ignorar}
+        getStats={getStats}
+        initials={initials}
+      />
+    )
+  }
+
+  return (
+    <AppProvider>
+      <BrowserRouter>
+        <Suspense fallback={<div className="flex h-screen items-center justify-center text-ui-text font-medium text-sm">Carregando módulo...</div>}>
+          <Routes>
+            <Route path="/" element={<MainLayout />}>
+              <Route index               element={<Home />} />
+              <Route path="patio"        element={<Patio />}         />
+              <Route path="ordens"       element={<OrdemServico />}  />
+              <Route path="agendamento"  element={<Agendamento />}   />
+              <Route path="clientes"     element={<Clientes />}      />
+              <Route path="financeiro"   element={<Financeiro />}    />
+              <Route path="estoque"      element={<Estoque />}       />
+              <Route path="equipe"       element={<Equipe />}        />
+              <Route path="configuracoes" element={<Configuracoes />}/>
+              {/* Legacy redirects */}
+              <Route path="operacional"  element={<Navigate to="/patio"         replace />} />
+              <Route path="relatorios"   element={<Navigate to="/financeiro"    replace />} />
+              <Route path="garantia"     element={<Navigate to="/clientes"      replace />} />
+              <Route path="precificacao" element={<Navigate to="/configuracoes" replace />} />
+              <Route path="metas"        element={<Navigate to="/equipe"        replace />} />
+              <Route path="avisos"       element={<Navigate to="/patio"         replace />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    </AppProvider>
+  )
+}
+
+export default function App() {
   return (
     <ThemeProvider>
       <Toaster
@@ -35,36 +92,7 @@ export default function App() {
         }}
       />
       <ProtectedRoute>
-        {!perfilAtivo ? (
-          <SelecionarPerfil onSelect={setPerfilAtivo} />
-        ) : (
-          <AppProvider>
-            <BrowserRouter>
-              <Suspense fallback={<div className="flex h-screen items-center justify-center text-ui-text font-medium text-sm">Carregando módulo...</div>}>
-                <Routes>
-                  <Route path="/" element={<MainLayout />}>
-                    <Route index               element={<Home />} />
-                    <Route path="patio"        element={<Patio />}         />
-                    <Route path="ordens"       element={<OrdemServico />}  />
-                    <Route path="agendamento"  element={<Agendamento />}   />
-                    <Route path="clientes"     element={<Clientes />}      />
-                    <Route path="financeiro"   element={<Financeiro />}    />
-                    <Route path="estoque"      element={<Estoque />}       />
-                    <Route path="equipe"       element={<Equipe />}        />
-                    <Route path="configuracoes" element={<Configuracoes />}/>
-                    {/* Legacy redirects */}
-                    <Route path="operacional"  element={<Navigate to="/patio"         replace />} />
-                    <Route path="relatorios"   element={<Navigate to="/financeiro"    replace />} />
-                    <Route path="garantia"     element={<Navigate to="/clientes"      replace />} />
-                    <Route path="precificacao" element={<Navigate to="/configuracoes" replace />} />
-                    <Route path="metas"        element={<Navigate to="/equipe"        replace />} />
-                    <Route path="avisos"       element={<Navigate to="/patio"         replace />} />
-                  </Route>
-                </Routes>
-              </Suspense>
-            </BrowserRouter>
-          </AppProvider>
-        )}
+        {usuario => <AppAutenticado usuario={usuario} />}
       </ProtectedRoute>
     </ThemeProvider>
   )

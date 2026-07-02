@@ -8,8 +8,8 @@ Testes: Playwright (e2e/) — 6 specs cobrindo fluxo principal de OS, OS a receb
 - src/context/AppContext.tsx — estado global, 11 entidades, CRUD e cascade (protegido — ver regras abaixo)
 - src/context/ThemeContext.tsx — dark/light mode
 - src/layouts/MainLayout.tsx — layout principal
-- src/pages/ — Home (Início), Patio, OrdemServico, Agendamento, Clientes, Financeiro, Estoque, Equipe, Metas, Avisos, Relatorios, Configuracoes, SelecionarPerfil
-- src/hooks/ — um hook por página, contém toda a lógica de negócio (useHome, usePatio, useOrdemServico, useAgendamento, useClientes, useFinanceiro, useEstoque, useEquipe, useMetas, useAvisos, useRelatorios, useConfiguracoes, useSelecionarPerfil, + usePlacaLookup, useCepLookup)
+- src/pages/ — Home (Início), Patio, OrdemServico, Agendamento, Clientes, Financeiro, Estoque, Equipe, Metas, Avisos, Relatorios, Configuracoes, MigrarPerfilAntigo
+- src/hooks/ — um hook por página, contém toda a lógica de negócio (useHome, usePatio, useOrdemServico, useAgendamento, useClientes, useFinanceiro, useEstoque, useEquipe, useMetas, useAvisos, useRelatorios, useConfiguracoes, useMigrarPerfilAntigo, + usePlacaLookup, useCepLookup)
 - src/lib/ — funções puras de status/regra reaproveitadas entre hooks (agendamentoStatus.ts, osStatus.ts, patioEtapa.ts)
 - src/components/ — ActionButton, Badge, Button, Card, Modal, Table, BoxCard, CarSilhouette, AgendaGrid, CheckinRapido, ConcluirOSModal, DateField, OSDrawer, SearchSpotlight, StatusQuickEdit, LoginPage, ProtectedRoute, ContaNaoVinculada
 - src/types/index.ts — todos os tipos TypeScript
@@ -18,7 +18,7 @@ Testes: Playwright (e2e/) — 6 specs cobrindo fluxo principal de OS, OS a receb
 ## Padrão de arquitetura (importante)
 - **Toda lógica de negócio fica em hooks**, nunca na página (`.tsx` de página só renderiza, usa o hook correspondente). Página overgrown → extrair pra hook, não reescrever do zero.
 - **Lógica de status/regra compartilhada entre telas vai em src/lib/** como função pura (ex: `getStatusEfetivo` em agendamentoStatus.ts, mapeamento de etapa em patioEtapa.ts) — nunca duplicar essa lógica dentro de um hook.
-- Persistência: `usePersistedState` → localStorage com namespace por perfil (dentro de AppContext.tsx).
+- Persistência: `usePersistedState` → localStorage com namespace por perfil (dentro de AppContext.tsx). O "perfil" hoje é sempre `usuario.lojaId` (ver "Perfil local = loja do usuário logado" abaixo) — não existe mais tela de seleção/criação manual de perfil.
 
 ## Entidades no AppContext
 clientes, veiculos, ordens, agendamentos, instaladores, lancamentos, produtos, garantias, meta, configuracoes, servicos
@@ -46,6 +46,15 @@ Criar um usuário no Supabase Auth **não** cria automaticamente a linha corresp
 Sem os passos 2–3, o login funciona (a sessão do Supabase Auth é criada normalmente) mas o app trata a conta como não vinculada a nenhuma loja.
 
 **Atenção ao colar UUIDs no Table Editor**: colar um UUID copiado (`authUserId`, `lojaId`) direto nos campos do formulário visual do Table Editor às vezes gruda uma quebra de linha invisível no final do valor — o erro de foreign key que o Postgres retorna nesse caso não deixa óbvio que a causa é essa. Se um INSERT/UPDATE falhar por FK mesmo com o valor parecendo correto visualmente, rode `SELECT id, length(id) FROM tabela WHERE ...;` — um UUID válido sempre tem `length = 36`; se vier diferente, limpe com `UPDATE tabela SET id = regexp_replace(id, '[^a-zA-Z0-9\-]', '', 'g') WHERE ...;`. Pra evitar o problema, prefira inserir via SQL Editor (`INSERT INTO ...`) em vez do formulário visual quando for copiar/colar UUIDs.
+
+## Perfil local = loja do usuário logado (não existe mais SelecionarPerfil)
+Até meados de 2026 o app tinha uma tela `SelecionarPerfil` (pré-login, cada "perfil" era um id aleatório gerado no navegador) porque não havia autenticação. Com o Supabase Auth em produção, cada usuário logado já tem um `usuario.lojaId` real — manter os dois sistemas em paralelo (perfil local solto + loja de verdade) desconectava os dados de negócio do dono real da loja. Isso foi corrigido:
+
+- **`SelecionarPerfil.tsx`/`useSelecionarPerfil.ts` foram removidos.** `src/App.tsx` não guarda mais `perfilAtivo` em `useState` — em vez disso, `ProtectedRoute` (que já resolve `usuario` via `useAuth`) passa o `usuario` para os filhos via render-prop (`children: (usuario: Usuario) => ReactNode`), e `App.tsx` usa `usuario.lojaId` diretamente.
+- **O namespace do `usePersistedState` não mudou de formato**: continua lendo `sessionStorage['wrapos_perfil_ativo']` para montar `wrapos_perfil_<id>_<entidade>` (zero mudança em `AppContext.tsx`). Só passou a ser preenchido com `usuario.lojaId` (gravado de forma síncrona em `App.tsx`, antes do `AppProvider` montar) em vez de um id aleatório escolhido na tela antiga.
+- **Login vai direto pra `Início`**, sem tela de seleção — a única exceção é a migração de dados legados abaixo.
+- **Migração de dados de um perfil local antigo**: se o navegador ainda tem perfis salvos da era pré-login (`localStorage['wrapos_perfis']`), `src/hooks/useMigrarPerfilAntigo.ts` + `src/pages/MigrarPerfilAntigo.tsx` oferecem, **uma única vez por loja**, vincular esses dados ao `usuario.lojaId` atual (copia as chaves `wrapos_perfil_<idAntigo>_*` para `wrapos_perfil_<lojaId>_*`, sem apagar o original). A flag de "já resolvido" é `localStorage['wrapos_migracao_feita_<lojaId>']` — **escopada por lojaId, não global** — para funcionar corretamente se o mesmo navegador algum dia logar com outra loja.
+- **e2e**: como não há mais formulário de criação de perfil, `e2e/helpers.ts` não tem mais `criarPerfil()` — `abrirApp(page)` só faz `goto('/')` e espera a Home. O dataset de demonstração usado nos specs continua o mesmo (10 clientes, 10 veículos, 15 OS, 3 instaladores, 8 serviços, 6 produtos com 2 críticos, 1 meta mensal), porque é exatamente o valor inicial (`initialClientes`, `initialOrdens` etc. em `AppContext.tsx`) que `usePersistedState` já usa como fallback quando não há chave no localStorage para aquele `lojaId` — cada teste roda num `BrowserContext` isolado, então isso equivale ao antigo `comExemplo=true`.
 
 ## Backup manual (rede de segurança até a migração pro Supabase)
 Enquanto todos os dados de negócio (clientes, ordens, agendamentos, financeiro, estoque etc.) vivem só no `localStorage` do navegador, sem backup automático, `src/utils/backup.ts` oferece:

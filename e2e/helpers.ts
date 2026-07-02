@@ -1,30 +1,25 @@
 import { Page, Locator, expect } from '@playwright/test'
 
 /**
- * Cria um novo perfil (loja) via tela "Selecionar Perfil" e entra nele.
- * Cada teste roda em um contexto de browser isolado (localStorage vazio),
- * então cada perfil criado aqui começa "do zero".
- *
- * comExemplo=true (padrão da própria UI) carrega os dados de demonstração
- * do WrapOS: 10 clientes, 10 veículos, 15 OS, 3 instaladores, 8 serviços,
- * 6 produtos de estoque (2 já em condição crítica) e uma meta mensal.
+ * Abre o app já logado (sessão vem do storageState do global-setup) e
+ * espera a Home carregar. Não existe mais tela de seleção/criação de
+ * perfil: o namespace local (wrapos_perfil_<lojaId>_*) é definido
+ * automaticamente a partir de usuario.lojaId ao autenticar, e cada teste
+ * roda em um contexto de browser isolado (localStorage vazio), então
+ * AppContext cai no dado de demonstração padrão (initialClientes,
+ * initialOrdens etc. em AppContext.tsx): 10 clientes, 10 veículos, 15 OS,
+ * 3 instaladores, 8 serviços, 6 produtos de estoque (2 já em condição
+ * crítica) e uma meta mensal — o mesmo conjunto que a extinta tela
+ * "Selecionar Perfil" carregava com "comExemplo=true".
  */
-export async function criarPerfil(page: Page, nomeLoja: string, comExemplo = true) {
+export async function abrirApp(page: Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Novo Perfil' }).click()
-  await page.getByPlaceholder('Ex: WrapOS Studio').fill(nomeLoja)
-  if (!comExemplo) {
-    // o toggle "Começar com dados de exemplo" vem ligado por padrão
-    await page.getByText('Começar com dados de exemplo').locator('xpath=following-sibling::button').click()
-  }
-  await page.getByRole('button', { name: 'Criar Perfil' }).click()
   await expect(page.getByRole('heading', { name: 'Início' })).toBeVisible()
 }
 
 /**
  * Navega pelo menu lateral (SPA) — nunca use page.goto() entre páginas após
- * logar, isso reseta o perfil ativo (App.tsx mantém `perfilAtivo` só em
- * estado React, não relê do sessionStorage no mount).
+ * logar, para não recarregar o app à toa no meio do teste.
  *
  * Usa "começa com" em vez de match exato porque o link de "Estoque" ganha
  * um badge numérico de itens críticos colado ao texto (ex.: "Estoque2"),

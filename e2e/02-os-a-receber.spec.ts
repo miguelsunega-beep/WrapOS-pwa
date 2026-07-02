@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { criarPerfil, irPara, parseBRL, kpiValor, modalAberto } from './helpers'
+import { abrirApp, irPara, parseBRL, kpiValor, modalAberto } from './helpers'
 
 // Cliente sem OS ativa nos dados de exemplo (evita ambiguidade de seletor no Pátio).
 const CLIENTE = 'Isabela Martins'
@@ -9,7 +9,7 @@ const VALOR_SERVICO = 380
 
 test.describe('Cenário 2 — OS concluída como "a receber"', () => {
   test('marca como a receber, aparece no banner, e só conta como receita após registrar o pagamento', async ({ page }) => {
-    await criarPerfil(page, 'Loja E2E — A Receber')
+    await abrirApp(page)
 
     await irPara(page, 'Financeiro')
     await expect(

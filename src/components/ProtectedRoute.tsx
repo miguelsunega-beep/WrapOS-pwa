@@ -1,10 +1,10 @@
 import { ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth, type Usuario } from '../hooks/useAuth'
 import { LoginPage } from './LoginPage'
 import { ContaNaoVinculada } from './ContaNaoVinculada'
 
-export function ProtectedRoute({ children }: { children: ReactNode }) {
+export function ProtectedRoute({ children }: { children: (usuario: Usuario) => ReactNode }) {
   const { user, usuario, loading } = useAuth()
 
   if (loading) {
@@ -23,5 +23,5 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     return <ContaNaoVinculada />
   }
 
-  return <>{children}</>
+  return <>{children(usuario)}</>
 }

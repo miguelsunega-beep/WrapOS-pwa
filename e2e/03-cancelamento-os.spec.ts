@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import {
-  criarPerfil, irPara, parseBRL, parseInt0,
+  abrirApp, irPara, parseBRL, parseInt0,
   kpiValor, modalAberto, rankingFaturamento, metaCardAtual,
 } from './helpers'
 
@@ -12,7 +12,7 @@ const INSTALADOR = 'Felipe Torres'
 
 test.describe('Cenário 3 — Cancelamento de OS', () => {
   test('OS cancelada some do Pátio e não conta em receita, ranking de técnicos nem meta do mês', async ({ page }) => {
-    await criarPerfil(page, 'Loja E2E — Cancelamento')
+    await abrirApp(page)
 
     // ── Linhas de base ───────────────────────────────────────────────
     await irPara(page, 'Financeiro')

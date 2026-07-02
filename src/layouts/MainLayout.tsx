@@ -122,11 +122,6 @@ const DRAWER_ITEMS: NavItem[] = [
   { to: '/equipe',      label: 'Equipe',            icon: UserCheck     },
 ]
 
-const handleLogout = () => {
-  sessionStorage.removeItem('wrapos_perfil_ativo')
-  window.location.href = '/'
-}
-
 // ── Styles ───────────────────────────────────────────────────────
 
 const sidebarBg: CSSProperties     = { background: 'var(--wrap-surface)', borderRight: '1px solid var(--wrap-border)' }
@@ -342,14 +337,6 @@ export function MainLayout() {
                 >
                   {theme === 'dark' ? <Sun size={12} /> : <Moon size={12} />}
                 </button>
-                <button
-                  onClick={handleLogout}
-                  title="Trocar perfil"
-                  className="p-1 rounded hover:bg-[var(--wrap-surface2)] transition-colors shrink-0"
-                  style={mutedText}
-                >
-                  <LogOut size={12} />
-                </button>
               </div>
             ) : (
               <div className="py-2 flex flex-col items-center gap-2">
@@ -359,14 +346,6 @@ export function MainLayout() {
                 >
                   {avatar}
                 </div>
-                <button
-                  onClick={handleLogout}
-                  title="Trocar perfil"
-                  className="p-1 rounded hover:bg-[var(--wrap-surface2)] transition-colors"
-                  style={mutedText}
-                >
-                  <LogOut size={12} />
-                </button>
               </div>
             )}
 
@@ -673,14 +652,6 @@ export function MainLayout() {
                   title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
                 >
                   {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="p-1 rounded hover:bg-[var(--wrap-surface2)] transition-colors shrink-0"
-                  style={mutedText}
-                  title="Trocar perfil"
-                >
-                  <LogOut size={13} />
                 </button>
               </div>
               <div
