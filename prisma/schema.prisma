@@ -33,16 +33,42 @@ enum Role {
   OPERATOR
 }
 
+enum StatusAgendamento {
+  agendado
+  confirmado
+  concluido
+  cancelado
+}
+
+enum StatusGarantia {
+  ativa
+  acionada
+  expirada
+}
+
+enum TipoLancamento {
+  entrada
+  saida
+}
+
 model Loja {
   id        String   @id @default(uuid())
   nome      String
   plano     String
   createdAt DateTime @default(now())
 
-  usuarios Usuario[]
-  clientes Cliente[]
-  veiculos Veiculo[]
-  ordens   OrdemServico[]
+  usuarios      Usuario[]
+  clientes      Cliente[]
+  veiculos      Veiculo[]
+  ordens        OrdemServico[]
+  agendamentos  Agendamento[]
+  instaladores  Instalador[]
+  lancamentos   LancamentoFinanceiro[]
+  produtos      Produto[]
+  garantias     Garantia[]
+  metas         Meta[]
+  configuracoes Configuracoes?
+  servicos      Servico[]
 
   @@map("lojas")
 }
@@ -130,4 +156,141 @@ model OrdemServico {
 
   @@index([lojaId])
   @@map("ordens_servico")
+}
+
+model Agendamento {
+  id             String            @id @default(uuid())
+  lojaId         String
+  clienteId      String
+  veiculoId      String
+  servicoId      String
+  instaladorId   String
+  box            Int
+  data           DateTime
+  horario        String
+  duracao        Int
+  status         StatusAgendamento @default(agendado)
+  valor          Float?
+  reagendamentos Int?
+
+  loja Loja @relation(fields: [lojaId], references: [id])
+
+  @@index([lojaId])
+  @@map("agendamentos")
+}
+
+model Instalador {
+  id             String   @id @default(uuid())
+  lojaId         String
+  nome           String
+  especialidades String[]
+  comissaoPadrao Float
+  ativo          Boolean  @default(true)
+
+  loja Loja @relation(fields: [lojaId], references: [id])
+
+  @@index([lojaId])
+  @@map("instaladores")
+}
+
+model LancamentoFinanceiro {
+  id             String         @id @default(uuid())
+  lojaId         String
+  tipo           TipoLancamento
+  categoria      String
+  descricao      String
+  valor          Float
+  data           DateTime
+  formaPagamento String
+  osId           String?
+
+  loja Loja @relation(fields: [lojaId], references: [id])
+
+  @@index([lojaId])
+  @@map("lancamentos_financeiro")
+}
+
+model Produto {
+  id            String @id @default(uuid())
+  lojaId        String
+  nome          String
+  sku           String
+  categoria     String
+  fornecedor    String
+  quantidade    Int
+  minimo        Int
+  unidade       String
+  valorUnitario Float
+
+  loja Loja @relation(fields: [lojaId], references: [id])
+
+  @@index([lojaId])
+  @@map("produtos")
+}
+
+model Garantia {
+  id         String         @id @default(uuid())
+  lojaId     String
+  osId       String
+  clienteId  String
+  veiculoId  String
+  servico    String
+  produto    String
+  dataInicio DateTime
+  dataFim    DateTime
+  status     StatusGarantia @default(ativa)
+
+  loja Loja @relation(fields: [lojaId], references: [id])
+
+  @@index([lojaId])
+  @@map("garantias")
+}
+
+model Meta {
+  id            String @id @default(uuid())
+  lojaId        String
+  mes           Int
+  ano           Int
+  faturamento   Float
+  numeroOS      Int
+  ticketMedio   Float
+  novosClientes Int
+
+  loja Loja @relation(fields: [lojaId], references: [id])
+
+  @@index([lojaId])
+  @@map("metas")
+}
+
+model Configuracoes {
+  id             String   @id @default(uuid())
+  lojaId         String   @unique
+  nomeLoja       String
+  cidade         String
+  telefone       String
+  email          String
+  corPrimaria    String
+  numeroBoxes    Int
+  comissaoPadrao Float
+  notifEstoque   Boolean? @default(true)
+  notifGarantia  Boolean? @default(true)
+  notifPosVenda  Boolean? @default(true)
+
+  loja Loja @relation(fields: [lojaId], references: [id])
+
+  @@map("configuracoes")
+}
+
+model Servico {
+  id           String @id @default(uuid())
+  lojaId       String
+  nome         String
+  preco        Float?
+  tempEstimado Int?
+  duracaoDias  Int?
+
+  loja Loja @relation(fields: [lojaId], references: [id])
+
+  @@index([lojaId])
+  @@map("servicos")
 }
