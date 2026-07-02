@@ -23,12 +23,12 @@
 -- auth.uid() retorna uuid e authUserId é text), e a subquery resolve o
 -- lojaId do usuário logado via usuarios."lojaId" (não filtra authUserId
 -- direto na tabela de destino). A convenção de nome já usada no projeto é
--- "{tabela}_por_loja": clientes_por_loja, veiculos_por_loja, ordens_por_loja,
--- usuarios_por_loja já existem em produção com esse mesmo padrão — abaixo
+-- "{tabela}_por_loja": clientes_por_loja, veiculos_por_loja e
+-- ordens_por_loja já existem em produção com esse mesmo padrão — abaixo
 -- eles estão documentados com a mesma expressão confirmada, e as 8 tabelas
 -- novas (Fase 1.1) replicam literalmente o mesmo padrão.
 --
--- Exceção de nome/coluna: a tabela "lojas" não tem coluna "lojaId" (é a
+-- Exceção 1 (nome/coluna): a tabela "lojas" não tem coluna "lojaId" (é a
 -- própria tabela raiz) — sua policy, "lojas_por_usuario", também foi
 -- inspecionada e confirmada em produção, e compara "id" (não "lojaId") com
 -- o lojaId do usuário logado:
@@ -40,6 +40,23 @@
 --     (id IN ( SELECT usuarios."lojaId"
 --      FROM usuarios
 --      WHERE (usuarios."authUserId" = (auth.uid())::text)))
+--   );
+--
+-- Exceção 2 (recursão): a policy "usuarios_por_loja" NÃO segue o padrão de
+-- subquery acima. Uma subquery que lê da própria "usuarios" dentro da
+-- policy de "usuarios" reavalia a RLS de "usuarios" de novo, causando
+-- recursão infinita (Postgres 42P17 — "infinite recursion detected in
+-- policy for relation usuarios"). Esse bug esteve neste arquivo (a versão
+-- antiga replicava o padrão de subquery aqui também) e foi confirmado
+-- rodando a query contra um banco novo (projeto DEV) — todo login quebrava
+-- com HTTP 500 ao consultar "usuarios". A policy real de produção, agora
+-- confirmada, compara "authUserId" direto com auth.uid(), sem subquery:
+--
+--   alter policy "usuarios_por_loja"
+--   on "public"."usuarios"
+--   to public
+--   using (
+--     ("authUserId" = (auth.uid())::text)
 --   );
 --
 -- Com essa confirmação, as 13 tabelas do projeto têm policy com padrão
@@ -80,7 +97,15 @@ USING (
 
 
 -- ── usuarios ─────────────────────────────────────────────────────────────
--- Convenção confirmada: usuarios_por_loja já existe em produção.
+-- Segunda exceção estrutural (além de lojas_por_usuario): NÃO usa o padrão
+-- de subquery das demais tabelas. Uma subquery que lê da própria "usuarios"
+-- dentro da policy de "usuarios" reavalia a RLS de "usuarios" de novo, e de
+-- novo, causando recursão infinita (erro Postgres 42P17 — "infinite
+-- recursion detected in policy for relation usuarios"). Bug confirmado
+-- rodando essa query contra um banco novo (projeto DEV): a versão antiga
+-- deste arquivo tinha o padrão de subquery aqui e quebrava todo login.
+-- A policy real de produção compara "authUserId" direto com auth.uid(),
+-- sem subquery nem SELECT em "usuarios".
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "usuarios_por_loja" ON "public"."usuarios";
@@ -89,9 +114,7 @@ ON "public"."usuarios"
 FOR ALL
 TO public
 USING (
-  ("lojaId" IN ( SELECT usuarios."lojaId"
-   FROM usuarios
-   WHERE (usuarios."authUserId" = (auth.uid())::text)))
+  ("authUserId" = (auth.uid())::text)
 );
 
 
