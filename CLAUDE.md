@@ -45,6 +45,8 @@ Criar um usuário no Supabase Auth **não** cria automaticamente a linha corresp
 
 Sem os passos 2–3, o login funciona (a sessão do Supabase Auth é criada normalmente) mas o app trata a conta como não vinculada a nenhuma loja.
 
+**Atenção ao colar UUIDs no Table Editor**: colar um UUID copiado (`authUserId`, `lojaId`) direto nos campos do formulário visual do Table Editor às vezes gruda uma quebra de linha invisível no final do valor — o erro de foreign key que o Postgres retorna nesse caso não deixa óbvio que a causa é essa. Se um INSERT/UPDATE falhar por FK mesmo com o valor parecendo correto visualmente, rode `SELECT id, length(id) FROM tabela WHERE ...;` — um UUID válido sempre tem `length = 36`; se vier diferente, limpe com `UPDATE tabela SET id = regexp_replace(id, '[^a-zA-Z0-9\-]', '', 'g') WHERE ...;`. Pra evitar o problema, prefira inserir via SQL Editor (`INSERT INTO ...`) em vez do formulário visual quando for copiar/colar UUIDs.
+
 ## Backup manual (rede de segurança até a migração pro Supabase)
 Enquanto todos os dados de negócio (clientes, ordens, agendamentos, financeiro, estoque etc.) vivem só no `localStorage` do navegador, sem backup automático, `src/utils/backup.ts` oferece:
 - `exportarBackup()` — varre todas as chaves do `localStorage` que começam com `wrapos_` (inclui as por perfil, `wrapos_perfil_<id>_<entidade>`) e baixa um JSON `wrapos-backup-{data}.json`.
