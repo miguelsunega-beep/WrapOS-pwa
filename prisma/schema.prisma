@@ -89,7 +89,7 @@ model Usuario {
 }
 
 model Cliente {
-  id           String        @id @default(uuid())
+  id           String        @default(uuid())
   lojaId       String
   nome         String
   telefone     String
@@ -105,7 +105,16 @@ model Cliente {
   veiculos Veiculo[]
   ordens   OrdemServico[]
 
-  @@index([lojaId])
+  // Chave composta (lojaId, id) — não apenas @id em "id" — porque "id" sozinho
+  // não é globalmente único entre lojas: ids curtos e fixos como os do dado
+  // de demonstração (c1..c10) se repetem em toda loja nova que nunca editou
+  // o exemplo, e "id" isolado como PRIMARY KEY rejeitava a segunda loja que
+  // tentasse ter um cliente "c1". Ver CLAUDE.md, "Migração de entidades pro
+  // Supabase" — mesmo ajuste precisa ser replicado em toda entidade migrada
+  // daqui pra frente. @@index([lojaId]) foi removido por ser redundante: o
+  // índice da PK composta já cobre buscas por lojaId sozinho (prefixo mais à
+  // esquerda de um índice B-tree).
+  @@id([lojaId, id])
   @@map("clientes")
 }
 
@@ -119,8 +128,13 @@ model Veiculo {
   cor       String
   placa     String
 
-  loja    Loja           @relation(fields: [lojaId], references: [id])
-  cliente Cliente        @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  loja Loja @relation(fields: [lojaId], references: [id])
+  // FK composta (lojaId, clienteId) → clientes(lojaId, id): garante, no nível
+  // do banco, que um veículo só pode apontar pra um cliente da MESMA loja —
+  // não só corrige a colisão de id entre lojas, como fecha uma lacuna de
+  // integridade cross-tenant que existia mesmo antes (nada impedia hoje um
+  // clienteId de uma loja ser gravado, por engano, apontando pra outra).
+  cliente Cliente        @relation(fields: [lojaId, clienteId], references: [lojaId, id], onDelete: Cascade)
   ordens  OrdemServico[]
 
   @@index([lojaId])
@@ -150,8 +164,9 @@ model OrdemServico {
   entregue          Boolean?         @default(false)
   dataSaida         DateTime?
 
-  loja    Loja    @relation(fields: [lojaId], references: [id])
-  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  loja Loja @relation(fields: [lojaId], references: [id])
+  // Mesma FK composta que Veiculo.cliente — ver comentário lá.
+  cliente Cliente @relation(fields: [lojaId, clienteId], references: [lojaId, id], onDelete: Restrict)
   veiculo Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Restrict)
 
   @@index([lojaId])

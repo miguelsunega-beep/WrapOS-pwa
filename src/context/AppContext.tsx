@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { todayLocal } from '../lib/dateUtils'
+import { useClientesSupabase } from '../hooks/useClientesSupabase'
 import type {
   Cliente, Veiculo, OrdemServico, Servico, Agendamento, Instalador,
   LancamentoFinanceiro, Produto, Garantia, Meta, Configuracoes,
@@ -377,7 +378,16 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [clientes,      setClientes]      = usePersistedState<Cliente[]>('clientes', initialClientes)
+  // clientes: primeira entidade migrada de localStorage pro Supabase — ver
+  // useClientesSupabase.ts e CLAUDE.md ("Migração de entidades pro Supabase").
+  const lojaIdAtual = sessionStorage.getItem('wrapos_perfil_ativo') ?? '_'
+  const {
+    clientes,
+    adicionarCliente: inserirClienteCloud,
+    editarCliente:    atualizarClienteCloud,
+    removerCliente:   removerClienteCloud,
+  } = useClientesSupabase(lojaIdAtual)
+
   const [veiculos,      setVeiculos]      = usePersistedState<Veiculo[]>('veiculos', initialVeiculos)
   const [ordens,        setOrdens]        = usePersistedState<OrdemServico[]>('ordens', initialOrdens)
   const [agendamentos,  setAgendamentos]  = usePersistedState<Agendamento[]>('agendamentos', initialAgendamentos)
@@ -389,28 +399,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [configuracoes, setConfiguracoes] = usePersistedState<Configuracoes>('configuracoes', initialConfiguracoes)
   const [servicos,      setServicos]      = usePersistedState<Servico[]>('servicos', initialServicos)
 
-  // ── Clientes ────────────────────────────────────────────────
-  const adicionarCliente = (c: Omit<Cliente, 'id'>): string => {
-    const id = uid()
-    setClientes(prev => [...prev, { ...c, id }])
-    return id
-  }
-
-  const editarCliente = (id: string, c: Partial<Omit<Cliente, 'id'>>) =>
-    setClientes(prev => prev.map(x => x.id === id ? { ...x, ...c } : x))
+  // ── Clientes (Supabase — ver useClientesSupabase.ts) ──────────
+  const adicionarCliente = inserirClienteCloud
+  const editarCliente    = atualizarClienteCloud
 
   const deletarCliente = (id: string): 'excluido' | 'inativado' => {
     const temOSVinculada = ordens.some(o => o.clienteId === id)
     if (temOSVinculada) {
-      setClientes(prev => prev.map(x => x.id === id ? { ...x, status: 'inativo' } : x))
+      atualizarClienteCloud(id, { status: 'inativo' })
       return 'inativado'
     }
-    setClientes(prev => prev.filter(x => x.id !== id))
+    removerClienteCloud(id)
     return 'excluido'
   }
 
   const reativarCliente = (id: string) =>
-    setClientes(prev => prev.map(x => x.id === id ? { ...x, status: 'ativo' } : x))
+    atualizarClienteCloud(id, { status: 'ativo' })
 
   // ── Veículos ────────────────────────────────────────────────
   const adicionarVeiculo = (v: Omit<Veiculo, 'id'>): string => {
@@ -568,9 +572,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       created.push('garantia')
     }
 
-    setClientes(prev => prev.map(c =>
-      c.id === os.clienteId ? { ...c, totalGasto: c.totalGasto + os.valorTotal } : c
-    ))
+    const clienteAtual = clientes.find(c => c.id === os.clienteId)
+    if (clienteAtual) {
+      atualizarClienteCloud(os.clienteId, { totalGasto: clienteAtual.totalGasto + os.valorTotal })
+    }
     setMeta(prev => ({ ...prev, numeroOS: prev.numeroOS + 1 }))
 
     if (materiaisUsados?.length) {

@@ -59,7 +59,7 @@ CREATE TABLE "clientes" (
     "cidade" TEXT,
     "status" "StatusCliente" NOT NULL DEFAULT 'ativo',
 
-    CONSTRAINT "clientes_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "clientes_pkey" PRIMARY KEY ("lojaId","id")
 );
 
 -- CreateTable
@@ -232,9 +232,6 @@ CREATE UNIQUE INDEX "usuarios_authUserId_key" ON "usuarios"("authUserId");
 CREATE INDEX "usuarios_lojaId_idx" ON "usuarios"("lojaId");
 
 -- CreateIndex
-CREATE INDEX "clientes_lojaId_idx" ON "clientes"("lojaId");
-
--- CreateIndex
 CREATE INDEX "veiculos_lojaId_idx" ON "veiculos"("lojaId");
 
 -- CreateIndex
@@ -277,13 +274,13 @@ ALTER TABLE "clientes" ADD CONSTRAINT "clientes_lojaId_fkey" FOREIGN KEY ("lojaI
 ALTER TABLE "veiculos" ADD CONSTRAINT "veiculos_lojaId_fkey" FOREIGN KEY ("lojaId") REFERENCES "lojas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "veiculos" ADD CONSTRAINT "veiculos_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "veiculos" ADD CONSTRAINT "veiculos_lojaId_clienteId_fkey" FOREIGN KEY ("lojaId", "clienteId") REFERENCES "clientes"("lojaId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ordens_servico" ADD CONSTRAINT "ordens_servico_lojaId_fkey" FOREIGN KEY ("lojaId") REFERENCES "lojas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ordens_servico" ADD CONSTRAINT "ordens_servico_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ordens_servico" ADD CONSTRAINT "ordens_servico_lojaId_clienteId_fkey" FOREIGN KEY ("lojaId", "clienteId") REFERENCES "clientes"("lojaId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ordens_servico" ADD CONSTRAINT "ordens_servico_veiculoId_fkey" FOREIGN KEY ("veiculoId") REFERENCES "veiculos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
