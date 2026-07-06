@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { todayLocal } from '../lib/dateUtils'
 import { useClientesSupabase } from '../hooks/useClientesSupabase'
+import { useVeiculosSupabase } from '../hooks/useVeiculosSupabase'
 import type {
   Cliente, Veiculo, OrdemServico, Servico, Agendamento, Instalador,
   LancamentoFinanceiro, Produto, Garantia, Meta, Configuracoes,
@@ -388,7 +389,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removerCliente:   removerClienteCloud,
   } = useClientesSupabase(lojaIdAtual)
 
-  const [veiculos,      setVeiculos]      = usePersistedState<Veiculo[]>('veiculos', initialVeiculos)
+  // veiculos: segunda entidade migrada de localStorage pro Supabase — ver
+  // useVeiculosSupabase.ts e CLAUDE.md ("Migração de entidades pro Supabase").
+  const {
+    veiculos,
+    adicionarVeiculo: inserirVeiculoCloud,
+    editarVeiculo:    atualizarVeiculoCloud,
+    removerVeiculo:   removerVeiculoCloud,
+  } = useVeiculosSupabase(lojaIdAtual)
+
   const [ordens,        setOrdens]        = usePersistedState<OrdemServico[]>('ordens', initialOrdens)
   const [agendamentos,  setAgendamentos]  = usePersistedState<Agendamento[]>('agendamentos', initialAgendamentos)
   const [instaladores,  setInstaladores]  = usePersistedState<Instalador[]>('instaladores', initialInstaladores)
@@ -416,18 +425,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const reativarCliente = (id: string) =>
     atualizarClienteCloud(id, { status: 'ativo' })
 
-  // ── Veículos ────────────────────────────────────────────────
-  const adicionarVeiculo = (v: Omit<Veiculo, 'id'>): string => {
-    const id = uid()
-    setVeiculos(prev => [...prev, { ...v, id }])
-    return id
-  }
-
-  const editarVeiculo = (id: string, v: Partial<Omit<Veiculo, 'id'>>) =>
-    setVeiculos(prev => prev.map(x => x.id === id ? { ...x, ...v } : x))
-
-  const deletarVeiculo = (id: string) =>
-    setVeiculos(prev => prev.filter(x => x.id !== id))
+  // ── Veículos (Supabase — ver useVeiculosSupabase.ts) ──────────
+  const adicionarVeiculo = inserirVeiculoCloud
+  const editarVeiculo    = atualizarVeiculoCloud
+  const deletarVeiculo   = removerVeiculoCloud
 
   // ── Ordens de Serviço ────────────────────────────────────────
   const adicionarOS = (os: Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>): number => {

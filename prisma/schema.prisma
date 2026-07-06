@@ -119,7 +119,7 @@ model Cliente {
 }
 
 model Veiculo {
-  id        String @id @default(uuid())
+  id        String @default(uuid())
   lojaId    String
   clienteId String
   marca     String
@@ -137,7 +137,13 @@ model Veiculo {
   cliente Cliente        @relation(fields: [lojaId, clienteId], references: [lojaId, id], onDelete: Cascade)
   ordens  OrdemServico[]
 
-  @@index([lojaId])
+  // Chave composta (lojaId, id) — mesmo motivo e mesmo padrão de Cliente (ver
+  // comentário lá): initialVeiculos usa ids curtos fixos (v1..v10), únicos só
+  // dentro do namespace local de cada loja, que colidiriam em "id" como PK
+  // global assim que uma segunda loja migrasse seus veículos locais pro
+  // Supabase. @@index([lojaId]) removido por ser redundante: o índice da PK
+  // composta já cobre buscas por lojaId sozinho (prefixo mais à esquerda).
+  @@id([lojaId, id])
   @@map("veiculos")
 }
 
@@ -167,7 +173,8 @@ model OrdemServico {
   loja Loja @relation(fields: [lojaId], references: [id])
   // Mesma FK composta que Veiculo.cliente — ver comentário lá.
   cliente Cliente @relation(fields: [lojaId, clienteId], references: [lojaId, id], onDelete: Restrict)
-  veiculo Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Restrict)
+  // Idem, agora que Veiculo também tem PK composta (lojaId, id).
+  veiculo Veiculo @relation(fields: [lojaId, veiculoId], references: [lojaId, id], onDelete: Restrict)
 
   @@index([lojaId])
   @@map("ordens_servico")

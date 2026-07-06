@@ -50,27 +50,49 @@ const DEMO_CLIENTES = [
 ]
 
 /**
- * `clientes` já vive no Supabase (ver CLAUDE.md, "Migração de entidades pro
- * Supabase") — diferente do resto dos dados (ainda em localStorage,
- * isolado por BrowserContext), o Supabase é estado real e compartilhado
- * entre execuções da suíte. Sem esse passo, cada rodada herdaria o lixo
- * (clientes criados/editados) da rodada anterior, e specs que dependem dos
- * 10 clientes de demonstração por nome (ex: "Gabriela Alves") falhariam por
- * não encontrá-los. Roda uma vez por execução da suíte, antes de qualquer
- * spec: apaga tudo em `clientes` da loja de teste e reinsere os 10 fixos.
+ * Mesmos 10 veículos de initialVeiculos (src/context/AppContext.tsx) — mesma
+ * ressalva de DEMO_CLIENTES acima (cópia local, não importa o app). Cada
+ * clienteId aqui precisa já existir em DEMO_CLIENTES (mesma loja) por causa
+ * da FK composta (lojaId, clienteId) → clientes(lojaId, id).
  */
-async function semearClientes(email: string, password: string) {
+const DEMO_VEICULOS = [
+  { id: 'v1',  clienteId: 'c1',  marca: 'Audi',          modelo: 'Q5',                  ano: 2023, cor: 'Branco',    placa: 'GHT-3A21' },
+  { id: 'v2',  clienteId: 'c2',  marca: 'BMW',           modelo: 'M3',                  ano: 2022, cor: 'Azul',      placa: 'PKZ-9D43' },
+  { id: 'v3',  clienteId: 'c3',  marca: 'Land Rover',    modelo: 'Range Rover Evoque',  ano: 2024, cor: 'Cinza',     placa: 'MVB-2F67' },
+  { id: 'v4',  clienteId: 'c4',  marca: 'Porsche',       modelo: '911 Carrera',         ano: 2023, cor: 'Amarelo',   placa: 'RLN-7E52' },
+  { id: 'v5',  clienteId: 'c5',  marca: 'Mercedes-Benz', modelo: 'GLE 400d',            ano: 2024, cor: 'Preto',     placa: 'CBK-1H89' },
+  { id: 'v6',  clienteId: 'c6',  marca: 'Jeep',          modelo: 'Wrangler Rubicon',    ano: 2023, cor: 'Verde',     placa: 'SDF-4J01' },
+  { id: 'v7',  clienteId: 'c7',  marca: 'Tesla',         modelo: 'Model 3 Performance', ano: 2023, cor: 'Vermelho',  placa: 'WQP-6K33' },
+  { id: 'v8',  clienteId: 'c8',  marca: 'Toyota',        modelo: 'Corolla Cross',       ano: 2022, cor: 'Branco',    placa: 'MTP-5L77' },
+  { id: 'v9',  clienteId: 'c9',  marca: 'Honda',         modelo: 'Civic',               ano: 2023, cor: 'Preto',     placa: 'FKR-2M44' },
+  { id: 'v10', clienteId: 'c10', marca: 'Volkswagen',    modelo: 'Golf GTI',            ano: 2022, cor: 'Cinza',     placa: 'NJX-8P92' },
+]
+
+/**
+ * `clientes` e `veiculos` já vivem no Supabase (ver CLAUDE.md, "Migração de
+ * entidades pro Supabase") — diferente do resto dos dados (ainda em
+ * localStorage, isolado por BrowserContext), o Supabase é estado real e
+ * compartilhado entre execuções da suíte. Sem esse passo, cada rodada
+ * herdaria o lixo (linhas criadas/editadas) da rodada anterior, e specs que
+ * dependem dos 10 clientes/veículos de demonstração por nome/placa (ex:
+ * "Gabriela Alves", "Volkswagen Golf GTI · NJX-8P92") falhariam por não
+ * encontrá-los. Roda uma vez por execução da suíte, antes de qualquer spec:
+ * apaga tudo em `veiculos`/`clientes` da loja de teste e reinsere os 10 fixos
+ * de cada. Veículos são apagados antes e reinseridos depois de clientes por
+ * causa da FK composta (lojaId, clienteId) → clientes(lojaId, id).
+ */
+async function semearDados(email: string, password: string) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error('VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY precisam estar definidos em .env pra semear clientes de teste.')
+    throw new Error('VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY precisam estar definidos em .env pra semear dados de teste.')
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey)
 
   const { data: signInData, error: erroLogin } = await supabase.auth.signInWithPassword({ email, password })
   if (erroLogin || !signInData.user) {
-    throw new Error(`semearClientes: falha ao logar com a conta de teste — ${erroLogin?.message ?? 'sem usuário retornado'}`)
+    throw new Error(`semearDados: falha ao logar com a conta de teste — ${erroLogin?.message ?? 'sem usuário retornado'}`)
   }
 
   const { data: usuario, error: erroUsuario } = await supabase
@@ -81,16 +103,21 @@ async function semearClientes(email: string, password: string) {
 
   if (erroUsuario || !usuario) {
     throw new Error(
-      `semearClientes: não encontrei a linha de "usuarios" da conta de teste (authUserId=${signInData.user.id}) — ` +
+      `semearDados: não encontrei a linha de "usuarios" da conta de teste (authUserId=${signInData.user.id}) — ` +
       `${erroUsuario?.message ?? 'sem linha vinculada'}. Confira se a conta e2e está vinculada a uma loja neste projeto Supabase.`
     )
   }
 
   const lojaId = usuario.lojaId as string
 
+  const { error: erroDeleteVeiculos } = await supabase.from('veiculos').delete().eq('lojaId', lojaId)
+  if (erroDeleteVeiculos) {
+    throw new Error(`semearDados: falha ao limpar veículos antigos da loja de teste — ${erroDeleteVeiculos.message}`)
+  }
+
   const { error: erroDelete } = await supabase.from('clientes').delete().eq('lojaId', lojaId)
   if (erroDelete) {
-    throw new Error(`semearClientes: falha ao limpar clientes antigos da loja de teste — ${erroDelete.message}`)
+    throw new Error(`semearDados: falha ao limpar clientes antigos da loja de teste — ${erroDelete.message}`)
   }
 
   const { error: erroInsert } = await supabase
@@ -98,7 +125,15 @@ async function semearClientes(email: string, password: string) {
     .insert(DEMO_CLIENTES.map(c => ({ ...c, lojaId })))
 
   if (erroInsert) {
-    throw new Error(`semearClientes: falha ao inserir os clientes de demonstração — ${erroInsert.message}`)
+    throw new Error(`semearDados: falha ao inserir os clientes de demonstração — ${erroInsert.message}`)
+  }
+
+  const { error: erroInsertVeiculos } = await supabase
+    .from('veiculos')
+    .insert(DEMO_VEICULOS.map(v => ({ ...v, lojaId })))
+
+  if (erroInsertVeiculos) {
+    throw new Error(`semearDados: falha ao inserir os veículos de demonstração — ${erroInsertVeiculos.message}`)
   }
 
   await supabase.auth.signOut()
@@ -124,7 +159,7 @@ export default async function globalSetup(config: FullConfig) {
     )
   }
 
-  await semearClientes(email, password)
+  await semearDados(email, password)
 
   const baseURL = config.projects[0]?.use?.baseURL as string ?? 'http://localhost:5173'
 
