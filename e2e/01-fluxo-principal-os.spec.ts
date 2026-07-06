@@ -188,6 +188,22 @@ test.describe('Cenário 1 — Fluxo principal de uma OS, do início ao fim', () 
     ).toContainText(CLIENTE)
 
     // ════════════════════════════════════════════════════════════════
+    // 5b. Entregar o veículo — fecha o ciclo de vida da OS. Sem isso, o card
+    // "concluído, aguardando retirada" continuaria visível no Kanban do Pátio
+    // (ordens_servico é uma tabela real do Supabase, compartilhada entre
+    // specs dentro da mesma execução da suíte — diferente do antigo estado
+    // local isolado por BrowserContext) e colidiria com outros specs que
+    // reusam o mesmo cliente/veículo (ex: 03-cancelamento-os.spec.ts).
+    // ════════════════════════════════════════════════════════════════
+    const cardConcluido = page.locator('div.cursor-pointer').filter({ hasText: CLIENTE })
+    await cardConcluido.getByRole('button', { name: 'Entregar veículo' }).click()
+    await page.getByRole('button', { name: 'Confirmar entrega', exact: true }).click()
+    await expect(
+      page.locator('div.cursor-pointer').filter({ hasText: CLIENTE }),
+      `esperava que o card de "${CLIENTE}" desaparecesse do Pátio após confirmar a entrega do veículo`,
+    ).toHaveCount(0)
+
+    // ════════════════════════════════════════════════════════════════
     // 6. Reflexo na tela Início
     // ════════════════════════════════════════════════════════════════
     await irPara(page, 'Início')

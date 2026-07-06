@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { todayLocal } from '../lib/dateUtils'
 import { useClientesSupabase } from '../hooks/useClientesSupabase'
 import { useVeiculosSupabase } from '../hooks/useVeiculosSupabase'
+import { useOrdensServicoSupabase } from '../hooks/useOrdensServicoSupabase'
 import type {
   Cliente, Veiculo, OrdemServico, Servico, Agendamento, Instalador,
   LancamentoFinanceiro, Produto, Garantia, Meta, Configuracoes,
@@ -398,7 +399,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removerVeiculo:   removerVeiculoCloud,
   } = useVeiculosSupabase(lojaIdAtual)
 
-  const [ordens,        setOrdens]        = usePersistedState<OrdemServico[]>('ordens', initialOrdens)
+  // ordens: terceira entidade migrada de localStorage pro Supabase — ver
+  // useOrdensServicoSupabase.ts e CLAUDE.md ("Migração de entidades pro Supabase").
+  const {
+    ordens,
+    adicionarOrdemServico: inserirOSCloud,
+    editarOrdemServico:    atualizarOSCloud,
+    removerOrdemServico:   removerOSCloud,
+  } = useOrdensServicoSupabase(lojaIdAtual)
+
   const [agendamentos,  setAgendamentos]  = usePersistedState<Agendamento[]>('agendamentos', initialAgendamentos)
   const [instaladores,  setInstaladores]  = usePersistedState<Instalador[]>('instaladores', initialInstaladores)
   const [lancamentos,   setLancamentos]   = usePersistedState<LancamentoFinanceiro[]>('lancamentos', initialLancamentos)
@@ -430,18 +439,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const editarVeiculo    = atualizarVeiculoCloud
   const deletarVeiculo   = removerVeiculoCloud
 
-  // ── Ordens de Serviço ────────────────────────────────────────
-  const adicionarOS = (os: Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>): number => {
-    const numerosValidos = ordens
-      .map(o => Number(o.numero))
-      .filter(n => !isNaN(n) && isFinite(n))
-    const numero = (numerosValidos.length > 0 ? Math.max(...numerosValidos) : 0) + 1
-    setOrdens(prev => [...prev, { ...os, id: uid(), numero, dataCriacao: todayLocal() }])
-    return numero
-  }
+  // ── Ordens de Serviço (Supabase — ver useOrdensServicoSupabase.ts) ──
+  const adicionarOS = (os: Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>): number =>
+    inserirOSCloud({ ...os, dataCriacao: todayLocal() })
 
   const editarOS = (id: string, os: Partial<Omit<OrdemServico, 'id'>>) =>
-    setOrdens(prev => prev.map(x => x.id === id ? { ...x, ...os } : x))
+    atualizarOSCloud(id, os)
 
   const salvarMateriaisOS = (osId: string, novosMateriais: MaterialUsado[]) => {
     const os = ordens.find(x => x.id === osId)
@@ -451,15 +454,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (delta > 0) baixarEstoque(produtoId, delta)
       else registrarEntradaEstoque(produtoId, -delta)
     })
-    setOrdens(prev => prev.map(x => x.id === osId ? { ...x, materiaisUsados: novosMateriais } : x))
+    atualizarOSCloud(osId, { materiaisUsados: novosMateriais })
   }
 
-  const deletarOS = (id: string) =>
-    setOrdens(prev => prev.filter(x => x.id !== id))
+  const deletarOS = (id: string) => removerOSCloud(id)
 
   const mudarStatusOS = (id: string, status: StatusOS) => {
     if (status === 'concluido' || status === 'cancelado') return
-    setOrdens(prev => prev.map(x => x.id === id ? { ...x, status } : x))
+    atualizarOSCloud(id, { status })
   }
 
   // ── Agendamentos ─────────────────────────────────────────────
@@ -538,16 +540,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const nomeCliente = clientes.find(c => c.id === os.clienteId)?.nome ?? ''
     const created: string[] = []
 
-    setOrdens(prev => prev.map(x =>
-      x.id === id ? {
-        ...x,
-        status: 'concluido' as StatusOS,
-        dataFinalizacao: today,
-        statusPagamento: (pago ? 'pago' : 'a_receber') as StatusPagamento,
-        materiaisUsados: materiaisUsados ?? x.materiaisUsados,
-        entregue: false,
-      } : x
-    ))
+    atualizarOSCloud(id, {
+      status: 'concluido' as StatusOS,
+      dataFinalizacao: today,
+      statusPagamento: (pago ? 'pago' : 'a_receber') as StatusPagamento,
+      materiaisUsados: materiaisUsados ?? os.materiaisUsados,
+      entregue: false,
+    })
 
     if (pago && !lancamentos.some(l => l.osId === id && l.tipo === 'entrada')) {
       setLancamentos(prev => [...prev, {
@@ -628,22 +627,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         valor: os.valorTotal, data: today, formaPagamento: os.formaPagamento, osId: id,
       }])
     }
-    setOrdens(prev => prev.map(x => x.id === id ? { ...x, statusPagamento: 'pago' as StatusPagamento } : x))
+    atualizarOSCloud(id, { statusPagamento: 'pago' as StatusPagamento })
   }
 
   const entregarVeiculo = (id: string): void => {
     const today = todayLocal()
-    setOrdens(prev => prev.map(x =>
-      x.id === id ? { ...x, entregue: true, dataSaida: today } : x
-    ))
+    atualizarOSCloud(id, { entregue: true, dataSaida: today })
   }
 
   const cancelarOS = (id: string): void => {
     const os = ordens.find(x => x.id === id)
     if (!os || os.status === 'cancelado') return
-    setOrdens(prev => prev.map(x =>
-      x.id === id ? { ...x, status: 'cancelado' as StatusOS } : x
-    ))
+    atualizarOSCloud(id, { status: 'cancelado' as StatusOS })
     if (os.agendamentoId) {
       setAgendamentos(prev => prev.map(a =>
         a.id === os.agendamentoId ? { ...a, status: 'agendado' as const } : a

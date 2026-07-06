@@ -69,17 +69,114 @@ const DEMO_VEICULOS = [
 ]
 
 /**
- * `clientes` e `veiculos` já vivem no Supabase (ver CLAUDE.md, "Migração de
- * entidades pro Supabase") — diferente do resto dos dados (ainda em
- * localStorage, isolado por BrowserContext), o Supabase é estado real e
- * compartilhado entre execuções da suíte. Sem esse passo, cada rodada
- * herdaria o lixo (linhas criadas/editadas) da rodada anterior, e specs que
- * dependem dos 10 clientes/veículos de demonstração por nome/placa (ex:
- * "Gabriela Alves", "Volkswagen Golf GTI · NJX-8P92") falhariam por não
- * encontrá-los. Roda uma vez por execução da suíte, antes de qualquer spec:
- * apaga tudo em `veiculos`/`clientes` da loja de teste e reinsere os 10 fixos
- * de cada. Veículos são apagados antes e reinseridos depois de clientes por
- * causa da FK composta (lojaId, clienteId) → clientes(lojaId, id).
+ * Mesmas 15 ordens de serviço de initialOrdens (src/context/AppContext.tsx) —
+ * mesma ressalva de DEMO_CLIENTES/DEMO_VEICULOS acima (cópia local). Sem
+ * `numero`: é autoincrement no Postgres desde a migration 005 (ver
+ * useOrdensServicoSupabase.ts) — nunca setado explicitamente aqui, o banco
+ * gera. Array mantido na mesma ordem (mais recente → mais antiga) de
+ * initialOrdens só por legibilidade/paridade com a fonte; a inserção em
+ * semearDados percorre em ordem REVERSA (mais antiga primeiro) pra que o
+ * autoincrement ascendente preserve a mesma relação de recência que o
+ * `numero` fixo original tinha (maior número = OS mais nova), já que telas
+ * como OrdemServico/Clientes ordenam por `numero` desc.
+ */
+const DEMO_ORDENS = [
+  // em_andamento
+  { id: 'os1', clienteId: 'c1', veiculoId: 'v1',
+    servicos: [{ servicoId: 's2', nome: 'PPF Full', preco: 4500 }],
+    valorTotal: 4500, formaPagamento: 'Cartão de Crédito', instaladorId: 'i1',
+    box: 1, comissao: 675, observacoes: 'Cliente VIP - Prioridade',
+    status: 'em_andamento', dataCriacao: '2025-05-09' },
+  { id: 'os2', clienteId: 'c2', veiculoId: 'v2',
+    servicos: [{ servicoId: 's4', nome: 'Envelopamento Full', preco: 3200 }],
+    valorTotal: 3200, formaPagamento: 'PIX', instaladorId: 'i2',
+    box: 2, comissao: 384, observacoes: '',
+    status: 'em_andamento', dataCriacao: '2025-05-08' },
+  { id: 'os3', clienteId: 'c4', veiculoId: 'v4',
+    servicos: [{ servicoId: 's2', nome: 'PPF Full', preco: 4500 }, { servicoId: 's5', nome: 'Chrome Delete', preco: 890 }],
+    valorTotal: 5390, formaPagamento: 'Transferência', instaladorId: 'i3',
+    box: 3, comissao: 700.7, observacoes: 'Porsche - cuidado redobrado',
+    status: 'em_andamento', dataCriacao: '2025-05-05' },
+  { id: 'os4', clienteId: 'c5', veiculoId: 'v5',
+    servicos: [{ servicoId: 's4', nome: 'Envelopamento Full', preco: 3200 }, { servicoId: 's6', nome: 'Teto Preto', preco: 320 }],
+    valorTotal: 3520, formaPagamento: 'Cartão de Crédito', instaladorId: 'i2',
+    box: 2, comissao: 422.4, observacoes: '',
+    status: 'em_andamento', dataCriacao: '2025-05-04' },
+  // aguardando_material
+  { id: 'os5', clienteId: 'c7', veiculoId: 'v7',
+    servicos: [{ servicoId: 's2', nome: 'PPF Full', preco: 4500 }],
+    valorTotal: 4500, formaPagamento: 'PIX', instaladorId: 'i1',
+    box: 1, comissao: 675, observacoes: 'Aguardando rolo PPF Xpel',
+    status: 'aguardando_material', dataCriacao: '2025-04-30' },
+  { id: 'os6', clienteId: 'c8', veiculoId: 'v8',
+    servicos: [{ servicoId: 's1', nome: 'PPF Parcial', preco: 1800 }],
+    valorTotal: 1800, formaPagamento: 'PIX', instaladorId: 'i3',
+    box: 4, comissao: 234, observacoes: '',
+    status: 'aguardando_material', dataCriacao: '2025-05-02' },
+  // aguardando_aprovacao
+  { id: 'os7', clienteId: 'c3', veiculoId: 'v3',
+    servicos: [{ servicoId: 's4', nome: 'Envelopamento Full', preco: 3200 }],
+    valorTotal: 3200, formaPagamento: 'A definir', instaladorId: 'i2',
+    box: 5, comissao: 384, observacoes: 'Cliente avaliando orçamento',
+    status: 'aguardando_aprovacao', dataCriacao: '2025-05-07' },
+  { id: 'os8', clienteId: 'c9', veiculoId: 'v9',
+    servicos: [{ servicoId: 's7', nome: 'Insulfilm', preco: 450 }, { servicoId: 's5', nome: 'Chrome Delete', preco: 890 }],
+    valorTotal: 1340, formaPagamento: 'A definir', instaladorId: 'i2',
+    box: 6, comissao: 160.8, observacoes: '',
+    status: 'aguardando_aprovacao', dataCriacao: '2025-05-06' },
+  // concluido
+  { id: 'os9', clienteId: 'c6', veiculoId: 'v6',
+    servicos: [{ servicoId: 's4', nome: 'Envelopamento Full', preco: 3200 }],
+    valorTotal: 3200, formaPagamento: 'Cartão de Débito', instaladorId: 'i3',
+    box: 3, comissao: 416, observacoes: '',
+    status: 'concluido', dataCriacao: '2025-05-02', dataFinalizacao: '2025-05-08', entregue: true },
+  { id: 'os10', clienteId: 'c1', veiculoId: 'v1',
+    servicos: [{ servicoId: 's5', nome: 'Chrome Delete', preco: 890 }],
+    valorTotal: 890, formaPagamento: 'PIX', instaladorId: 'i1',
+    box: 1, comissao: 133.5, observacoes: '',
+    status: 'concluido', dataCriacao: '2025-04-25', dataFinalizacao: '2025-04-26', entregue: true },
+  { id: 'os11', clienteId: 'c4', veiculoId: 'v4',
+    servicos: [{ servicoId: 's1', nome: 'PPF Parcial', preco: 1800 }],
+    valorTotal: 1800, formaPagamento: 'Cartão de Crédito', instaladorId: 'i3',
+    box: 2, comissao: 234, observacoes: '',
+    status: 'concluido', dataCriacao: '2025-04-20', dataFinalizacao: '2025-04-22', entregue: true },
+  { id: 'os12', clienteId: 'c10', veiculoId: 'v10',
+    servicos: [{ servicoId: 's3', nome: 'Envelopamento Capô', preco: 380 }, { servicoId: 's6', nome: 'Teto Preto', preco: 320 }],
+    valorTotal: 700, formaPagamento: 'PIX', instaladorId: 'i2',
+    box: 4, comissao: 84, observacoes: '',
+    status: 'concluido', dataCriacao: '2025-04-28', dataFinalizacao: '2025-04-29', entregue: true },
+  { id: 'os13', clienteId: 'c2', veiculoId: 'v2',
+    servicos: [{ servicoId: 's8', nome: 'Higienização', preco: 180 }],
+    valorTotal: 180, formaPagamento: 'PIX', instaladorId: 'i1',
+    box: 5, comissao: 27, observacoes: '',
+    status: 'concluido', dataCriacao: '2025-04-15', dataFinalizacao: '2025-04-15', entregue: true },
+  // cancelado
+  { id: 'os14', clienteId: 'c7', veiculoId: 'v7',
+    servicos: [{ servicoId: 's2', nome: 'PPF Full', preco: 4500 }],
+    valorTotal: 4500, formaPagamento: 'A definir', instaladorId: 'i1',
+    box: 1, comissao: 0, observacoes: 'Cliente desistiu - mudou de cidade',
+    status: 'cancelado', dataCriacao: '2025-04-10' },
+  { id: 'os15', clienteId: 'c5', veiculoId: 'v5',
+    servicos: [{ servicoId: 's7', nome: 'Insulfilm', preco: 450 }],
+    valorTotal: 450, formaPagamento: 'A definir', instaladorId: 'i2',
+    box: 3, comissao: 0, observacoes: 'Veículo vendido pelo cliente',
+    status: 'cancelado', dataCriacao: '2025-04-08' },
+]
+
+/**
+ * `clientes`, `veiculos` e `ordens_servico` já vivem no Supabase (ver
+ * CLAUDE.md, "Migração de entidades pro Supabase") — diferente do resto dos
+ * dados (ainda em localStorage, isolado por BrowserContext), o Supabase é
+ * estado real e compartilhado entre execuções da suíte. Sem esse passo, cada
+ * rodada herdaria o lixo (linhas criadas/editadas) da rodada anterior, e
+ * specs que dependem dos 10 clientes/veículos/15 OS de demonstração por
+ * nome/placa/status (ex: "Gabriela Alves", "Volkswagen Golf GTI · NJX-8P92")
+ * falhariam por não encontrá-los. Roda uma vez por execução da suíte, antes
+ * de qualquer spec: apaga tudo em `ordens_servico`/`veiculos`/`clientes` da
+ * loja de teste e reinsere os fixos de cada. Ordem de delete/insert segue as
+ * FKs compostas: ordens_servico referencia clientes E veiculos, então é
+ * apagada primeiro e inserida por último; veiculos referencia clientes, então
+ * é apagada depois e inserida antes de ordens_servico.
  */
 async function semearDados(email: string, password: string) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL
@@ -110,6 +207,11 @@ async function semearDados(email: string, password: string) {
 
   const lojaId = usuario.lojaId as string
 
+  const { error: erroDeleteOrdens } = await supabase.from('ordens_servico').delete().eq('lojaId', lojaId)
+  if (erroDeleteOrdens) {
+    throw new Error(`semearDados: falha ao limpar ordens de serviço antigas da loja de teste — ${erroDeleteOrdens.message}`)
+  }
+
   const { error: erroDeleteVeiculos } = await supabase.from('veiculos').delete().eq('lojaId', lojaId)
   if (erroDeleteVeiculos) {
     throw new Error(`semearDados: falha ao limpar veículos antigos da loja de teste — ${erroDeleteVeiculos.message}`)
@@ -134,6 +236,17 @@ async function semearDados(email: string, password: string) {
 
   if (erroInsertVeiculos) {
     throw new Error(`semearDados: falha ao inserir os veículos de demonstração — ${erroInsertVeiculos.message}`)
+  }
+
+  // Reversa: numero é autoincrement (migration 005) — inserindo da OS mais
+  // antiga (os15) pra mais nova (os1), o autoincrement ascendente preserva a
+  // mesma relação de recência que o `numero` fixo original tinha.
+  const { error: erroInsertOrdens } = await supabase
+    .from('ordens_servico')
+    .insert([...DEMO_ORDENS].reverse().map(o => ({ ...o, lojaId })))
+
+  if (erroInsertOrdens) {
+    throw new Error(`semearDados: falha ao inserir as ordens de serviço de demonstração — ${erroInsertOrdens.message}`)
   }
 
   await supabase.auth.signOut()

@@ -148,7 +148,7 @@ model Veiculo {
 }
 
 model OrdemServico {
-  id                String           @id @default(uuid())
+  id                String           @default(uuid())
   lojaId            String
   numero            Int              @unique @default(autoincrement())
   clienteId         String
@@ -176,7 +176,11 @@ model OrdemServico {
   // Idem, agora que Veiculo também tem PK composta (lojaId, id).
   veiculo Veiculo @relation(fields: [lojaId, veiculoId], references: [lojaId, id], onDelete: Restrict)
 
-  @@index([lojaId])
+  // Chave composta (lojaId, id) — mesmo motivo e mesmo padrão de Cliente/Veiculo
+  // (ver comentários lá): terceira entidade migrada pro Supabase, terceira a
+  // precisar do mesmo tratamento. @@index([lojaId]) removido por ser
+  // redundante: o índice da PK composta já cobre buscas por lojaId sozinho.
+  @@id([lojaId, id])
   @@map("ordens_servico")
 }
 

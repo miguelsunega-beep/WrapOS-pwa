@@ -100,7 +100,7 @@ CREATE TABLE "ordens_servico" (
     "entregue" BOOLEAN DEFAULT false,
     "dataSaida" TIMESTAMP(3),
 
-    CONSTRAINT "ordens_servico_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "ordens_servico_pkey" PRIMARY KEY ("lojaId","id")
 );
 
 -- CreateTable
@@ -233,9 +233,6 @@ CREATE INDEX "usuarios_lojaId_idx" ON "usuarios"("lojaId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ordens_servico_numero_key" ON "ordens_servico"("numero");
-
--- CreateIndex
-CREATE INDEX "ordens_servico_lojaId_idx" ON "ordens_servico"("lojaId");
 
 -- CreateIndex
 CREATE INDEX "agendamentos_lojaId_idx" ON "agendamentos"("lojaId");

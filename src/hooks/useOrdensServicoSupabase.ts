@@ -1,0 +1,202 @@
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { supabase } from '../lib/supabase'
+import type { OrdemServico } from '../types'
+
+const uid = () => Math.random().toString(36).slice(2, 10)
+
+/** Chave de flag "já migrei as ordens de serviço locais dessa loja pro Supabase" — escopada por lojaId. */
+const migracaoFeitaKey = (lojaId: string) => `wrapos_ordens_migrados_${lojaId}`
+
+/** Datas voltam do Postgres como timestamp — normaliza de volta pra 'YYYY-MM-DD', mesmo padrão de dataCadastro em useClientesSupabase.ts. */
+function normalizarData(v: unknown): string | undefined {
+  return v ? String(v).slice(0, 10) : undefined
+}
+
+function normalizarOrdemServico(row: Record<string, unknown>): OrdemServico {
+  return {
+    id:                row.id as string,
+    numero:            row.numero as number,
+    clienteId:         row.clienteId as string,
+    veiculoId:         row.veiculoId as string,
+    servicos:          row.servicos as OrdemServico['servicos'],
+    valorTotal:        row.valorTotal as number,
+    formaPagamento:    row.formaPagamento as string,
+    instaladorId:      row.instaladorId as string,
+    box:               row.box as number,
+    comissao:          row.comissao as number,
+    observacoes:       row.observacoes as string,
+    status:            row.status as OrdemServico['status'],
+    statusPagamento:   (row.statusPagamento as OrdemServico['statusPagamento'] | null) ?? undefined,
+    dataCriacao:       normalizarData(row.dataCriacao) as string,
+    dataFinalizacao:   normalizarData(row.dataFinalizacao),
+    dataSaidaPrevista: normalizarData(row.dataSaidaPrevista),
+    agendamentoId:     (row.agendamentoId as string | null) ?? undefined,
+    materiaisUsados:   (row.materiaisUsados as OrdemServico['materiaisUsados'] | null) ?? undefined,
+    entregue:          (row.entregue as boolean | null) ?? undefined,
+    dataSaida:         normalizarData(row.dataSaida),
+  }
+}
+
+/** numero nunca entra aqui — é autoincrement no Postgres, nunca enviado no insert (ver adicionarOrdemServico). */
+function paraLinha(id: string, lojaId: string, os: Omit<OrdemServico, 'id' | 'numero'>) {
+  return {
+    id, lojaId,
+    clienteId: os.clienteId, veiculoId: os.veiculoId, servicos: os.servicos,
+    valorTotal: os.valorTotal, formaPagamento: os.formaPagamento, instaladorId: os.instaladorId,
+    box: os.box, comissao: os.comissao, observacoes: os.observacoes,
+    status: os.status, statusPagamento: os.statusPagamento ?? null,
+    dataCriacao: os.dataCriacao, dataFinalizacao: os.dataFinalizacao ?? null,
+    dataSaidaPrevista: os.dataSaidaPrevista ?? null, agendamentoId: os.agendamentoId ?? null,
+    materiaisUsados: os.materiaisUsados ?? null, entregue: os.entregue ?? null,
+    dataSaida: os.dataSaida ?? null,
+  }
+}
+
+/**
+ * Fonte de dados de `ordens_servico` — terceira entidade migrada de
+ * localStorage pro Supabase (ver CLAUDE.md, "Migração de entidades pro
+ * Supabase"), seguindo o mesmo modelo de useClientesSupabase.ts /
+ * useVeiculosSupabase.ts. Única diferença estrutural: `numero` é
+ * autoincrement no Postgres (nunca enviado no insert — ver
+ * adicionarOrdemServico), então o valor calculado localmente (mesmo
+ * Math.max(...) + 1 de sempre) é otimista e é reconciliado com o valor real
+ * assim que o insert retorna. Migração legada de OS que só existiam no
+ * localStorage recebe um `numero` novo do banco (o `id`, referenciado por
+ * `lancamentos`/`garantias` via `osId`, não muda).
+ */
+export function useOrdensServicoSupabase(lojaId: string) {
+  const [ordens, setOrdens] = useState<OrdemServico[]>([])
+
+  useEffect(() => {
+    let cancelado = false
+
+    async function migrarSeNecessario() {
+      if (localStorage.getItem(migracaoFeitaKey(lojaId)) === '1') return
+
+      let locais: OrdemServico[] = []
+      try {
+        locais = JSON.parse(localStorage.getItem(`wrapos_perfil_${lojaId}_ordens`) ?? '[]')
+      } catch {
+        locais = []
+      }
+
+      if (locais.length === 0) {
+        localStorage.setItem(migracaoFeitaKey(lojaId), '1')
+        return
+      }
+
+      const { data: existentes, error: erroBusca } = await supabase
+        .from('ordens_servico')
+        .select('id')
+        .eq('lojaId', lojaId)
+
+      if (erroBusca) {
+        toast.error('Não foi possível verificar ordens de serviço já migradas para a nuvem. Tentando de novo na próxima vez.')
+        return
+      }
+
+      const idsExistentes = new Set((existentes ?? []).map(r => r.id as string))
+      const faltando = locais.filter(o => !idsExistentes.has(o.id))
+
+      if (faltando.length > 0) {
+        const { error: erroInsert } = await supabase
+          .from('ordens_servico')
+          .insert(faltando.map(o => paraLinha(o.id, lojaId, o)))
+
+        if (erroInsert) {
+          toast.error('Falha ao migrar ordens de serviço salvas localmente para a nuvem.')
+          return
+        }
+      }
+
+      localStorage.setItem(migracaoFeitaKey(lojaId), '1')
+    }
+
+    async function carregar() {
+      await migrarSeNecessario()
+      if (cancelado) return
+
+      const { data, error } = await supabase.from('ordens_servico').select('*').eq('lojaId', lojaId)
+      if (cancelado) return
+
+      if (error) {
+        toast.error('Não foi possível carregar as ordens de serviço. Verifique sua conexão.')
+        return
+      }
+      setOrdens((data ?? []).map(normalizarOrdemServico))
+    }
+
+    carregar()
+    return () => { cancelado = true }
+  }, [lojaId])
+
+  const adicionarOrdemServico = (os: Omit<OrdemServico, 'id' | 'numero'>): number => {
+    const id = uid()
+    const numerosValidos = ordens.map(o => Number(o.numero)).filter(n => !isNaN(n) && isFinite(n))
+    const numeroOtimista = (numerosValidos.length > 0 ? Math.max(...numerosValidos) : 0) + 1
+
+    setOrdens(prev => [...prev, { ...os, id, numero: numeroOtimista }])
+
+    supabase
+      .from('ordens_servico')
+      .insert(paraLinha(id, lojaId, os))
+      .select('numero')
+      .single()
+      .then(({ data, error }) => {
+        if (error || !data) {
+          setOrdens(prev => prev.filter(x => x.id !== id))
+          toast.error('Não foi possível salvar a ordem de serviço na nuvem. Tente novamente.')
+          return
+        }
+        const numeroReal = data.numero as number
+        if (numeroReal !== numeroOtimista) {
+          setOrdens(prev => prev.map(x => x.id === id ? { ...x, numero: numeroReal } : x))
+        }
+      })
+
+    return numeroOtimista
+  }
+
+  const editarOrdemServico = (id: string, patch: Partial<Omit<OrdemServico, 'id'>>) => {
+    let anterior: OrdemServico | undefined
+    setOrdens(prev => prev.map(x => {
+      if (x.id !== id) return x
+      anterior = x
+      return { ...x, ...patch }
+    }))
+
+    supabase.from('ordens_servico').update(patch).eq('id', id).eq('lojaId', lojaId).then(({ error }) => {
+      if (error && anterior) {
+        const snapshot = anterior
+        setOrdens(prev => prev.map(x => x.id === id ? snapshot : x))
+        toast.error('Não foi possível salvar a alteração da ordem de serviço na nuvem.')
+      }
+    })
+  }
+
+  const removerOrdemServico = (id: string) => {
+    let removida: OrdemServico | undefined
+    let posicao = -1
+    setOrdens(prev => {
+      posicao = prev.findIndex(x => x.id === id)
+      removida = prev[posicao]
+      return prev.filter(x => x.id !== id)
+    })
+
+    supabase.from('ordens_servico').delete().eq('id', id).eq('lojaId', lojaId).then(({ error }) => {
+      if (error && removida) {
+        const item = removida
+        const pos = posicao
+        setOrdens(prev => {
+          const copia = [...prev]
+          copia.splice(Math.min(pos, copia.length), 0, item)
+          return copia
+        })
+        toast.error('Não foi possível excluir a ordem de serviço na nuvem.')
+      }
+    })
+  }
+
+  return { ordens, adicionarOrdemServico, editarOrdemServico, removerOrdemServico }
+}
