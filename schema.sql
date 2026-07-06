@@ -146,7 +146,7 @@ CREATE TABLE "lancamentos_financeiro" (
     "formaPagamento" TEXT NOT NULL,
     "osId" TEXT,
 
-    CONSTRAINT "lancamentos_financeiro_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "lancamentos_financeiro_pkey" PRIMARY KEY ("lojaId","id")
 );
 
 -- CreateTable
@@ -162,7 +162,7 @@ CREATE TABLE "produtos" (
     "unidade" TEXT NOT NULL,
     "valorUnitario" DOUBLE PRECISION NOT NULL,
 
-    CONSTRAINT "produtos_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "produtos_pkey" PRIMARY KEY ("lojaId","id")
 );
 
 -- CreateTable
@@ -239,12 +239,6 @@ CREATE INDEX "agendamentos_lojaId_idx" ON "agendamentos"("lojaId");
 
 -- CreateIndex
 CREATE INDEX "instaladores_lojaId_idx" ON "instaladores"("lojaId");
-
--- CreateIndex
-CREATE INDEX "lancamentos_financeiro_lojaId_idx" ON "lancamentos_financeiro"("lojaId");
-
--- CreateIndex
-CREATE INDEX "produtos_lojaId_idx" ON "produtos"("lojaId");
 
 -- CreateIndex
 CREATE INDEX "garantias_lojaId_idx" ON "garantias"("lojaId");

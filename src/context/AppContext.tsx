@@ -3,6 +3,8 @@ import { todayLocal } from '../lib/dateUtils'
 import { useClientesSupabase } from '../hooks/useClientesSupabase'
 import { useVeiculosSupabase } from '../hooks/useVeiculosSupabase'
 import { useOrdensServicoSupabase } from '../hooks/useOrdensServicoSupabase'
+import { useProdutosSupabase } from '../hooks/useProdutosSupabase'
+import { useLancamentosSupabase } from '../hooks/useLancamentosSupabase'
 import type {
   Cliente, Veiculo, OrdemServico, Servico, Agendamento, Instalador,
   LancamentoFinanceiro, Produto, Garantia, Meta, Configuracoes,
@@ -408,10 +410,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removerOrdemServico:   removerOSCloud,
   } = useOrdensServicoSupabase(lojaIdAtual)
 
+  // produtos: quarta entidade migrada de localStorage pro Supabase — ver
+  // useProdutosSupabase.ts e CLAUDE.md ("Migração de entidades pro Supabase").
+  const {
+    produtos,
+    adicionarProduto: inserirProdutoCloud,
+    editarProduto:    atualizarProdutoCloud,
+    registrarEntradaEstoque: registrarEntradaEstoqueCloud,
+    baixarEstoque:           baixarEstoqueCloud,
+    removerProduto:          removerProdutoCloud,
+  } = useProdutosSupabase(lojaIdAtual)
+
+  // lancamentos: quinta entidade migrada de localStorage pro Supabase — ver
+  // useLancamentosSupabase.ts e CLAUDE.md ("Migração de entidades pro Supabase").
+  const {
+    lancamentos,
+    adicionarLancamento: inserirLancamentoCloud,
+    removerLancamento:   removerLancamentoCloud,
+  } = useLancamentosSupabase(lojaIdAtual)
+
   const [agendamentos,  setAgendamentos]  = usePersistedState<Agendamento[]>('agendamentos', initialAgendamentos)
   const [instaladores,  setInstaladores]  = usePersistedState<Instalador[]>('instaladores', initialInstaladores)
-  const [lancamentos,   setLancamentos]   = usePersistedState<LancamentoFinanceiro[]>('lancamentos', initialLancamentos)
-  const [produtos,      setProdutos]      = usePersistedState<Produto[]>('produtos', initialProdutos)
   const [garantias,     setGarantias]     = usePersistedState<Garantia[]>('garantias', initialGarantias)
   const [meta,          setMeta]          = usePersistedState<Meta>('meta', initialMeta)
   const [configuracoes, setConfiguracoes] = usePersistedState<Configuracoes>('configuracoes', initialConfiguracoes)
@@ -494,28 +513,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deletarServico = (id: string) =>
     setServicos(prev => prev.filter(x => x.id !== id))
 
-  // ── Produtos / Estoque ────────────────────────────────────────
-  const adicionarProduto = (p: Omit<Produto, 'id'>) =>
-    setProdutos(prev => [...prev, { ...p, id: uid() }])
+  // ── Produtos / Estoque (Supabase — ver useProdutosSupabase.ts) ─
+  const adicionarProduto           = inserirProdutoCloud
+  const editarProduto              = atualizarProdutoCloud
+  const registrarEntradaEstoque    = registrarEntradaEstoqueCloud
+  const baixarEstoque              = baixarEstoqueCloud
+  const deletarProduto             = removerProdutoCloud
 
-  const editarProduto = (id: string, p: Partial<Omit<Produto, 'id'>>) =>
-    setProdutos(prev => prev.map(x => x.id === id ? { ...x, ...p } : x))
-
-  const registrarEntradaEstoque = (id: string, qtd: number) =>
-    setProdutos(prev => prev.map(x => x.id === id ? { ...x, quantidade: x.quantidade + qtd } : x))
-
-  const baixarEstoque = (id: string, qtd: number, _motivo?: string) =>
-    setProdutos(prev => prev.map(x => x.id === id ? { ...x, quantidade: Math.max(0, x.quantidade - qtd) } : x))
-
-  const deletarProduto = (id: string) =>
-    setProdutos(prev => prev.filter(x => x.id !== id))
-
-  // ── Lançamentos Financeiros ───────────────────────────────────
-  const adicionarLancamento = (l: Omit<LancamentoFinanceiro, 'id'>) =>
-    setLancamentos(prev => [...prev, { ...l, id: uid() }])
-
-  const deletarLancamento = (id: string) =>
-    setLancamentos(prev => prev.filter(x => x.id !== id))
+  // ── Lançamentos Financeiros (Supabase — ver useLancamentosSupabase.ts) ─
+  const adicionarLancamento = inserirLancamentoCloud
+  const deletarLancamento   = removerLancamentoCloud
 
   // ── Garantias ─────────────────────────────────────────────────
   const adicionarGarantia = (g: Omit<Garantia, 'id'>) =>
@@ -549,11 +556,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
 
     if (pago && !lancamentos.some(l => l.osId === id && l.tipo === 'entrada')) {
-      setLancamentos(prev => [...prev, {
-        id: uid(), tipo: 'entrada' as const, categoria: 'OS',
+      adicionarLancamento({
+        tipo: 'entrada' as const, categoria: 'OS',
         descricao: `OS #${os.numero} — ${nomeCliente}`,
         valor: os.valorTotal, data: today, formaPagamento: os.formaPagamento, osId: id,
-      }])
+      })
       created.push('receita')
     } else if (!pago) {
       created.push('a_receber')
@@ -583,25 +590,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // (que já foi baixado por salvarMateriaisOS) — evita baixa duplicada.
       const deltas = diffEstoqueDeltas(os.materiaisUsados ?? [], materiaisUsados)
       deltas.forEach((delta, produtoId) => {
-        if (delta > 0) {
-          setProdutos(prev => prev.map(p =>
-            p.id === produtoId ? { ...p, quantidade: Math.max(0, p.quantidade - delta) } : p
-          ))
-        } else {
-          setProdutos(prev => prev.map(p =>
-            p.id === produtoId ? { ...p, quantidade: p.quantidade - delta } : p
-          ))
-        }
+        if (delta > 0) baixarEstoque(produtoId, delta)
+        else registrarEntradaEstoque(produtoId, -delta)
       })
       const custoCompras = materiaisUsados
         .filter(m => m.origem === 'compra')
         .reduce((s, m) => s + (m.custo ?? 0), 0)
       if (custoCompras > 0) {
-        setLancamentos(prev => [...prev, {
-          id: uid(), tipo: 'saida' as const, categoria: 'Material',
+        adicionarLancamento({
+          tipo: 'saida' as const, categoria: 'Material',
           descricao: `Material exclusivo OS #${os.numero} — ${nomeCliente}`,
           valor: custoCompras, data: today, formaPagamento: os.formaPagamento, osId: id,
-        }])
+        })
         created.push('despesa_material')
       }
     }
@@ -621,11 +621,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const today = todayLocal()
     const nomeCliente = clientes.find(c => c.id === os.clienteId)?.nome ?? ''
     if (!lancamentos.some(l => l.osId === id && l.tipo === 'entrada')) {
-      setLancamentos(prev => [...prev, {
-        id: uid(), tipo: 'entrada' as const, categoria: 'OS',
+      adicionarLancamento({
+        tipo: 'entrada' as const, categoria: 'OS',
         descricao: `OS #${os.numero} — ${nomeCliente} (pagamento)`,
         valor: os.valorTotal, data: today, formaPagamento: os.formaPagamento, osId: id,
-      }])
+      })
     }
     atualizarOSCloud(id, { statusPagamento: 'pago' as StatusPagamento })
   }

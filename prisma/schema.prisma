@@ -220,7 +220,7 @@ model Instalador {
 }
 
 model LancamentoFinanceiro {
-  id             String         @id @default(uuid())
+  id             String         @default(uuid())
   lojaId         String
   tipo           TipoLancamento
   categoria      String
@@ -232,12 +232,18 @@ model LancamentoFinanceiro {
 
   loja Loja @relation(fields: [lojaId], references: [id])
 
-  @@index([lojaId])
+  // Chave composta (lojaId, id) — mesmo motivo e mesmo padrão de
+  // Cliente/Veiculo/OrdemServico (ver comentário em Cliente): quinta entidade
+  // migrada pro Supabase. osId é uma referência solta (String?, sem FK) pro
+  // id de OrdemServico — nenhuma FK composta a criar aqui, só a PK.
+  // @@index([lojaId]) removido por ser redundante: o índice da PK composta
+  // já cobre buscas por lojaId sozinho.
+  @@id([lojaId, id])
   @@map("lancamentos_financeiro")
 }
 
 model Produto {
-  id            String @id @default(uuid())
+  id            String @default(uuid())
   lojaId        String
   nome          String
   sku           String
@@ -250,7 +256,11 @@ model Produto {
 
   loja Loja @relation(fields: [lojaId], references: [id])
 
-  @@index([lojaId])
+  // Chave composta (lojaId, id) — mesmo motivo e mesmo padrão de
+  // Cliente/Veiculo/OrdemServico (ver comentário em Cliente): quarta entidade
+  // migrada pro Supabase. @@index([lojaId]) removido por ser redundante: o
+  // índice da PK composta já cobre buscas por lojaId sozinho.
+  @@id([lojaId, id])
   @@map("produtos")
 }
 
