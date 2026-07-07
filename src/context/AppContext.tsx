@@ -1,17 +1,21 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
 import { todayLocal } from '../lib/dateUtils'
 import { useClientesSupabase } from '../hooks/useClientesSupabase'
 import { useVeiculosSupabase } from '../hooks/useVeiculosSupabase'
 import { useOrdensServicoSupabase } from '../hooks/useOrdensServicoSupabase'
 import { useProdutosSupabase } from '../hooks/useProdutosSupabase'
 import { useLancamentosSupabase } from '../hooks/useLancamentosSupabase'
+import { useAgendamentosSupabase } from '../hooks/useAgendamentosSupabase'
+import { useInstaladoresSupabase } from '../hooks/useInstaladoresSupabase'
+import { useGarantiasSupabase } from '../hooks/useGarantiasSupabase'
+import { useServicosSupabase } from '../hooks/useServicosSupabase'
+import { useMetasSupabase } from '../hooks/useMetasSupabase'
+import { useConfiguracoesSupabase } from '../hooks/useConfiguracoesSupabase'
 import type {
   Cliente, Veiculo, OrdemServico, Servico, Agendamento, Instalador,
   LancamentoFinanceiro, Produto, Garantia, Meta, Configuracoes,
   StatusOS, StatusGarantia, StatusPagamento, MaterialUsado,
 } from '../types'
-
-const uid = () => Math.random().toString(36).slice(2, 10)
 
 /**
  * Compara os materiais de origem 'estoque' entre a lista antiga e a nova de uma OS,
@@ -46,30 +50,11 @@ function calcularPrazoMeses(nomesServicos: string[]): number {
   return 6
 }
 
-// ── Persistence hook ───────────────────────────────────────────
-function usePersistedState<T>(key: string, initialValue: T) {
-  const perfilId   = sessionStorage.getItem('wrapos_perfil_ativo') ?? '_'
-  const storageKey = `wrapos_perfil_${perfilId}_${key}`
-
-  const [state, setState] = useState<T>(() => {
-    try {
-      const stored = localStorage.getItem(storageKey)
-      return stored !== null ? (JSON.parse(stored) as T) : initialValue
-    } catch {
-      return initialValue
-    }
-  })
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(state))
-    } catch {}
-  }, [state, storageKey])
-
-  return [state, setState] as const
-}
-
-// ── Mock data (exported for profile creation) ──────────────────
+// ── Mock data (mantidos como referência do dado de demonstração original —
+// ver CLAUDE.md, "Migração de entidades pro Supabase"; nenhuma das 11
+// entidades usa mais isso como fallback de estado, mas alguns specs de e2e e
+// os comentários de cada hook *Supabase.ts ainda referenciam essas listas
+// pelo nome) ──────────────────────────────────────────────────
 
 export const initialInstaladores: Instalador[] = [
   { id: 'i1', nome: 'Lucas Mota',     especialidades: ['PPF', 'Ceramic Coating'],        comissaoPadrao: 15, ativo: true },
@@ -77,7 +62,7 @@ export const initialInstaladores: Instalador[] = [
   { id: 'i3', nome: 'Matheus Vieira', especialidades: ['PPF Full Body', 'Insulfilm'],     comissaoPadrao: 13, ativo: true },
 ]
 
-const initialServicos: Servico[] = [
+export const initialServicos: Servico[] = [
   { id: 's1', nome: 'PPF Parcial',         preco: 1800, tempEstimado: 8  },
   { id: 's2', nome: 'PPF Full',            preco: 4500, tempEstimado: 24 },
   { id: 's3', nome: 'Envelopamento Capô',  preco:  380, tempEstimado: 3  },
@@ -429,12 +414,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removerLancamento:   removerLancamentoCloud,
   } = useLancamentosSupabase(lojaIdAtual)
 
-  const [agendamentos,  setAgendamentos]  = usePersistedState<Agendamento[]>('agendamentos', initialAgendamentos)
-  const [instaladores,  setInstaladores]  = usePersistedState<Instalador[]>('instaladores', initialInstaladores)
-  const [garantias,     setGarantias]     = usePersistedState<Garantia[]>('garantias', initialGarantias)
-  const [meta,          setMeta]          = usePersistedState<Meta>('meta', initialMeta)
-  const [configuracoes, setConfiguracoes] = usePersistedState<Configuracoes>('configuracoes', initialConfiguracoes)
-  const [servicos,      setServicos]      = usePersistedState<Servico[]>('servicos', initialServicos)
+  // agendamentos: sexta entidade migrada de localStorage pro Supabase — ver
+  // useAgendamentosSupabase.ts e CLAUDE.md ("Migração de entidades pro Supabase").
+  const {
+    agendamentos,
+    adicionarAgendamento: inserirAgendamentoCloud,
+    editarAgendamento:    atualizarAgendamentoCloud,
+    removerAgendamento:   removerAgendamentoCloud,
+  } = useAgendamentosSupabase(lojaIdAtual)
+
+  // instaladores: sétima entidade migrada de localStorage pro Supabase — ver
+  // useInstaladoresSupabase.ts e CLAUDE.md ("Migração de entidades pro Supabase").
+  const {
+    instaladores,
+    adicionarInstalador: inserirInstaladorCloud,
+    editarInstalador:    atualizarInstaladorCloud,
+    removerInstalador:   removerInstaladorCloud,
+  } = useInstaladoresSupabase(lojaIdAtual)
+
+  // garantias: oitava entidade migrada de localStorage pro Supabase — ver
+  // useGarantiasSupabase.ts e CLAUDE.md ("Migração de entidades pro Supabase").
+  const {
+    garantias,
+    adicionarGarantia: inserirGarantiaCloud,
+    editarGarantia:    atualizarGarantiaCloud,
+    removerGarantia:   removerGarantiaCloud,
+  } = useGarantiasSupabase(lojaIdAtual)
+
+  // meta: nona entidade migrada de localStorage pro Supabase — objeto
+  // singleton (não lista), ver useMetasSupabase.ts e CLAUDE.md.
+  const { meta, atualizarMeta: atualizarMetaCloud } = useMetasSupabase(lojaIdAtual)
+
+  // configuracoes: décima entidade migrada de localStorage pro Supabase —
+  // objeto singleton (não lista), ver useConfiguracoesSupabase.ts e CLAUDE.md.
+  const { configuracoes, atualizarConfiguracoes: atualizarConfiguracoesCloud } = useConfiguracoesSupabase(lojaIdAtual)
+
+  // servicos: décima primeira e última entidade migrada de localStorage pro
+  // Supabase nesta fase — ver useServicosSupabase.ts e CLAUDE.md.
+  const {
+    servicos,
+    adicionarServico: inserirServicoCloud,
+    editarServico:    atualizarServicoCloud,
+    removerServico:   removerServicoCloud,
+  } = useServicosSupabase(lojaIdAtual)
 
   // ── Clientes (Supabase — ver useClientesSupabase.ts) ──────────
   const adicionarCliente = inserirClienteCloud
@@ -483,35 +505,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     atualizarOSCloud(id, { status })
   }
 
-  // ── Agendamentos ─────────────────────────────────────────────
-  const adicionarAgendamento = (a: Omit<Agendamento, 'id'>) =>
-    setAgendamentos(prev => [...prev, { ...a, id: uid() }])
+  // ── Agendamentos (Supabase — ver useAgendamentosSupabase.ts) ──
+  const adicionarAgendamento = inserirAgendamentoCloud
+  const editarAgendamento    = atualizarAgendamentoCloud
+  const deletarAgendamento   = removerAgendamentoCloud
 
-  const editarAgendamento = (id: string, a: Partial<Omit<Agendamento, 'id'>>) =>
-    setAgendamentos(prev => prev.map(x => x.id === id ? { ...x, ...a } : x))
+  // ── Instaladores (Supabase — ver useInstaladoresSupabase.ts) ──
+  const adicionarInstalador = inserirInstaladorCloud
+  const editarInstalador    = atualizarInstaladorCloud
+  const deletarInstalador   = removerInstaladorCloud
 
-  const deletarAgendamento = (id: string) =>
-    setAgendamentos(prev => prev.filter(x => x.id !== id))
-
-  // ── Instaladores ─────────────────────────────────────────────
-  const adicionarInstalador = (i: Omit<Instalador, 'id'>) =>
-    setInstaladores(prev => [...prev, { ...i, id: uid() }])
-
-  const editarInstalador = (id: string, i: Partial<Omit<Instalador, 'id'>>) =>
-    setInstaladores(prev => prev.map(x => x.id === id ? { ...x, ...i } : x))
-
-  const deletarInstalador = (id: string) =>
-    setInstaladores(prev => prev.filter(x => x.id !== id))
-
-  // ── Serviços ──────────────────────────────────────────────────
-  const adicionarServico = (s: Omit<Servico, 'id'>) =>
-    setServicos(prev => [...prev, { ...s, id: uid() }])
-
-  const editarServico = (id: string, s: Partial<Omit<Servico, 'id'>>) =>
-    setServicos(prev => prev.map(x => x.id === id ? { ...x, ...s } : x))
-
-  const deletarServico = (id: string) =>
-    setServicos(prev => prev.filter(x => x.id !== id))
+  // ── Serviços (Supabase — ver useServicosSupabase.ts) ──────────
+  const adicionarServico = inserirServicoCloud
+  const editarServico    = atualizarServicoCloud
+  const deletarServico   = removerServicoCloud
 
   // ── Produtos / Estoque (Supabase — ver useProdutosSupabase.ts) ─
   const adicionarProduto           = inserirProdutoCloud
@@ -524,20 +531,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const adicionarLancamento = inserirLancamentoCloud
   const deletarLancamento   = removerLancamentoCloud
 
-  // ── Garantias ─────────────────────────────────────────────────
-  const adicionarGarantia = (g: Omit<Garantia, 'id'>) =>
-    setGarantias(prev => [...prev, { ...g, id: uid() }])
+  // ── Garantias (Supabase — ver useGarantiasSupabase.ts) ────────
+  const adicionarGarantia = inserirGarantiaCloud
+  const editarGarantia    = atualizarGarantiaCloud
+  const deletarGarantia   = removerGarantiaCloud
 
   const registrarAcionamento = (id: string) =>
-    setGarantias(prev => prev.map(x =>
-      x.id === id ? { ...x, status: 'acionada' as StatusGarantia } : x
-    ))
-
-  const editarGarantia = (id: string, g: Partial<Omit<Garantia, 'id'>>) =>
-    setGarantias(prev => prev.map(x => x.id === id ? { ...x, ...g } : x))
-
-  const deletarGarantia = (id: string) =>
-    setGarantias(prev => prev.filter(x => x.id !== id))
+    atualizarGarantiaCloud(id, { status: 'acionada' as StatusGarantia })
 
   // ── Eventos centrais de OS ────────────────────────────────────
   const concluirOS = (id: string, materiaisUsados?: MaterialUsado[], pago: boolean = true): { created: string[] } => {
@@ -570,12 +570,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const prazo = calcularPrazoMeses(os.servicos.map(s => s.nome))
       const dataFimDate = new Date(today)
       dataFimDate.setMonth(dataFimDate.getMonth() + prazo)
-      setGarantias(prev => [...prev, {
-        id: uid(), osId: id, clienteId: os.clienteId, veiculoId: os.veiculoId,
+      adicionarGarantia({
+        osId: id, clienteId: os.clienteId, veiculoId: os.veiculoId,
         servico: os.servicos.map(s => s.nome).join(', '), produto: '',
         dataInicio: today, dataFim: dataFimDate.toISOString().slice(0, 10),
         status: 'ativa' as StatusGarantia,
-      }])
+      })
       created.push('garantia')
     }
 
@@ -583,7 +583,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (clienteAtual) {
       atualizarClienteCloud(os.clienteId, { totalGasto: clienteAtual.totalGasto + os.valorTotal })
     }
-    setMeta(prev => ({ ...prev, numeroOS: prev.numeroOS + 1 }))
+    atualizarMetaCloud({ numeroOS: meta.numeroOS + 1 })
 
     if (materiaisUsados?.length) {
       // Só ajusta o estoque pela diferença em relação ao que já estava salvo em `os.materiaisUsados`
@@ -607,9 +607,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     if (os.agendamentoId) {
-      setAgendamentos(prev => prev.map(a =>
-        a.id === os.agendamentoId ? { ...a, status: 'concluido' as const } : a
-      ))
+      editarAgendamento(os.agendamentoId, { status: 'concluido' as const })
     }
 
     return { created }
@@ -640,18 +638,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!os || os.status === 'cancelado') return
     atualizarOSCloud(id, { status: 'cancelado' as StatusOS })
     if (os.agendamentoId) {
-      setAgendamentos(prev => prev.map(a =>
-        a.id === os.agendamentoId ? { ...a, status: 'agendado' as const } : a
-      ))
+      editarAgendamento(os.agendamentoId, { status: 'agendado' as const })
     }
   }
 
-  // ── Meta & Configurações ──────────────────────────────────────
-  const atualizarMeta = (m: Partial<Omit<Meta, 'id'>>) =>
-    setMeta(prev => ({ ...prev, ...m }))
-
-  const atualizarConfiguracoes = (c: Partial<Configuracoes>) =>
-    setConfiguracoes(prev => ({ ...prev, ...c }))
+  // ── Meta & Configurações (Supabase — objetos singleton, ver
+  // useMetasSupabase.ts / useConfiguracoesSupabase.ts) ──────────
+  const atualizarMeta          = atualizarMetaCloud
+  const atualizarConfiguracoes = atualizarConfiguracoesCloud
 
   return (
     <AppContext.Provider value={{

@@ -207,25 +207,135 @@ const DEMO_LANCAMENTOS = [
 ]
 
 /**
- * `clientes`, `veiculos`, `ordens_servico`, `produtos` e `lancamentos_financeiro`
- * já vivem no Supabase (ver CLAUDE.md, "Migração de entidades pro Supabase")
- * — diferente do resto dos dados (ainda em localStorage, isolado por
- * BrowserContext), o Supabase é estado real e compartilhado entre execuções
- * da suíte. Sem esse passo, cada rodada herdaria o lixo (linhas
- * criadas/editadas) da rodada anterior — por exemplo, o "Produto Crítico E2E"
- * que 05-estoque-critico.spec.ts cria e nunca apaga — e specs que dependem
- * dos 10 clientes/veículos/15 OS/6 produtos de demonstração por nome/placa/
- * status (ex: "Gabriela Alves", "Volkswagen Golf GTI · NJX-8P92") falhariam
- * por não encontrá-los. Roda uma vez por execução da suíte, antes de
- * qualquer spec: apaga tudo em `ordens_servico`/`veiculos`/`clientes` da loja
- * de teste e reinsere os fixos de cada, e faz o mesmo (delete + insert, sem
- * ordem específica) pra `produtos`/`lancamentos_financeiro` — nenhuma FK
- * composta envolve essas duas, só `osId` solto em `lancamentos_financeiro`
- * (sem constraint) apontando pra ids de DEMO_ORDENS. Ordem de delete/insert
- * de clientes/veiculos/ordens_servico segue as FKs compostas: ordens_servico
- * referencia clientes E veiculos, então é apagada primeiro e inserida por
- * último; veiculos referencia clientes, então é apagada depois e inserida
- * antes de ordens_servico.
+ * Mesmos 3 instaladores de initialInstaladores (src/context/AppContext.tsx)
+ * — mesma ressalva de DEMO_CLIENTES acima (cópia local). Sem FK com nenhuma
+ * outra tabela. Nomes ("Lucas Mota", "Felipe Torres") são lidos por 01 e 03
+ * no ranking de Relatórios > Técnicos.
+ */
+const DEMO_INSTALADORES = [
+  { id: 'i1', nome: 'Lucas Mota',     especialidades: ['PPF', 'Ceramic Coating'],        comissaoPadrao: 15, ativo: true },
+  { id: 'i2', nome: 'Felipe Torres',  especialidades: ['Envelopamento', 'Chrome Delete'], comissaoPadrao: 12, ativo: true },
+  { id: 'i3', nome: 'Matheus Vieira', especialidades: ['PPF Full Body', 'Insulfilm'],     comissaoPadrao: 13, ativo: true },
+]
+
+/**
+ * Mesmos 8 serviços de initialServicos (src/context/AppContext.tsx) — mesma
+ * ressalva de DEMO_CLIENTES acima (cópia local). Sem FK com nenhuma outra
+ * tabela. Nomes ("Insulfilm", "Envelopamento Capô", "Higienização" etc.) são
+ * selecionados no modal de Nova OS por 01, 02, 03 e 04.
+ */
+const DEMO_SERVICOS = [
+  { id: 's1', nome: 'PPF Parcial',         preco: 1800, tempEstimado: 8  },
+  { id: 's2', nome: 'PPF Full',            preco: 4500, tempEstimado: 24 },
+  { id: 's3', nome: 'Envelopamento Capô',  preco:  380, tempEstimado: 3  },
+  { id: 's4', nome: 'Envelopamento Full',  preco: 3200, tempEstimado: 16 },
+  { id: 's5', nome: 'Chrome Delete',       preco:  890, tempEstimado: 6  },
+  { id: 's6', nome: 'Teto Preto',          preco:  320, tempEstimado: 2  },
+  { id: 's7', nome: 'Insulfilm',           preco:  450, tempEstimado: 3  },
+  { id: 's8', nome: 'Higienização',        preco:  180, tempEstimado: 2  },
+]
+
+/**
+ * Mesmos 5 agendamentos de initialAgendamentos (src/context/AppContext.tsx)
+ * — mesma ressalva de DEMO_CLIENTES acima (cópia local). `clienteId`/
+ * `veiculoId`/`servicoId`/`instaladorId` são Strings soltas (sem FK), mas
+ * ainda assim apontam pra ids que já existem em DEMO_CLIENTES/DEMO_VEICULOS/
+ * DEMO_SERVICOS/DEMO_INSTALADORES, por consistência com o dado de origem.
+ */
+const DEMO_AGENDAMENTOS = [
+  { id: 'ag1', clienteId: 'c1',  veiculoId: 'v1',  servicoId: 's2', instaladorId: 'i1', box: 1, data: '2025-05-12', horario: '08:00', duracao: 24, status: 'confirmado' },
+  { id: 'ag2', clienteId: 'c3',  veiculoId: 'v3',  servicoId: 's4', instaladorId: 'i2', box: 2, data: '2025-05-13', horario: '09:00', duracao: 16, status: 'agendado'   },
+  { id: 'ag3', clienteId: 'c8',  veiculoId: 'v8',  servicoId: 's7', instaladorId: 'i3', box: 3, data: '2025-05-14', horario: '10:00', duracao:  3, status: 'agendado'   },
+  { id: 'ag4', clienteId: 'c9',  veiculoId: 'v9',  servicoId: 's5', instaladorId: 'i2', box: 4, data: '2025-05-15', horario: '08:00', duracao:  6, status: 'agendado'   },
+  { id: 'ag5', clienteId: 'c10', veiculoId: 'v10', servicoId: 's3', instaladorId: 'i1', box: 5, data: '2025-05-16', horario: '11:00', duracao:  3, status: 'agendado'   },
+]
+
+/**
+ * Mesmas 6 garantias de initialGarantias (src/context/AppContext.tsx) —
+ * mesma ressalva de DEMO_CLIENTES acima (cópia local). `osId`/`clienteId`/
+ * `veiculoId` continuam Strings soltas, sem FK (mesmo padrão de `osId` em
+ * DEMO_LANCAMENTOS).
+ */
+const DEMO_GARANTIAS = [
+  { id: 'g1', osId: 'os9',  clienteId: 'c6',  veiculoId: 'v6',  servico: 'Envelopamento Full',             produto: 'Vinil Oracal 970 Verde Militar', dataInicio: '2025-05-08', dataFim: '2026-05-08', status: 'ativa'    },
+  { id: 'g2', osId: 'os10', clienteId: 'c1',  veiculoId: 'v1',  servico: 'Chrome Delete',                  produto: 'Vinil Oracal 970 Preto Fosco',   dataInicio: '2025-04-26', dataFim: '2026-04-26', status: 'ativa'    },
+  { id: 'g3', osId: 'os11', clienteId: 'c4',  veiculoId: 'v4',  servico: 'PPF Parcial',                    produto: 'Filme PPF Xpel Ultimate Plus',   dataInicio: '2025-04-22', dataFim: '2030-04-22', status: 'ativa'    },
+  { id: 'g4', osId: 'os12', clienteId: 'c10', veiculoId: 'v10', servico: 'Envelopamento Capô + Teto Preto', produto: 'Vinil Oracal 970 Preto Fosco',  dataInicio: '2025-04-29', dataFim: '2026-04-29', status: 'ativa'    },
+  { id: 'g5', osId: 'os9',  clienteId: 'c6',  veiculoId: 'v6',  servico: 'Envelopamento Full',             produto: 'Vinil Oracal 970 Verde Militar', dataInicio: '2024-10-01', dataFim: '2025-10-01', status: 'acionada' },
+  { id: 'g6', osId: 'os13', clienteId: 'c2',  veiculoId: 'v2',  servico: 'PPF Parcial',                    produto: 'Filme PPF Llumar Platinum',      dataInicio: '2023-11-15', dataFim: '2024-11-15', status: 'expirada' },
+]
+
+/**
+ * Mesmo valor de initialMeta (src/context/AppContext.tsx) — objeto singleton
+ * (uma linha por loja, ver useMetasSupabase.ts), não uma lista. Lido por
+ * 01-fluxo-principal-os.spec.ts (Equipe > Metas, faturamento/número de OS do
+ * mês) como linha de base antes de concluir uma OS.
+ */
+const DEMO_META = {
+  id: 'm1',
+  mes: 5,
+  ano: 2025,
+  faturamento: 40000,
+  numeroOS: 30,
+  ticketMedio: 6500,
+  novosClientes: 15,
+}
+
+/**
+ * Mesmo valor de initialConfiguracoes (src/context/AppContext.tsx) — objeto
+ * singleton (uma linha por loja, ver useConfiguracoesSupabase.ts, garantido
+ * também por `configuracoes_lojaId_key` no banco). Nenhum spec de e2e lê
+ * `configuracoes` diretamente hoje, mas a Home (`useHome.ts`) chama
+ * `configuracoes.nomeLoja.split(' ')` sem guarda — precisa de uma linha real
+ * pra não cair no `CONFIGURACOES_PADRAO` do hook (que já é seguro, mas seedar
+ * aqui mantém a loja de teste com o mesmo dado de sempre, sem depender do
+ * fallback do hook).
+ */
+const DEMO_CONFIGURACOES = {
+  id: 'cfg1',
+  nomeLoja: 'WrapOS Studio',
+  cidade: 'São Paulo',
+  telefone: '(11) 3456-7890',
+  email: 'contato@wrapos.com.br',
+  corPrimaria: '#E94560',
+  numeroBoxes: 6,
+  comissaoPadrao: 12,
+  notifEstoque: true,
+  notifGarantia: true,
+  notifPosVenda: true,
+}
+
+/**
+ * As 11 entidades (`clientes`, `veiculos`, `ordens_servico`, `produtos`,
+ * `lancamentos_financeiro`, `agendamentos`, `instaladores`, `garantias`,
+ * `metas`, `configuracoes` e `servicos`) já vivem no Supabase (ver
+ * CLAUDE.md, "Migração de entidades pro Supabase") — o Supabase é estado
+ * real e compartilhado entre execuções da suíte, ao contrário do antigo
+ * localStorage isolado por `BrowserContext`. Sem esse passo, cada rodada
+ * herdaria o lixo (linhas criadas/editadas) da rodada anterior — por
+ * exemplo, o "Produto Crítico E2E" que 05-estoque-critico.spec.ts cria e
+ * nunca apaga — e specs que dependem dos 10 clientes/veículos/15 OS/6
+ * produtos/3 instaladores/8 serviços de demonstração por nome/placa/status
+ * (ex: "Gabriela Alves", "Volkswagen Golf GTI · NJX-8P92", "Lucas Mota",
+ * "Insulfilm") falhariam por não encontrá-los. Roda uma vez por execução da
+ * suíte, antes de qualquer spec: apaga tudo em cada uma das 11 tabelas da
+ * loja de teste e reinsere os fixos de cada.
+ *
+ * Ordem de delete/insert: `ordens_servico`/`veiculos`/`clientes` seguem as
+ * FKs compostas reais (ordens_servico referencia clientes E veiculos, então
+ * é apagada primeiro e inserida por último; veiculos referencia clientes,
+ * então é apagada depois e inserida antes de ordens_servico). As outras 8
+ * (`produtos`, `lancamentos_financeiro`, `agendamentos`, `instaladores`,
+ * `garantias`, `metas`, `configuracoes`, `servicos`) não têm FK real com
+ * nenhuma outra tabela migrada (só com `lojas`), então a ordem entre elas é
+ * livre — `osId`/`clienteId`/`veiculoId`/`servicoId`/`instaladorId` que
+ * aparecem em `lancamentos_financeiro`/`garantias`/`agendamentos` são
+ * Strings soltas, sem constraint.
+ *
+ * `metas` e `configuracoes` são objetos singleton (uma linha por loja, ver
+ * useMetasSupabase.ts/useConfiguracoesSupabase.ts) — o delete+insert aqui
+ * segue o mesmo padrão das tabelas em lista, só que inserindo exatamente uma
+ * linha (`DEMO_META`/`DEMO_CONFIGURACOES`) em vez de um array.
  */
 async function semearDados(email: string, password: string) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL
@@ -255,6 +365,36 @@ async function semearDados(email: string, password: string) {
   }
 
   const lojaId = usuario.lojaId as string
+
+  const { error: erroDeleteServicos } = await supabase.from('servicos').delete().eq('lojaId', lojaId)
+  if (erroDeleteServicos) {
+    throw new Error(`semearDados: falha ao limpar serviços antigos da loja de teste — ${erroDeleteServicos.message}`)
+  }
+
+  const { error: erroDeleteConfiguracoes } = await supabase.from('configuracoes').delete().eq('lojaId', lojaId)
+  if (erroDeleteConfiguracoes) {
+    throw new Error(`semearDados: falha ao limpar configurações antigas da loja de teste — ${erroDeleteConfiguracoes.message}`)
+  }
+
+  const { error: erroDeleteMetas } = await supabase.from('metas').delete().eq('lojaId', lojaId)
+  if (erroDeleteMetas) {
+    throw new Error(`semearDados: falha ao limpar metas antigas da loja de teste — ${erroDeleteMetas.message}`)
+  }
+
+  const { error: erroDeleteGarantias } = await supabase.from('garantias').delete().eq('lojaId', lojaId)
+  if (erroDeleteGarantias) {
+    throw new Error(`semearDados: falha ao limpar garantias antigas da loja de teste — ${erroDeleteGarantias.message}`)
+  }
+
+  const { error: erroDeleteInstaladores } = await supabase.from('instaladores').delete().eq('lojaId', lojaId)
+  if (erroDeleteInstaladores) {
+    throw new Error(`semearDados: falha ao limpar instaladores antigos da loja de teste — ${erroDeleteInstaladores.message}`)
+  }
+
+  const { error: erroDeleteAgendamentos } = await supabase.from('agendamentos').delete().eq('lojaId', lojaId)
+  if (erroDeleteAgendamentos) {
+    throw new Error(`semearDados: falha ao limpar agendamentos antigos da loja de teste — ${erroDeleteAgendamentos.message}`)
+  }
 
   const { error: erroDeleteLancamentos } = await supabase.from('lancamentos_financeiro').delete().eq('lojaId', lojaId)
   if (erroDeleteLancamentos) {
@@ -322,6 +462,54 @@ async function semearDados(email: string, password: string) {
 
   if (erroInsertLancamentos) {
     throw new Error(`semearDados: falha ao inserir os lançamentos financeiros de demonstração — ${erroInsertLancamentos.message}`)
+  }
+
+  const { error: erroInsertInstaladores } = await supabase
+    .from('instaladores')
+    .insert(DEMO_INSTALADORES.map(i => ({ ...i, lojaId })))
+
+  if (erroInsertInstaladores) {
+    throw new Error(`semearDados: falha ao inserir os instaladores de demonstração — ${erroInsertInstaladores.message}`)
+  }
+
+  const { error: erroInsertServicos } = await supabase
+    .from('servicos')
+    .insert(DEMO_SERVICOS.map(s => ({ ...s, lojaId })))
+
+  if (erroInsertServicos) {
+    throw new Error(`semearDados: falha ao inserir os serviços de demonstração — ${erroInsertServicos.message}`)
+  }
+
+  const { error: erroInsertAgendamentos } = await supabase
+    .from('agendamentos')
+    .insert(DEMO_AGENDAMENTOS.map(a => ({ ...a, lojaId })))
+
+  if (erroInsertAgendamentos) {
+    throw new Error(`semearDados: falha ao inserir os agendamentos de demonstração — ${erroInsertAgendamentos.message}`)
+  }
+
+  const { error: erroInsertGarantias } = await supabase
+    .from('garantias')
+    .insert(DEMO_GARANTIAS.map(g => ({ ...g, lojaId })))
+
+  if (erroInsertGarantias) {
+    throw new Error(`semearDados: falha ao inserir as garantias de demonstração — ${erroInsertGarantias.message}`)
+  }
+
+  const { error: erroInsertMeta } = await supabase
+    .from('metas')
+    .insert({ ...DEMO_META, lojaId })
+
+  if (erroInsertMeta) {
+    throw new Error(`semearDados: falha ao inserir a meta de demonstração — ${erroInsertMeta.message}`)
+  }
+
+  const { error: erroInsertConfiguracoes } = await supabase
+    .from('configuracoes')
+    .insert({ ...DEMO_CONFIGURACOES, lojaId })
+
+  if (erroInsertConfiguracoes) {
+    throw new Error(`semearDados: falha ao inserir as configurações de demonstração — ${erroInsertConfiguracoes.message}`)
   }
 
   await supabase.auth.signOut()

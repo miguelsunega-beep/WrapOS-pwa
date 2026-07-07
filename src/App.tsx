@@ -22,7 +22,7 @@ const Home          = lazy(() => import('./pages/Home').then(m => ({ default: m.
 
 /**
  * usuario.lojaId é o identificador que hoje faz o papel do antigo
- * "perfilId": usePersistedState (AppContext.tsx) continua lendo
+ * "perfilId": os hooks `use*Supabase.ts` em AppContext.tsx continuam lendo
  * sessionStorage['wrapos_perfil_ativo'] normalmente, só que agora essa
  * chave é preenchida com a loja do usuário logado em vez de um id
  * escolhido na extinta tela SelecionarPerfil.

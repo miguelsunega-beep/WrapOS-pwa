@@ -119,7 +119,7 @@ CREATE TABLE "agendamentos" (
     "valor" DOUBLE PRECISION,
     "reagendamentos" INTEGER,
 
-    CONSTRAINT "agendamentos_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "agendamentos_pkey" PRIMARY KEY ("lojaId","id")
 );
 
 -- CreateTable
@@ -131,7 +131,7 @@ CREATE TABLE "instaladores" (
     "comissaoPadrao" DOUBLE PRECISION NOT NULL,
     "ativo" BOOLEAN NOT NULL DEFAULT true,
 
-    CONSTRAINT "instaladores_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "instaladores_pkey" PRIMARY KEY ("lojaId","id")
 );
 
 -- CreateTable
@@ -178,7 +178,7 @@ CREATE TABLE "garantias" (
     "dataFim" TIMESTAMP(3) NOT NULL,
     "status" "StatusGarantia" NOT NULL DEFAULT 'ativa',
 
-    CONSTRAINT "garantias_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "garantias_pkey" PRIMARY KEY ("lojaId","id")
 );
 
 -- CreateTable
@@ -192,7 +192,7 @@ CREATE TABLE "metas" (
     "ticketMedio" DOUBLE PRECISION NOT NULL,
     "novosClientes" INTEGER NOT NULL,
 
-    CONSTRAINT "metas_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "metas_pkey" PRIMARY KEY ("lojaId","id")
 );
 
 -- CreateTable
@@ -210,7 +210,7 @@ CREATE TABLE "configuracoes" (
     "notifGarantia" BOOLEAN DEFAULT true,
     "notifPosVenda" BOOLEAN DEFAULT true,
 
-    CONSTRAINT "configuracoes_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "configuracoes_pkey" PRIMARY KEY ("lojaId","id")
 );
 
 -- CreateTable
@@ -222,7 +222,7 @@ CREATE TABLE "servicos" (
     "tempEstimado" INTEGER,
     "duracaoDias" INTEGER,
 
-    CONSTRAINT "servicos_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "servicos_pkey" PRIMARY KEY ("lojaId","id")
 );
 
 -- CreateIndex
@@ -235,22 +235,7 @@ CREATE INDEX "usuarios_lojaId_idx" ON "usuarios"("lojaId");
 CREATE UNIQUE INDEX "ordens_servico_numero_key" ON "ordens_servico"("numero");
 
 -- CreateIndex
-CREATE INDEX "agendamentos_lojaId_idx" ON "agendamentos"("lojaId");
-
--- CreateIndex
-CREATE INDEX "instaladores_lojaId_idx" ON "instaladores"("lojaId");
-
--- CreateIndex
-CREATE INDEX "garantias_lojaId_idx" ON "garantias"("lojaId");
-
--- CreateIndex
-CREATE INDEX "metas_lojaId_idx" ON "metas"("lojaId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "configuracoes_lojaId_key" ON "configuracoes"("lojaId");
-
--- CreateIndex
-CREATE INDEX "servicos_lojaId_idx" ON "servicos"("lojaId");
 
 -- AddForeignKey
 ALTER TABLE "usuarios" ADD CONSTRAINT "usuarios_lojaId_fkey" FOREIGN KEY ("lojaId") REFERENCES "lojas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

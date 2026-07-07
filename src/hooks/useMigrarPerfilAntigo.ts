@@ -9,7 +9,7 @@ export interface PerfilAntigo {
 
 const PERFIS_KEY = 'wrapos_perfis'
 
-/** Mesma lista de sufixos de entidade usadas por usePersistedState em AppContext.tsx. */
+/** Mesma lista de sufixos de entidade lidos por cada hook `use*Supabase.ts` como fonte de dados legados a migrar (ver CLAUDE.md, "Migração de entidades pro Supabase"). */
 const ENTIDADES = [
   'clientes', 'veiculos', 'ordens', 'agendamentos', 'instaladores',
   'lancamentos', 'produtos', 'garantias', 'meta', 'configuracoes', 'servicos',

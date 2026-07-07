@@ -185,7 +185,7 @@ model OrdemServico {
 }
 
 model Agendamento {
-  id             String            @id @default(uuid())
+  id             String            @default(uuid())
   lojaId         String
   clienteId      String
   veiculoId      String
@@ -201,12 +201,19 @@ model Agendamento {
 
   loja Loja @relation(fields: [lojaId], references: [id])
 
-  @@index([lojaId])
+  // Chave composta (lojaId, id) — mesmo motivo e mesmo padrão de
+  // Cliente/Veiculo/OrdemServico/Produto/LancamentoFinanceiro (ver comentário
+  // em Cliente): sexta entidade migrada pro Supabase. `clienteId`/`veiculoId`/
+  // `servicoId`/`instaladorId` continuam String simples, sem FK — mesmo
+  // padrão de sempre (só Cliente/Veiculo têm FK real, via Veiculo/OrdemServico).
+  // @@index([lojaId]) removido por ser redundante: o índice da PK composta já
+  // cobre buscas por lojaId sozinho.
+  @@id([lojaId, id])
   @@map("agendamentos")
 }
 
 model Instalador {
-  id             String   @id @default(uuid())
+  id             String   @default(uuid())
   lojaId         String
   nome           String
   especialidades String[]
@@ -215,7 +222,9 @@ model Instalador {
 
   loja Loja @relation(fields: [lojaId], references: [id])
 
-  @@index([lojaId])
+  // Chave composta (lojaId, id) — sétima entidade migrada pro Supabase, mesmo
+  // padrão de sempre. @@index([lojaId]) removido por redundante.
+  @@id([lojaId, id])
   @@map("instaladores")
 }
 
@@ -265,7 +274,7 @@ model Produto {
 }
 
 model Garantia {
-  id         String         @id @default(uuid())
+  id         String         @default(uuid())
   lojaId     String
   osId       String
   clienteId  String
@@ -278,12 +287,16 @@ model Garantia {
 
   loja Loja @relation(fields: [lojaId], references: [id])
 
-  @@index([lojaId])
+  // Chave composta (lojaId, id) — oitava entidade migrada pro Supabase, mesmo
+  // padrão de sempre. `osId`/`clienteId`/`veiculoId` continuam String simples,
+  // sem FK (mesmo padrão já documentado em LancamentoFinanceiro.osId).
+  // @@index([lojaId]) removido por redundante.
+  @@id([lojaId, id])
   @@map("garantias")
 }
 
 model Meta {
-  id            String @id @default(uuid())
+  id            String @default(uuid())
   lojaId        String
   mes           Int
   ano           Int
@@ -294,12 +307,19 @@ model Meta {
 
   loja Loja @relation(fields: [lojaId], references: [id])
 
-  @@index([lojaId])
+  // Chave composta (lojaId, id) — nona entidade migrada pro Supabase, mesmo
+  // padrão de sempre. Ao contrário de Configuracoes (ver comentário lá), não
+  // ganhou `lojaId @unique`: o frontend hoje só usa uma meta "ativa" por loja
+  // (não filtra por mes/ano — ver useMetasSupabase.ts), mas o modelo já tem
+  // `mes`/`ano` pensando em possível histórico multi-mês futuro, então a PK
+  // composta não deve fechar essa porta com uma constraint de unicidade que
+  // o negócio não pediu. @@index([lojaId]) removido por redundante.
+  @@id([lojaId, id])
   @@map("metas")
 }
 
 model Configuracoes {
-  id             String   @id @default(uuid())
+  id             String   @default(uuid())
   lojaId         String   @unique
   nomeLoja       String
   cidade         String
@@ -314,11 +334,22 @@ model Configuracoes {
 
   loja Loja @relation(fields: [lojaId], references: [id])
 
+  // Chave composta (lojaId, id) — décima entidade migrada pro Supabase, mesmo
+  // padrão de sempre, MAS mantendo `lojaId @unique` (já existia antes desta
+  // migração): a PK composta (lojaId, id) sozinha não impede duas linhas com
+  // o mesmo lojaId e id diferente — só `@unique` em lojaId garante de fato
+  // "uma config por loja", que é a invariante real que o app depende
+  // (`configuracoes: Configuracoes` é um objeto singular em AppContextType,
+  // não uma lista — ver useConfiguracoesSupabase.ts). Decisão: manter as duas
+  // constraints (redundante em conjunto, mas cada uma garante uma coisa
+  // diferente — @unique garante o singleton, a PK composta só segue o padrão
+  // uniforme das outras 9 entidades já migradas).
+  @@id([lojaId, id])
   @@map("configuracoes")
 }
 
 model Servico {
-  id           String @id @default(uuid())
+  id           String @default(uuid())
   lojaId       String
   nome         String
   preco        Float?
@@ -327,6 +358,9 @@ model Servico {
 
   loja Loja @relation(fields: [lojaId], references: [id])
 
-  @@index([lojaId])
+  // Chave composta (lojaId, id) — décima primeira e última entidade migrada
+  // pro Supabase nesta fase, mesmo padrão de sempre. @@index([lojaId])
+  // removido por redundante.
+  @@id([lojaId, id])
   @@map("servicos")
 }
