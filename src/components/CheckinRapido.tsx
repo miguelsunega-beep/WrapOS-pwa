@@ -504,8 +504,10 @@ function StepPeriodo({
 export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () => void }) {
   const {
     clientes, veiculos, instaladores, servicos,
-    adicionarCliente, adicionarVeiculo, adicionarOS,
+    adicionarClienteSequencial, adicionarVeiculoSequencial, adicionarOSSequencial,
   } = useApp()
+
+  const [salvando, setSalvando] = useState(false)
 
   const hoje = todayLocal()
 
@@ -630,61 +632,88 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
     setStep(target)
   }
 
-  const confirmar = (overrideBox?: number, overrideInst?: string) => {
+  // Cliente → veículo → OS precisam ser criados em sequência estrita e awaited:
+  // veículo referencia clienteId e OS referencia veiculoId via FK composta
+  // (lojaId, id) — disparar as três em paralelo/otimista faz o insert do
+  // veículo/OS chegar no Postgres antes do registro que ele referencia existir.
+  const confirmar = async (overrideBox?: number, overrideInst?: string) => {
+    if (salvando) return
     const finalBox  = overrideBox ?? 0
     const finalInst = overrideInst ?? instSel
 
-    // 1. Resolve clienteId
-    let clienteId = clienteSel?.id ?? ''
-    if (criando) {
-      clienteId = adicionarCliente({
-        nome: novoNome.trim(),
-        telefone: novoTel.trim(),
-        email: '', cpf: '',
-        comoConheceu: 'Check-in Rápido',
-        dataCadastro: todayLocal(),
-        totalGasto: 0,
-      })
+    setSalvando(true)
+    try {
+      // 1. Resolve clienteId
+      let clienteId = clienteSel?.id ?? ''
+      if (criando) {
+        try {
+          clienteId = await adicionarClienteSequencial({
+            nome: novoNome.trim(),
+            telefone: novoTel.trim(),
+            email: '', cpf: '',
+            comoConheceu: 'Check-in Rápido',
+            dataCadastro: todayLocal(),
+            totalGasto: 0,
+          })
+        } catch {
+          toast.error('Não foi possível criar o cliente. Tente novamente.')
+          return
+        }
+      }
+
+      // 2. Resolve veiculoId (depende do clienteId já confirmado no passo 1)
+      let veiculoId = veiculoSel?.id ?? ''
+      if (!veiculoSel) {
+        const limpa = placaRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+        const placaFmt = limpa.length === 7 ? `${limpa.slice(0, 3)}-${limpa.slice(3)}` : limpa
+        try {
+          veiculoId = await adicionarVeiculoSequencial({
+            clienteId,
+            marca: novaMarca, modelo: novoModelo, ano: novoAno, cor: novaCor,
+            placa: placaFmt,
+          })
+        } catch {
+          toast.error('Não foi possível criar o veículo. Tente novamente.')
+          return
+        }
+      }
+
+      // 3. Build item from catalog service
+      const serv = servicos.find(s => s.id === servicoSel)
+      const valorNum = parseFloat(servicoValor) || 0
+      const itens = serv ? [{ servicoId: serv.id, nome: serv.nome, preco: valorNum }] : []
+      const valorTotal = valorNum
+      const nomeCliente  = criando ? novoNome.trim() : (clienteSel?.nome ?? '')
+      const labelVeiculo = veiculoSel
+        ? `${veiculoSel.marca} ${veiculoSel.modelo}`
+        : `${novaMarca} ${novoModelo}`.trim()
+
+      // 4. Criar a OS (depende do veiculoId já confirmado no passo 2)
+      let numero: number
+      try {
+        numero = await adicionarOSSequencial({
+          clienteId, veiculoId,
+          servicos: itens,
+          valorTotal,
+          formaPagamento: 'A definir',
+          instaladorId: finalInst,
+          box: finalBox,
+          comissao: 0,
+          observacoes: obsOS,
+          status: 'em_andamento',
+          dataEntrada,
+          dataSaidaPrevista: mesmoDia ? dataEntrada : (dataSaida || undefined),
+        } as Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>)
+      } catch {
+        toast.error('Não foi possível criar a ordem de serviço. Tente novamente.')
+        return
+      }
+
+      toast.success(`OS #${numero} criada — ${nomeCliente} · ${labelVeiculo}`)
+      onClose()
+    } finally {
+      setSalvando(false)
     }
-
-    // 2. Resolve veiculoId
-    let veiculoId = veiculoSel?.id ?? ''
-    if (!veiculoSel) {
-      const limpa = placaRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-      const placaFmt = limpa.length === 7 ? `${limpa.slice(0, 3)}-${limpa.slice(3)}` : limpa
-      veiculoId = adicionarVeiculo({
-        clienteId,
-        marca: novaMarca, modelo: novoModelo, ano: novoAno, cor: novaCor,
-        placa: placaFmt,
-      })
-    }
-
-    // 3. Build item from catalog service
-    const serv = servicos.find(s => s.id === servicoSel)
-    const valorNum = parseFloat(servicoValor) || 0
-    const itens = serv ? [{ servicoId: serv.id, nome: serv.nome, preco: valorNum }] : []
-    const valorTotal = valorNum
-    const nomeCliente  = criando ? novoNome.trim() : (clienteSel?.nome ?? '')
-    const labelVeiculo = veiculoSel
-      ? `${veiculoSel.marca} ${veiculoSel.modelo}`
-      : `${novaMarca} ${novoModelo}`.trim()
-
-    const numero = adicionarOS({
-      clienteId, veiculoId,
-      servicos: itens,
-      valorTotal,
-      formaPagamento: 'A definir',
-      instaladorId: finalInst,
-      box: finalBox,
-      comissao: 0,
-      observacoes: obsOS,
-      status: 'em_andamento',
-      dataEntrada,
-      dataSaidaPrevista: mesmoDia ? dataEntrada : (dataSaida || undefined),
-    } as Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>)
-
-    toast.success(`OS #${numero} criada — ${nomeCliente} · ${labelVeiculo}`)
-    onClose()
   }
 
   const STEPS = ['Cliente', 'Veículo', 'Serviços', 'Período'] as const
@@ -853,11 +882,14 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={step === 4 ? () => confirmar() : goNext}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent/90 transition-colors"
+                  onClick={step === 4 ? () => { void confirmar() } : goNext}
+                  disabled={step === 4 && salvando}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {step === 4
-                    ? <><Check size={14} /> Confirmar</>
+                    ? (salvando
+                      ? <><Loader2 size={14} className="animate-spin" /> Salvando...</>
+                      : <><Check size={14} /> Confirmar</>)
                     : <>Próximo <ChevronRight size={14} /></>
                   }
                 </button>

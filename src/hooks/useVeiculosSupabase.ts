@@ -117,6 +117,20 @@ export function useVeiculosSupabase(lojaId: string) {
     return id
   }
 
+  /**
+   * Versão awaited de adicionarVeiculo — ver mesmo motivo em
+   * adicionarClienteSequencial (useClientesSupabase.ts). Só atualiza o estado
+   * local depois do insert confirmado no Supabase; rejeita sem tocar no
+   * estado local se falhar (ex: clienteId ainda não existe na FK composta).
+   */
+  const adicionarVeiculoSequencial = async (v: Omit<Veiculo, 'id'>): Promise<string> => {
+    const id = uid()
+    const { error } = await supabase.from('veiculos').insert(paraLinha(id, lojaId, v))
+    if (error) throw new Error('Não foi possível criar o veículo.')
+    setVeiculos(prev => [...prev, { ...v, id }])
+    return id
+  }
+
   const editarVeiculo = (id: string, patch: Partial<Omit<Veiculo, 'id'>>) => {
     let anterior: Veiculo | undefined
     setVeiculos(prev => prev.map(x => {
@@ -157,5 +171,5 @@ export function useVeiculosSupabase(lojaId: string) {
     })
   }
 
-  return { veiculos, adicionarVeiculo, editarVeiculo, removerVeiculo }
+  return { veiculos, adicionarVeiculo, adicionarVeiculoSequencial, editarVeiculo, removerVeiculo }
 }

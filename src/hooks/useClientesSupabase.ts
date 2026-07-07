@@ -121,6 +121,21 @@ export function useClientesSupabase(lojaId: string) {
     return id
   }
 
+  /**
+   * Versão awaited de adicionarCliente, pra fluxos que encadeiam uma criação
+   * dependente (ex: veículo com FK composta pro cliente) e precisam ter
+   * certeza de que o insert já foi confirmado no Supabase antes de prosseguir
+   * — ver bug de FK order no Check-in Rápido. Só atualiza o estado local
+   * depois da confirmação; rejeita (sem tocar no estado local) se o insert falhar.
+   */
+  const adicionarClienteSequencial = async (c: Omit<Cliente, 'id'>): Promise<string> => {
+    const id = uid()
+    const { error } = await supabase.from('clientes').insert(paraLinha(id, lojaId, c))
+    if (error) throw new Error('Não foi possível criar o cliente.')
+    setClientes(prev => [...prev, { ...c, id }])
+    return id
+  }
+
   const editarCliente = (id: string, patch: Partial<Omit<Cliente, 'id'>>) => {
     let anterior: Cliente | undefined
     setClientes(prev => prev.map(x => {
@@ -161,5 +176,5 @@ export function useClientesSupabase(lojaId: string) {
     })
   }
 
-  return { clientes, adicionarCliente, editarCliente, removerCliente }
+  return { clientes, adicionarCliente, adicionarClienteSequencial, editarCliente, removerCliente }
 }

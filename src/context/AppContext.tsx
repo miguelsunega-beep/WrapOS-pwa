@@ -301,6 +301,8 @@ interface AppContextType {
 
   // Clientes
   adicionarCliente: (c: Omit<Cliente, 'id'>) => string
+  /** Versão awaited de adicionarCliente — só resolve depois do insert confirmado no Supabase. Ver Check-in Rápido. */
+  adicionarClienteSequencial: (c: Omit<Cliente, 'id'>) => Promise<string>
   editarCliente: (id: string, c: Partial<Omit<Cliente, 'id'>>) => void
   /** Exclui de fato se o cliente não tiver OS vinculada; senão, apenas inativa. */
   deletarCliente: (id: string) => 'excluido' | 'inativado'
@@ -308,11 +310,15 @@ interface AppContextType {
 
   // Veículos
   adicionarVeiculo: (v: Omit<Veiculo, 'id'>) => string
+  /** Versão awaited de adicionarVeiculo — só resolve depois do insert confirmado no Supabase. Ver Check-in Rápido. */
+  adicionarVeiculoSequencial: (v: Omit<Veiculo, 'id'>) => Promise<string>
   editarVeiculo: (id: string, v: Partial<Omit<Veiculo, 'id'>>) => void
   deletarVeiculo: (id: string) => void
 
   // Ordens de Serviço
   adicionarOS: (os: Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>) => number
+  /** Versão awaited de adicionarOS — só resolve depois do insert confirmado no Supabase. Ver Check-in Rápido. */
+  adicionarOSSequencial: (os: Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>) => Promise<number>
   editarOS: (id: string, os: Partial<Omit<OrdemServico, 'id'>>) => void
   deletarOS: (id: string) => void
   mudarStatusOS: (id: string, status: StatusOS) => void
@@ -373,6 +379,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const {
     clientes,
     adicionarCliente: inserirClienteCloud,
+    adicionarClienteSequencial: inserirClienteSequencialCloud,
     editarCliente:    atualizarClienteCloud,
     removerCliente:   removerClienteCloud,
   } = useClientesSupabase(lojaIdAtual)
@@ -382,6 +389,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const {
     veiculos,
     adicionarVeiculo: inserirVeiculoCloud,
+    adicionarVeiculoSequencial: inserirVeiculoSequencialCloud,
     editarVeiculo:    atualizarVeiculoCloud,
     removerVeiculo:   removerVeiculoCloud,
   } = useVeiculosSupabase(lojaIdAtual)
@@ -391,6 +399,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const {
     ordens,
     adicionarOrdemServico: inserirOSCloud,
+    adicionarOrdemServicoSequencial: inserirOSSequencialCloud,
     editarOrdemServico:    atualizarOSCloud,
     removerOrdemServico:   removerOSCloud,
   } = useOrdensServicoSupabase(lojaIdAtual)
@@ -460,6 +469,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ── Clientes (Supabase — ver useClientesSupabase.ts) ──────────
   const adicionarCliente = inserirClienteCloud
+  const adicionarClienteSequencial = inserirClienteSequencialCloud
   const editarCliente    = atualizarClienteCloud
 
   const deletarCliente = (id: string): 'excluido' | 'inativado' => {
@@ -477,12 +487,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ── Veículos (Supabase — ver useVeiculosSupabase.ts) ──────────
   const adicionarVeiculo = inserirVeiculoCloud
+  const adicionarVeiculoSequencial = inserirVeiculoSequencialCloud
   const editarVeiculo    = atualizarVeiculoCloud
   const deletarVeiculo   = removerVeiculoCloud
 
   // ── Ordens de Serviço (Supabase — ver useOrdensServicoSupabase.ts) ──
   const adicionarOS = (os: Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>): number =>
     inserirOSCloud({ ...os, dataCriacao: todayLocal() })
+
+  /** Versão awaited de adicionarOS — ver "Check-in Rápido" (ordem cliente→veículo→OS estritamente sequencial). */
+  const adicionarOSSequencial = (os: Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>): Promise<number> =>
+    inserirOSSequencialCloud({ ...os, dataCriacao: todayLocal() })
 
   const editarOS = (id: string, os: Partial<Omit<OrdemServico, 'id'>>) =>
     atualizarOSCloud(id, os)
@@ -651,9 +666,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       clientes, veiculos, ordens, agendamentos, instaladores, servicos,
       lancamentos, produtos, garantias, meta, configuracoes,
-      adicionarCliente, editarCliente, deletarCliente, reativarCliente,
-      adicionarVeiculo, editarVeiculo, deletarVeiculo,
-      adicionarOS, editarOS, deletarOS, mudarStatusOS, salvarMateriaisOS,
+      adicionarCliente, adicionarClienteSequencial, editarCliente, deletarCliente, reativarCliente,
+      adicionarVeiculo, adicionarVeiculoSequencial, editarVeiculo, deletarVeiculo,
+      adicionarOS, adicionarOSSequencial, editarOS, deletarOS, mudarStatusOS, salvarMateriaisOS,
       adicionarAgendamento, editarAgendamento, deletarAgendamento,
       adicionarInstalador, editarInstalador, deletarInstalador,
       adicionarServico, editarServico, deletarServico,

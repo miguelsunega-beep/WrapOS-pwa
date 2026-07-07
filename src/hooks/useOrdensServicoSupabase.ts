@@ -158,6 +158,26 @@ export function useOrdensServicoSupabase(lojaId: string) {
     return numeroOtimista
   }
 
+  /**
+   * Versão awaited de adicionarOrdemServico — ver mesmo motivo em
+   * adicionarClienteSequencial (useClientesSupabase.ts). Só atualiza o estado
+   * local depois do insert confirmado no Supabase, já com o numero real
+   * (sem passo otimista intermediário); rejeita sem tocar no estado local se
+   * falhar (ex: veiculoId ainda não existe na FK composta).
+   */
+  const adicionarOrdemServicoSequencial = async (os: Omit<OrdemServico, 'id' | 'numero'>): Promise<number> => {
+    const id = uid()
+    const { data, error } = await supabase
+      .from('ordens_servico')
+      .insert(paraLinha(id, lojaId, os))
+      .select('numero')
+      .single()
+    if (error || !data) throw new Error('Não foi possível criar a ordem de serviço.')
+    const numero = data.numero as number
+    setOrdens(prev => [...prev, { ...os, id, numero }])
+    return numero
+  }
+
   const editarOrdemServico = (id: string, patch: Partial<Omit<OrdemServico, 'id'>>) => {
     let anterior: OrdemServico | undefined
     setOrdens(prev => prev.map(x => {
@@ -198,5 +218,5 @@ export function useOrdensServicoSupabase(lojaId: string) {
     })
   }
 
-  return { ordens, adicionarOrdemServico, editarOrdemServico, removerOrdemServico }
+  return { ordens, adicionarOrdemServico, adicionarOrdemServicoSequencial, editarOrdemServico, removerOrdemServico }
 }
