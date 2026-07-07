@@ -75,6 +75,24 @@
 -- garantias, metas, configuracoes, servicos); as instruções
 -- ALTER TABLE ... ENABLE ROW LEVEL SECURITY seguem aqui em todas as tabelas
 -- apenas por completude/idempotência — rodá-las de novo não quebra nada.
+--
+-- INCIDENTE (2026-07-06, aplicação da migration 007 em produção): ao aplicar
+-- a PK composta de agendamentos/instaladores/garantias/metas/configuracoes/
+-- servicos no projeto de produção ("wrapos pwa latest version",
+-- lasafrkmjfjkjhrleogo), descobrimos (comparando pg_policies entre DEV e
+-- produção antes do deploy) que essas 6 tabelas tinham RLS HABILITADO mas
+-- ZERO policies criadas em produção — só a parte de schema/PK de migrations
+-- anteriores tinha sido aplicada lá, sem replicar este arquivo junto. RLS
+-- habilitado sem nenhuma policy NEGA todo acesso por padrão (não é um buraco
+-- de segurança), mas teria quebrado silenciosamente a leitura/escrita das 6
+-- telas correspondentes no primeiro deploy real. Corrigido rodando as 6
+-- policies abaixo diretamente em produção (mesmo texto de sempre,
+-- {tabela}_por_loja). LIÇÃO PARA O FUTURO: schema (migrations/*.sql) e RLS
+-- (este arquivo) são dois processos manuais separados que podem
+-- dessincronizar entre DEV e produção — antes de considerar qualquer deploy
+-- de migration em produção como seguro, checar explicitamente se as
+-- policies das tabelas afetadas já existem lá (ex: consultando pg_policies),
+-- não assumir que aplicar o schema é suficiente.
 -- ============================================================================
 
 
