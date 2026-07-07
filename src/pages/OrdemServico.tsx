@@ -226,6 +226,7 @@ export function OrdemServico() {
   // ── Wrapper functions ─────────────────────────────────────────
   const onNova   = () => { resetForm(); setDropdown(false); setNovaOSOpen(true) }
   const onSalvar = () => { if (handleSalvar()) setNovaOSOpen(false) }
+  const onCriarClienteInline = async () => { await handleCriarClienteInline() }
 
   // ── Render ────────────────────────────────────────────────────
   return (
@@ -446,13 +447,9 @@ export function OrdemServico() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleCriarClienteInline}
-                        className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[13px] font-bold bg-accent text-white hover:bg-accent/90 transition-colors"
-                      >
+                      <ActionButton onClick={onCriarClienteInline} className="w-full">
                         <Check size={14} /> Cadastrar e selecionar
-                      </button>
+                      </ActionButton>
                     </div>
                   )}
                 </div>

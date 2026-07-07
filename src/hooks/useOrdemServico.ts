@@ -82,7 +82,7 @@ export function useOrdemServico() {
   const {
     ordens, clientes, veiculos, servicos, instaladores, agendamentos,
     adicionarOS, deletarOS, cancelarOS,
-    adicionarCliente, adicionarVeiculo, registrarPagamentoOS,
+    adicionarClienteSequencial, adicionarVeiculoSequencial, registrarPagamentoOS,
   } = useApp()
   const location = useLocation()
 
@@ -205,31 +205,45 @@ export function useOrdemServico() {
     setForm(f => ({ ...f, clienteId: id, clienteSearch: nome, veiculoId: '' }))
   }
 
-  const handleCriarClienteInline = (): boolean => {
+  // Cliente → veículo precisam ser criados em sequência estrita e awaited:
+  // veículo referencia clienteId via FK composta (lojaId, id) — ver mesmo
+  // motivo em CheckinRapido.tsx (bug de FK order corrigido em 2026-07-07).
+  const handleCriarClienteInline = async (): Promise<boolean> => {
     if (!novoCli.nome.trim())     { toast.error('Informe o nome do cliente.'); return false }
     if (!novoCli.telefone.trim()) { toast.error('Informe o telefone.');        return false }
 
-    const clienteId = adicionarCliente({
-      nome:          novoCli.nome.trim(),
-      telefone:      novoCli.telefone.trim(),
-      email:         '', cpf: '',
-      comoConheceu:  'Cadastro via OS',
-      dataCadastro:  todayLocal(),
-      totalGasto:    0,
-    })
+    let clienteId: string
+    try {
+      clienteId = await adicionarClienteSequencial({
+        nome:          novoCli.nome.trim(),
+        telefone:      novoCli.telefone.trim(),
+        email:         '', cpf: '',
+        comoConheceu:  'Cadastro via OS',
+        dataCadastro:  todayLocal(),
+        totalGasto:    0,
+      })
+    } catch {
+      toast.error('Não foi possível criar o cliente. Tente novamente.')
+      return false
+    }
 
     let veiculoId = ''
     if (novoCli.placa.trim() || novoCli.marca.trim() || novoCli.modelo.trim()) {
       const limpa    = novoCli.placa.toUpperCase().replace(/[^A-Z0-9]/g, '')
       const placaFmt = limpa.length === 7 ? `${limpa.slice(0, 3)}-${limpa.slice(3)}` : novoCli.placa.trim()
-      veiculoId = adicionarVeiculo({
-        clienteId,
-        marca:  novoCli.marca.trim(),
-        modelo: novoCli.modelo.trim(),
-        ano:    novoCli.ano,
-        cor:    novoCli.cor.trim(),
-        placa:  placaFmt,
-      })
+      try {
+        veiculoId = await adicionarVeiculoSequencial({
+          clienteId,
+          marca:  novoCli.marca.trim(),
+          modelo: novoCli.modelo.trim(),
+          ano:    novoCli.ano,
+          cor:    novoCli.cor.trim(),
+          placa:  placaFmt,
+        })
+      } catch {
+        toast.error('Não foi possível criar o veículo. Tente novamente.')
+        return false
+      }
     }
 
     setForm(f => ({ ...f, clienteId, clienteSearch: novoCli.nome.trim(), veiculoId }))

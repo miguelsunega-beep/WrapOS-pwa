@@ -67,7 +67,7 @@ export function Clientes() {
 
   const onAbrirEditar = (c: typeof filtered[number]) => { prepararEditar(c); setNovoOpen(true) }
 
-  const onSalvarCliente = () => { if (handleSalvarCliente()) setNovoOpen(false) }
+  const onSalvarCliente = async () => { if (await handleSalvarCliente()) setNovoOpen(false) }
 
   const onSalvarVeiculo = () => { if (handleSalvarVeiculo()) setAddVeiculoOpen(false) }
 

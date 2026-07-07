@@ -127,7 +127,7 @@ export function useAgendamento() {
   const {
     agendamentos, clientes, veiculos, servicos, instaladores, ordens,
     adicionarAgendamento, editarAgendamento, deletarAgendamento, adicionarOS,
-    adicionarCliente, adicionarVeiculo,
+    adicionarClienteSequencial, adicionarVeiculoSequencial,
   } = useApp()
 
   // ── Week navigation ───────────────────────────────────────────
@@ -361,7 +361,11 @@ export function useAgendamento() {
     setForm(p => ({ ...p, clienteSearch: c.nome, clienteId: c.id, veiculoId: primeiro?.id ?? '' }))
   }
 
-  const handleSalvar = (): boolean => {
+  // Cliente → veículo → agendamento precisam ser criados em sequência
+  // estrita e awaited: mesmo motivo do fix em CheckinRapido.tsx (bug de FK
+  // order corrigido em 2026-07-07) — evita o agendamento referenciar um
+  // clienteId/veiculoId que ainda não foi confirmado no Supabase.
+  const handleSalvar = async (): Promise<boolean> => {
     let clienteId = form.clienteId
     let veiculoId = form.veiculoId
 
@@ -372,22 +376,32 @@ export function useAgendamento() {
       if (!form.novoVeiculoForm.placa.trim()) { toast.error('Informe a placa do veículo.'); return false }
       if (!form.novoVeiculoForm.marca.trim()) { toast.error('Informe a marca do veículo.'); return false }
       if (!form.novoVeiculoForm.modelo.trim()) { toast.error('Informe o modelo do veículo.'); return false }
-      clienteId = adicionarCliente({
-        nome: form.novoClienteNome.trim(),
-        telefone: form.novoClienteTel.trim(),
-        email: '', cpf: '',
-        comoConheceu: 'Agendamento',
-        dataCadastro: todayLocal(),
-        totalGasto: 0,
-      })
-      veiculoId = adicionarVeiculo({
-        clienteId,
-        placa:  form.novoVeiculoForm.placa.toUpperCase(),
-        marca:  form.novoVeiculoForm.marca,
-        modelo: form.novoVeiculoForm.modelo,
-        ano:    Number(form.novoVeiculoForm.ano) || new Date().getFullYear(),
-        cor:    form.novoVeiculoForm.cor,
-      })
+      try {
+        clienteId = await adicionarClienteSequencial({
+          nome: form.novoClienteNome.trim(),
+          telefone: form.novoClienteTel.trim(),
+          email: '', cpf: '',
+          comoConheceu: 'Agendamento',
+          dataCadastro: todayLocal(),
+          totalGasto: 0,
+        })
+      } catch {
+        toast.error('Não foi possível criar o cliente. Tente novamente.')
+        return false
+      }
+      try {
+        veiculoId = await adicionarVeiculoSequencial({
+          clienteId,
+          placa:  form.novoVeiculoForm.placa.toUpperCase(),
+          marca:  form.novoVeiculoForm.marca,
+          modelo: form.novoVeiculoForm.modelo,
+          ano:    Number(form.novoVeiculoForm.ano) || new Date().getFullYear(),
+          cor:    form.novoVeiculoForm.cor,
+        })
+      } catch {
+        toast.error('Não foi possível criar o veículo. Tente novamente.')
+        return false
+      }
     }
 
     if (!clienteId) { toast.error('Selecione um cliente.'); return false }

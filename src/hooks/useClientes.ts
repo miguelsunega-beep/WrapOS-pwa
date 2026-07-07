@@ -71,7 +71,7 @@ interface GarantiaEnriquecida extends GarantiaType {
 export function useClientes() {
   const {
     clientes, veiculos, ordens, garantias,
-    adicionarCliente, editarCliente, deletarCliente, reativarCliente,
+    adicionarClienteSequencial, adicionarVeiculoSequencial, editarCliente, deletarCliente, reativarCliente,
     adicionarVeiculo, editarVeiculo, deletarVeiculo,
     editarGarantia, deletarGarantia, registrarAcionamento,
   } = useApp()
@@ -222,7 +222,10 @@ export function useClientes() {
     setEditando(true)
   }
 
-  const handleSalvarCliente = (): boolean => {
+  // No fluxo de cadastro (cliente novo + veículo inline), cliente → veículo
+  // precisam ser criados em sequência estrita e awaited: mesmo motivo do fix
+  // em CheckinRapido.tsx (bug de FK order corrigido em 2026-07-07).
+  const handleSalvarCliente = async (): Promise<boolean> => {
     if (!form.nome.trim()) { toast.error('Nome é obrigatório.'); return false }
     if (editando && detalhes) {
       editarCliente(detalhes.id, {
@@ -232,26 +235,41 @@ export function useClientes() {
       setDetalhes(c => c ? { ...c, ...form } : null)
       toast.success('Cliente atualizado!')
     } else {
-      const clienteId = adicionarCliente({
-        nome: form.nome, telefone: form.telefone, email: form.email,
-        cpf: form.cpf, comoConheceu: form.comoConheceu, cidade: form.cidade,
-        dataCadastro: todayLocal(),
-        totalGasto: 0,
-      })
-      // Se o usuário preencheu veículo inline, cria junto
+      // Se o usuário preencheu veículo inline, valida antes de criar o cliente.
       if (cadastrarVeiculoNovo && novoVeiculoForm.placa.trim()) {
         if (!novoVeiculoForm.marca.trim() || !novoVeiculoForm.modelo.trim()) {
           toast.error('Marca e Modelo do veículo são obrigatórios.')
           return false
         }
-        adicionarVeiculo({
-          clienteId,
-          placa:  novoVeiculoForm.placa.toUpperCase(),
-          marca:  novoVeiculoForm.marca,
-          modelo: novoVeiculoForm.modelo,
-          ano:    Number(novoVeiculoForm.ano) || new Date().getFullYear(),
-          cor:    novoVeiculoForm.cor,
+      }
+
+      let clienteId: string
+      try {
+        clienteId = await adicionarClienteSequencial({
+          nome: form.nome, telefone: form.telefone, email: form.email,
+          cpf: form.cpf, comoConheceu: form.comoConheceu, cidade: form.cidade,
+          dataCadastro: todayLocal(),
+          totalGasto: 0,
         })
+      } catch {
+        toast.error('Não foi possível criar o cliente. Tente novamente.')
+        return false
+      }
+
+      if (cadastrarVeiculoNovo && novoVeiculoForm.placa.trim()) {
+        try {
+          await adicionarVeiculoSequencial({
+            clienteId,
+            placa:  novoVeiculoForm.placa.toUpperCase(),
+            marca:  novoVeiculoForm.marca,
+            modelo: novoVeiculoForm.modelo,
+            ano:    Number(novoVeiculoForm.ano) || new Date().getFullYear(),
+            cor:    novoVeiculoForm.cor,
+          })
+        } catch {
+          toast.error('Não foi possível criar o veículo. Tente novamente.')
+          return false
+        }
         toast.success('Cliente e veículo cadastrados com sucesso!')
       } else {
         toast.success('Cliente cadastrado com sucesso!')

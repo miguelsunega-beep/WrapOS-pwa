@@ -140,8 +140,8 @@ export function Agendamento() {
     setNovoOpen(true)
   }
 
-  const onSalvar = () => {
-    if (handleSalvar()) setNovoOpen(false)
+  const onSalvar = async () => {
+    if (await handleSalvar()) setNovoOpen(false)
   }
 
   const onSalvarEdicao = () => {
