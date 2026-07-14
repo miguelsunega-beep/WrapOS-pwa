@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Settings, Store, Bell, Tag, Plus, Pencil, Trash2, Download, Upload, DatabaseBackup } from 'lucide-react'
+import { Settings, Store, Bell, Tag, Plus, Pencil, Trash2, Download, Upload, DatabaseBackup, AlertTriangle } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
@@ -27,6 +27,9 @@ export function Configuracoes() {
     handleArquivoSelecionado,
     cancelarImportarBackup,
     confirmarImportarBackup,
+    resetModalOpen,     abrirResetModal, cancelarReset,
+    resetConfirmText,   setResetConfirmText,
+    confirmarReset,
   } = useConfiguracoes()
 
   const [servModalOpen, setServModalOpen] = useState(false)
@@ -269,6 +272,31 @@ export function Configuracoes() {
         )}
       </Card>
 
+      {/* Zona de Perigo */}
+      <Card className="border-red-500/30">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center shrink-0">
+            <AlertTriangle size={15} className="text-red-400" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-red-400">Zona de Perigo</h2>
+            <p className="text-[11px] text-gray-600">Ações destrutivas — não afetam login, loja ou dados de conta</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-sm text-ui-text">Resetar dados de teste</p>
+            <p className="text-[11px] text-gray-600 mt-0.5 max-w-md">
+              Apaga clientes, veículos, ordens de serviço, produtos, lançamentos, agendamentos, instaladores,
+              garantias, serviços e meta desta loja. Não afeta seu login nem os dados da loja em "Dados da Loja".
+            </p>
+          </div>
+          <Button size="sm" variant="danger" onClick={abrirResetModal}>
+            <Trash2 size={13} /> Resetar dados de teste
+          </Button>
+        </div>
+      </Card>
+
       {/* Modal Serviço */}
       <Modal
         isOpen={servModalOpen}
@@ -308,6 +336,34 @@ export function Configuracoes() {
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={cancelarImportarBackup}>Cancelar</Button>
           <Button variant="danger" onClick={confirmarImportarBackup}><Upload size={14} /> Substituir dados</Button>
+        </div>
+      </Modal>
+
+      {/* Modal Resetar Dados de Teste */}
+      <Modal isOpen={resetModalOpen} onClose={cancelarReset} title="Resetar Dados de Teste" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-400">
+            Isso vai apagar permanentemente clientes, veículos, ordens de serviço, produtos, lançamentos financeiros,
+            agendamentos, instaladores, garantias, serviços e meta desta loja. Seu login e os dados da loja não são
+            afetados. Esta ação não pode ser desfeita.
+          </p>
+          <div>
+            <label className={labelCls}>Digite APAGAR para confirmar</label>
+            <input
+              type="text"
+              value={resetConfirmText}
+              onChange={e => setResetConfirmText(e.target.value)}
+              placeholder="APAGAR"
+              className={inputCls}
+              autoComplete="off"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={cancelarReset}>Cancelar</Button>
+            <ActionButton variant="danger" disabled={resetConfirmText !== 'APAGAR'} onClick={confirmarReset}>
+              <Trash2 size={14} /> Apagar dados de teste
+            </ActionButton>
+          </div>
         </div>
       </Modal>
     </div>

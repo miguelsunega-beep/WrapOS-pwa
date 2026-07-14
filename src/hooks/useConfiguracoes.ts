@@ -5,6 +5,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { exportarBackup, importarBackup } from '../utils/backup'
+import { resetarDadosTeste } from '../utils/resetDadosTeste'
 import type { Servico } from '../types'
 
 const inferirCategoria = (nome: string): string => {
@@ -167,6 +168,39 @@ export function useConfiguracoes() {
     }
   }
 
+  // ── Zona de Perigo: resetar dados de teste ─────────────────────
+  const [resetModalOpen, setResetModalOpen] = useState(false)
+  const [resetConfirmText, setResetConfirmText] = useState('')
+
+  const abrirResetModal = () => {
+    setResetConfirmText('')
+    setResetModalOpen(true)
+  }
+
+  const cancelarReset = () => {
+    setResetModalOpen(false)
+    setResetConfirmText('')
+  }
+
+  const confirmarReset = async () => {
+    const lojaId = sessionStorage.getItem('wrapos_perfil_ativo')
+    if (!lojaId) {
+      toast.error('Não foi possível identificar a loja atual.')
+      throw new Error('lojaId ausente')
+    }
+
+    try {
+      await resetarDadosTeste(lojaId)
+      toast.success('Dados de teste apagados com sucesso! Recarregando...')
+      setResetModalOpen(false)
+      setResetConfirmText('')
+      setTimeout(() => window.location.reload(), 800)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao apagar os dados de teste.')
+      throw err
+    }
+  }
+
   return {
     loja,        setLoja,       handleSalvarLoja,
     op,          setOp,         handleSalvarOp,
@@ -186,5 +220,8 @@ export function useConfiguracoes() {
     handleArquivoSelecionado,
     cancelarImportarBackup,
     confirmarImportarBackup,
+    resetModalOpen,     abrirResetModal, cancelarReset,
+    resetConfirmText,   setResetConfirmText,
+    confirmarReset,
   }
 }
