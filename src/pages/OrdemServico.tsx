@@ -3,6 +3,7 @@ import {
   Plus, Search, Trash2, Check, X,
   DollarSign, User, Wrench, MessageSquare, Zap, Link, Link2Off,
 } from 'lucide-react'
+import { useDraftState } from '../hooks/useDraftState'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
@@ -208,7 +209,7 @@ export function OrdemServico() {
   } = useOrdemServico()
 
   // ── UI state ──────────────────────────────────────────────────
-  const [novaOSOpen, setNovaOSOpen]     = useState(false)
+  const [novaOSOpen, setNovaOSOpen]     = useDraftState('wrapos_draft_os_nova_open', false)
   const [checkinOpen, setCheckinOpen]   = useState(false)
   const [dropdownOpen, setDropdown]     = useState(false)
   const dropdownRef                     = useRef<HTMLDivElement>(null)

@@ -700,7 +700,7 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
           box: finalBox,
           comissao: 0,
           observacoes: obsOS,
-          status: 'em_andamento',
+          status: 'aguardando_aprovacao',
           dataEntrada,
           dataSaidaPrevista: mesmoDia ? dataEntrada : (dataSaida || undefined),
         } as Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>)

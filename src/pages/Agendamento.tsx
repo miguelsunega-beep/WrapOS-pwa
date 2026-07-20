@@ -8,6 +8,7 @@ import { DayPicker } from 'react-day-picker'
 import { ptBR } from 'date-fns/locale'
 import { format, isValid, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth } from 'date-fns'
 import 'react-day-picker/dist/style.css'
+import { useDraftState } from '../hooks/useDraftState'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
@@ -119,7 +120,7 @@ export function Agendamento() {
   } = useAgendamento()
 
   // ── Pure UI state ─────────────────────────────────────────────
-  const [novoOpen, setNovoOpen]     = useState(false)
+  const [novoOpen, setNovoOpen]     = useDraftState('wrapos_draft_agendamento_novo_open', false)
   const [editOpen, setEditOpen]     = useState(false)
   const [reagendarOpen, setReagendarOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)

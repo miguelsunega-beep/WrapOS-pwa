@@ -65,6 +65,7 @@ test.describe('Cenário 3 — Cancelamento de OS', () => {
     const modalDetalhes = modalAberto(page)
     await expect(modalDetalhes).toContainText(CLIENTE)
     await modalDetalhes.getByRole('button', { name: 'Cancelar OS' }).click()
+    await modalDetalhes.getByRole('button', { name: 'Confirmar', exact: true }).click()
     await expect(
       modalDetalhes.getByText('Cancelado', { exact: true }),
       'esperava que o status mudasse para "Cancelado" no modal de detalhes após clicar em "Cancelar OS"',

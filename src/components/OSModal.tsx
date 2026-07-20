@@ -68,9 +68,12 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
   const [servicosForm, setServicosForm] = useState<ItemOS[]>([])
   const [novoServicoId, setNovoServicoId] = useState('')
 
-  const [voltarConfirm, setVoltarConfirm]   = useState(false)
-  const [excluirConfirm, setExcluirConfirm] = useState(false)
-  const [closeConfirm, setCloseConfirm]     = useState(false)
+  const [voltarConfirm, setVoltarConfirm]     = useState(false)
+  const [excluirConfirm, setExcluirConfirm]   = useState(false)
+  const [cancelarConfirm, setCancelarConfirm] = useState(false)
+  const [closeConfirm, setCloseConfirm]       = useState(false)
+  const [pagamentoConfirm, setPagamentoConfirm]           = useState(false)
+  const [formaPagamentoRecebida, setFormaPagamentoRecebida] = useState('')
 
   useEffect(() => {
     if (os) {
@@ -84,7 +87,10 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
       setNovoServicoId('')
       setVoltarConfirm(false)
       setExcluirConfirm(false)
+      setCancelarConfirm(false)
       setCloseConfirm(false)
+      setPagamentoConfirm(false)
+      setFormaPagamentoRecebida(os.formaPagamento)
     }
   }, [os?.id])
 
@@ -159,6 +165,18 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
     onClose()
   }
 
+  const handleCancelar = () => {
+    if (!os) return
+    cancelarOS(os.id)
+    setCancelarConfirm(false)
+  }
+
+  const handleRegistrarPagamento = () => {
+    if (!os) return
+    registrarPagamentoOS(os.id, formaPagamentoRecebida)
+    setPagamentoConfirm(false)
+  }
+
   const attemptClose = () => {
     if (isDirty) setCloseConfirm(true)
     else onClose()
@@ -166,6 +184,9 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
 
   const handleConcluir = () => {
     if (!os) return
+    // Garante que materiais/serviços editados aqui (ainda não salvos via "Salvar")
+    // não se percam antes do ConcluirOSModal abrir com os dados da OS.
+    persist()
     onClose()
     onConfirmarConcluir(os.id)
   }
@@ -211,7 +232,7 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
               }}
             >
               {/* ── Confirm overlays ── */}
-              {(voltarConfirm || excluirConfirm || closeConfirm) && (
+              {(voltarConfirm || excluirConfirm || cancelarConfirm || pagamentoConfirm || closeConfirm) && (
                 <div className="absolute inset-0 z-10 bg-black/70 flex items-center justify-center p-8">
                   <div
                     className="rounded-xl p-5 space-y-4 w-full max-w-sm"
@@ -236,6 +257,33 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
                         <div className="flex gap-2">
                           <button onClick={() => setExcluirConfirm(false)} className="flex-1 py-2.5 rounded-lg text-[12px] font-semibold bg-surface-600 text-ui-text border border-ui-border">Cancelar</button>
                           <button onClick={handleExcluir} className="flex-1 py-2.5 rounded-lg text-[12px] font-bold" style={{ backgroundColor: 'rgba(232,48,74,0.15)', color: '#e8304a', border: '1px solid rgba(232,48,74,0.30)' }}>Excluir</button>
+                        </div>
+                      </>
+                    )}
+                    {cancelarConfirm && (
+                      <>
+                        <p className="text-[14px] font-bold text-ui-text">Cancelar esta OS?</p>
+                        <p className="text-[12px] text-gray-500">A OS será marcada como cancelada e sairá do fluxo do pátio.</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => setCancelarConfirm(false)} className="flex-1 py-2.5 rounded-lg text-[12px] font-semibold bg-surface-600 text-ui-text border border-ui-border">Voltar</button>
+                          <button onClick={handleCancelar} className="flex-1 py-2.5 rounded-lg text-[12px] font-bold" style={{ backgroundColor: 'rgba(232,48,74,0.15)', color: '#e8304a', border: '1px solid rgba(232,48,74,0.30)' }}>Confirmar</button>
+                        </div>
+                      </>
+                    )}
+                    {pagamentoConfirm && (
+                      <>
+                        <p className="text-[14px] font-bold text-ui-text">Registrar pagamento recebido</p>
+                        <p className="text-[12px] text-gray-500">Confirme a forma de pagamento que o cliente realmente usou.</p>
+                        <select
+                          value={formaPagamentoRecebida}
+                          onChange={e => setFormaPagamentoRecebida(e.target.value)}
+                          className={inputCls}
+                        >
+                          {FORMAS_PAGAMENTO.map(f => <option className="bg-surface-700 text-ui-text" key={f}>{f}</option>)}
+                        </select>
+                        <div className="flex gap-2">
+                          <button onClick={() => setPagamentoConfirm(false)} className="flex-1 py-2.5 rounded-lg text-[12px] font-semibold bg-surface-600 text-ui-text border border-ui-border">Cancelar</button>
+                          <button onClick={handleRegistrarPagamento} className="flex-1 py-2.5 rounded-lg text-[12px] font-bold" style={{ backgroundColor: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.30)' }}>Confirmar</button>
                         </div>
                       </>
                     )}
@@ -442,7 +490,7 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
 
                 {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (
                   <button
-                    onClick={() => registrarPagamentoOS(os.id)}
+                    onClick={() => setPagamentoConfirm(true)}
                     className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[12px] font-semibold transition-opacity hover:opacity-80"
                     style={{ backgroundColor: 'rgba(52,211,153,0.10)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)' }}
                   >
@@ -463,7 +511,7 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
 
                 {os.status !== 'concluido' && os.status !== 'cancelado' && (
                   <button
-                    onClick={() => os && cancelarOS(os.id)}
+                    onClick={() => setCancelarConfirm(true)}
                     className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[12px] font-semibold transition-opacity hover:opacity-80"
                     style={{ backgroundColor: 'rgba(232,48,74,0.10)', color: '#e8304a', border: '1px solid rgba(232,48,74,0.25)' }}
                   >

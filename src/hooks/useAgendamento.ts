@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
+import { useDraftState } from './useDraftState'
 import { getOSVinculada, getStatusEfetivo, type StatusEfetivoAgendamento } from '../lib/agendamentoStatus'
 import { todayLocal } from '../lib/dateUtils'
 import { blankVeiculoForm, type VeiculoFormData } from '../components/VeiculoInlineForm'
@@ -346,7 +347,7 @@ export function useAgendamento() {
     novoVeiculoForm: blankVeiculoForm,
   })
 
-  const [form, setForm] = useState<AgForm>(makeInitForm)
+  const [form, setForm, clearFormDraft] = useDraftState<AgForm>('wrapos_draft_agendamento_novo_form', makeInitForm)
 
   const resetNovoForm = () => setForm(makeInitForm())
 
@@ -427,6 +428,7 @@ export function useAgendamento() {
       status:       'agendado',
     })
     toast.success('Agendamento criado com sucesso!')
+    clearFormDraft()
     return true
   }
 

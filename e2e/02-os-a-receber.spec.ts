@@ -82,6 +82,7 @@ test.describe('Cenário 2 — OS concluída como "a receber"', () => {
       'esperava ver o selo "A RECEBER" na OS concluída e ainda não paga',
     ).toBeVisible()
     await modalDetalhes2.getByRole('button', { name: 'Registrar pagamento' }).click()
+    await modalDetalhes2.getByRole('button', { name: 'Confirmar', exact: true }).click()
     await expect(
       modalDetalhes2.getByText('A RECEBER', { exact: true }),
       'esperava que o selo "A RECEBER" desaparecesse da OS depois de registrar o pagamento',

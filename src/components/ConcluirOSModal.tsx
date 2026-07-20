@@ -6,6 +6,7 @@ import { Button } from './Button'
 import { ActionButton } from './ActionButton'
 import { MaterialSelector } from './MaterialSelector'
 import { useApp } from '../context/AppContext'
+import { FORMAS_PAGAMENTO } from '../hooks/useOrdemServico'
 import type { OrdemServico, MaterialUsado } from '../types'
 
 interface ConcluirOSModalProps {
@@ -19,10 +20,13 @@ export function ConcluirOSModal({ os, onClose, onConcluded }: ConcluirOSModalPro
   const { produtos, concluirOS } = useApp()
   const [materiais, setMateriais] = useState<MaterialUsado[]>([])
   const [pago, setPago] = useState(true)
+  const [formaPagamentoRecebida, setFormaPagamentoRecebida] = useState('')
 
   // Ao abrir, parte dos materiais já salvos na OS (via OSModal > Salvar) para não perdê-los.
+  // Forma de pagamento recebida começa igual à prevista da OS — usuário corrige se o
+  // cliente pagou diferente do combinado (ver CLAUDE.md / relatório Bug 5).
   useEffect(() => {
-    if (os) { setMateriais(os.materiaisUsados ?? []); setPago(true) }
+    if (os) { setMateriais(os.materiaisUsados ?? []); setPago(true); setFormaPagamentoRecebida(os.formaPagamento) }
   }, [os?.id])
 
   const confirmar = () => {
@@ -34,7 +38,7 @@ export function ConcluirOSModal({ os, onClose, onConcluded }: ConcluirOSModalPro
         (m.origem === 'retalho' && m.nome?.trim())
       )
     )
-    const { created } = concluirOS(os.id, mats, pago)
+    const { created } = concluirOS(os.id, mats, pago, pago ? formaPagamentoRecebida : undefined)
     const parts: string[] = ['OS concluída!']
     if (created.includes('receita')) parts.push('Receita lançada')
     if (created.includes('a_receber')) parts.push('Marcada como A RECEBER')
@@ -78,6 +82,20 @@ export function ConcluirOSModal({ os, onClose, onConcluded }: ConcluirOSModalPro
             </button>
           </div>
         </div>
+
+        {/* Forma de pagamento realmente recebida (pode divergir da prevista na OS) */}
+        {pago && (
+          <div>
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Forma de pagamento recebida</p>
+            <select
+              value={formaPagamentoRecebida}
+              onChange={e => setFormaPagamentoRecebida(e.target.value)}
+              className="w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text focus:border-accent/50 outline-none"
+            >
+              {FORMAS_PAGAMENTO.map(fp => <option className="bg-surface-700 text-ui-text" key={fp}>{fp}</option>)}
+            </select>
+          </div>
+        )}
 
         <div className="flex justify-end gap-3 pt-4 border-t border-ui-border">
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>

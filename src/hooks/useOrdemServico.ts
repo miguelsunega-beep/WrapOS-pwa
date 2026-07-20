@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
+import { useDraftState } from './useDraftState'
 import { todayLocal } from '../lib/dateUtils'
 import type { StatusOS, BadgeVariant, OrdemServico, Agendamento } from '../types'
 
@@ -110,7 +111,7 @@ export function useOrdemServico() {
   const [concluirOSData, setConcluirOSData] = useState<OrdemServico | null>(null)
 
   // ── New OS form ───────────────────────────────────────────────
-  const [form, setForm]                     = useState<FormState>(blankForm)
+  const [form, setForm, clearFormDraft]     = useDraftState<FormState>('wrapos_draft_os_nova_form', blankForm)
   const [criandoCliente, setCriandoCliente] = useState(false)
   const [novoCli, setNovoCli]               = useState({
     nome: '', telefone: '',
@@ -197,6 +198,7 @@ export function useOrdemServico() {
   // ── Form actions ──────────────────────────────────────────────
   const resetForm = () => {
     setForm({ ...blankForm, servicosSel: [] })
+    clearFormDraft()
     setCriandoCliente(false)
     setNovoCli({ nome: '', telefone: '', marca: '', modelo: '', ano: new Date().getFullYear(), cor: '', placa: '' })
   }

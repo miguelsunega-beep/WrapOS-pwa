@@ -358,8 +358,8 @@ interface AppContextType {
   registrarAcionamento: (id: string) => void
 
   // Eventos centrais de OS
-  concluirOS: (id: string, materiaisUsados?: MaterialUsado[], pago?: boolean) => { created: string[] }
-  registrarPagamentoOS: (id: string) => void
+  concluirOS: (id: string, materiaisUsados?: MaterialUsado[], pago?: boolean, formaPagamentoRecebida?: string) => { created: string[] }
+  registrarPagamentoOS: (id: string, formaPagamentoRecebida?: string) => void
   cancelarOS: (id: string) => void
   entregarVeiculo: (id: string) => void
 
@@ -555,7 +555,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     atualizarGarantiaCloud(id, { status: 'acionada' as StatusGarantia })
 
   // ── Eventos centrais de OS ────────────────────────────────────
-  const concluirOS = (id: string, materiaisUsados?: MaterialUsado[], pago: boolean = true): { created: string[] } => {
+  const concluirOS = (id: string, materiaisUsados?: MaterialUsado[], pago: boolean = true, formaPagamentoRecebida?: string): { created: string[] } => {
     const os = ordens.find(x => x.id === id)
     if (!os || os.status === 'concluido') return { created: [] }
     const today = todayLocal()
@@ -570,11 +570,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       entregue: false,
     })
 
+    // formaPagamento da OS continua representando o "previsto" (definido na criação/edição);
+    // o lançamento financeiro usa a forma realmente recebida, confirmada agora pelo usuário
+    // (cai no previsto se ele não corrigir nada).
     if (pago && !lancamentos.some(l => l.osId === id && l.tipo === 'entrada')) {
       adicionarLancamento({
         tipo: 'entrada' as const, categoria: 'OS',
         descricao: `OS #${os.numero} — ${nomeCliente}`,
-        valor: os.valorTotal, data: today, formaPagamento: os.formaPagamento, osId: id,
+        valor: os.valorTotal, data: today, formaPagamento: formaPagamentoRecebida ?? os.formaPagamento, osId: id,
       })
       created.push('receita')
     } else if (!pago) {
@@ -608,14 +611,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (delta > 0) baixarEstoque(produtoId, delta)
         else registrarEntradaEstoque(produtoId, -delta)
       })
+      // Custo dos materiais tirados do estoque (preço do produto × quantidade) —
+      // antes só materiais 'compra' geravam despesa; 'estoque' baixava a quantidade
+      // mas nunca virava lançamento financeiro, mesmo sendo a origem mais usada.
+      const custoEstoque = materiaisUsados
+        .filter(m => m.origem === 'estoque' && m.produtoId)
+        .reduce((s, m) => {
+          const p = produtos.find(x => x.id === m.produtoId)
+          return s + (p ? p.valorUnitario * m.quantidade : 0)
+        }, 0)
       const custoCompras = materiaisUsados
         .filter(m => m.origem === 'compra')
         .reduce((s, m) => s + (m.custo ?? 0), 0)
-      if (custoCompras > 0) {
+      const custoMateriais = custoEstoque + custoCompras
+      if (custoMateriais > 0) {
         adicionarLancamento({
           tipo: 'saida' as const, categoria: 'Material',
-          descricao: `Material exclusivo OS #${os.numero} — ${nomeCliente}`,
-          valor: custoCompras, data: today, formaPagamento: os.formaPagamento, osId: id,
+          descricao: `Material usado na OS #${os.numero} — ${nomeCliente}`,
+          valor: custoMateriais, data: today, formaPagamento: os.formaPagamento, osId: id,
         })
         created.push('despesa_material')
       }
@@ -628,7 +641,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { created }
   }
 
-  const registrarPagamentoOS = (id: string): void => {
+  const registrarPagamentoOS = (id: string, formaPagamentoRecebida?: string): void => {
     const os = ordens.find(x => x.id === id)
     if (!os) return
     const today = todayLocal()
@@ -637,7 +650,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       adicionarLancamento({
         tipo: 'entrada' as const, categoria: 'OS',
         descricao: `OS #${os.numero} — ${nomeCliente} (pagamento)`,
-        valor: os.valorTotal, data: today, formaPagamento: os.formaPagamento, osId: id,
+        valor: os.valorTotal, data: today, formaPagamento: formaPagamentoRecebida ?? os.formaPagamento, osId: id,
       })
     }
     atualizarOSCloud(id, { statusPagamento: 'pago' as StatusPagamento })
