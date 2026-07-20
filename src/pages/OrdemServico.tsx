@@ -225,7 +225,7 @@ export function OrdemServico() {
 
   // ── Wrapper functions ─────────────────────────────────────────
   const onNova   = () => { resetForm(); setDropdown(false); setNovaOSOpen(true) }
-  const onSalvar = () => { if (handleSalvar()) setNovaOSOpen(false) }
+  const onSalvar = async () => { if (await handleSalvar()) setNovaOSOpen(false) }
   const onCriarClienteInline = async () => { await handleCriarClienteInline() }
 
   // ── Render ────────────────────────────────────────────────────
@@ -710,13 +710,13 @@ export function OrdemServico() {
           </p>
           <div className="flex flex-col gap-2 pt-1">
             <button
-              onClick={() => { confirmarVincularAgendamento(); setNovaOSOpen(false) }}
+              onClick={async () => { if (await confirmarVincularAgendamento()) setNovaOSOpen(false) }}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm bg-accent text-white hover:bg-accent/90 transition-colors"
             >
               <Link size={15} /> Sim, vincular ao agendamento
             </button>
             <button
-              onClick={() => { recusarVincularAgendamento(); setNovaOSOpen(false) }}
+              onClick={async () => { if (await recusarVincularAgendamento()) setNovaOSOpen(false) }}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium text-sm border border-ui-border text-gray-400 hover:text-ui-text hover:border-gray-600 transition-colors"
             >
               <Link2Off size={14} /> Não, criar OS sem vínculo

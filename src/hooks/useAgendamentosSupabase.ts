@@ -5,9 +5,6 @@ import type { Agendamento } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
-/** Chave de flag "já migrei os agendamentos locais dessa loja pro Supabase" — escopada por lojaId. */
-const migracaoFeitaKey = (lojaId: string) => `wrapos_agendamentos_migrados_${lojaId}`
-
 /** Datas voltam do Postgres como timestamp — normaliza de volta pra 'YYYY-MM-DD', mesmo padrão de dataCadastro/dataCriacao. */
 function normalizarData(v: unknown): string | undefined {
   return v ? String(v).slice(0, 10) : undefined
@@ -52,52 +49,7 @@ export function useAgendamentosSupabase(lojaId: string) {
   useEffect(() => {
     let cancelado = false
 
-    async function migrarSeNecessario() {
-      if (localStorage.getItem(migracaoFeitaKey(lojaId)) === '1') return
-
-      let locais: Agendamento[] = []
-      try {
-        locais = JSON.parse(localStorage.getItem(`wrapos_perfil_${lojaId}_agendamentos`) ?? '[]')
-      } catch {
-        locais = []
-      }
-
-      if (locais.length === 0) {
-        localStorage.setItem(migracaoFeitaKey(lojaId), '1')
-        return
-      }
-
-      const { data: existentes, error: erroBusca } = await supabase
-        .from('agendamentos')
-        .select('id')
-        .eq('lojaId', lojaId)
-
-      if (erroBusca) {
-        toast.error('Não foi possível verificar agendamentos já migrados para a nuvem. Tentando de novo na próxima vez.')
-        return
-      }
-
-      const idsExistentes = new Set((existentes ?? []).map(r => r.id as string))
-      const faltando = locais.filter(a => !idsExistentes.has(a.id))
-
-      if (faltando.length > 0) {
-        const { error: erroInsert } = await supabase
-          .from('agendamentos')
-          .insert(faltando.map(a => paraLinha(a.id, lojaId, a)))
-
-        if (erroInsert) {
-          toast.error('Falha ao migrar agendamentos salvos localmente para a nuvem.')
-          return
-        }
-      }
-
-      localStorage.setItem(migracaoFeitaKey(lojaId), '1')
-    }
-
     async function carregar() {
-      await migrarSeNecessario()
-      if (cancelado) return
-
       const { data, error } = await supabase.from('agendamentos').select('*').eq('lojaId', lojaId)
       if (cancelado) return
 

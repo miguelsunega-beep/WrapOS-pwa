@@ -126,7 +126,7 @@ export function useAgendamento() {
   const navigate = useNavigate()
   const {
     agendamentos, clientes, veiculos, servicos, instaladores, ordens,
-    adicionarAgendamento, editarAgendamento, deletarAgendamento, adicionarOS,
+    adicionarAgendamento, editarAgendamento, deletarAgendamento, adicionarOSSequencial,
     adicionarClienteSequencial, adicionarVeiculoSequencial,
   } = useApp()
 
@@ -436,27 +436,32 @@ export function useAgendamento() {
   // o agendamento, só criamos a OS com agendamentoId apontando para ele.
   const [aprovandoId, setAprovandoId] = useState<string | null>(null)
 
-  const handleAprovarEntrada = (ag: Agendamento) => {
+  const handleAprovarEntrada = async (ag: Agendamento) => {
     const servico = servicos.find(s => s.id === ag.servicoId)
-    adicionarOS({
-      clienteId:      ag.clienteId,
-      veiculoId:      ag.veiculoId,
-      servicos:       servico ? [{ servicoId: ag.servicoId, nome: servico.nome, preco: servico.preco ?? 0 }] : [],
-      valorTotal:     ag.valor ?? servico?.preco ?? 0,
-      formaPagamento: 'A definir',
-      instaladorId:   ag.instaladorId,
-      box:            ag.box,
-      comissao:       0,
-      observacoes:    '',
-      status:         'em_andamento',
-      agendamentoId:  ag.id,
-    })
+    try {
+      await adicionarOSSequencial({
+        clienteId:      ag.clienteId,
+        veiculoId:      ag.veiculoId,
+        servicos:       servico ? [{ servicoId: ag.servicoId, nome: servico.nome, preco: servico.preco ?? 0 }] : [],
+        valorTotal:     ag.valor ?? servico?.preco ?? 0,
+        formaPagamento: 'A definir',
+        instaladorId:   ag.instaladorId,
+        box:            ag.box,
+        comissao:       0,
+        observacoes:    '',
+        status:         'em_andamento',
+        agendamentoId:  ag.id,
+      })
+    } catch {
+      toast.error('Não foi possível aprovar a entrada. Tente novamente.')
+      return
+    }
     setDetalhes(null)
     setAprovandoId(ag.id)
     toast.success('Entrada aprovada — OS criada!')
   }
 
-  // adicionarOS só retorna o número sequencial da OS, não o id gerado — então
+  // adicionarOSSequencial só retorna o número sequencial da OS, não o id gerado — então
   // esperamos a OS aparecer em `ordens` (via agendamentoId) para then navegar
   // já abrindo o detalhe dela, sem duplicar a lógica de criação de useOrdemServico.
   useEffect(() => {

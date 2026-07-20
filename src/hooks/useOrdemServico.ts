@@ -81,7 +81,7 @@ const blankForm: FormState = {
 export function useOrdemServico() {
   const {
     ordens, clientes, veiculos, servicos, instaladores, agendamentos,
-    adicionarOS, deletarOS, cancelarOS,
+    adicionarOSSequencial, deletarOS, cancelarOS,
     adicionarClienteSequencial, adicionarVeiculoSequencial, registrarPagamentoOS,
   } = useApp()
   const location = useLocation()
@@ -272,7 +272,7 @@ export function useOrdemServico() {
   // ── Save new OS ───────────────────────────────────────────────
 
   /** Núcleo de persistência — chamado tanto pelo fluxo direto quanto após confirmação de vínculo. */
-  const _persistirOS = (agendamentoId?: string, boxOverride?: number): boolean => {
+  const _persistirOS = async (agendamentoId?: string, boxOverride?: number): Promise<boolean> => {
     try {
       const servicosMapeados = form.servicosSel.map(sel => {
         const s = servicos.find(x => x.id === sel.servicoId)
@@ -282,7 +282,7 @@ export function useOrdemServico() {
         return { servicoId: sel.servicoId, nome: s.nome, preco: sel.valor }
       })
 
-      adicionarOS({
+      await adicionarOSSequencial({
         clienteId:         form.clienteId,
         veiculoId:         form.veiculoId,
         servicos:          servicosMapeados,
@@ -317,7 +317,7 @@ export function useOrdemServico() {
     return conflito
   }
 
-  const handleSalvar = (): boolean => {
+  const handleSalvar = async (): Promise<boolean> => {
     if (!form.clienteId)                           { toast.error('Selecione um cliente.');                   return false }
     if (form.servicosSel.length === 0)             { toast.error('Selecione ao menos um serviço.');          return false }
     if (!form.servicosSel.some(s => s.valor > 0)) { toast.error('Informe o valor de ao menos um serviço.'); return false }
@@ -346,7 +346,7 @@ export function useOrdemServico() {
       toast.warning(`Box ${form.box} já está em uso hoje por outra OS ativa.`)
     }
 
-    const salvo = _persistirOS()
+    const salvo = await _persistirOS()
     if (!salvo) return false
     toast.success('OS criada com sucesso!')
     resetForm()
@@ -354,7 +354,7 @@ export function useOrdemServico() {
   }
 
   /** Chamado quando o usuário confirma que quer vincular ao agendamento sugerido. */
-  const confirmarVincularAgendamento = (): boolean => {
+  const confirmarVincularAgendamento = async (): Promise<boolean> => {
     if (!agendamentoSugerido) return false
 
     const boxAg = agendamentoSugerido.box
@@ -372,7 +372,7 @@ export function useOrdemServico() {
     }
 
     // Passa o box do agendamento diretamente (evita problema de state assíncrono)
-    const salvo = _persistirOS(agendamentoSugerido.id, boxAg)
+    const salvo = await _persistirOS(agendamentoSugerido.id, boxAg)
     if (!salvo) return false
     toast.success('OS criada e vinculada ao agendamento!')
     setAgendamentoSugerido(null)
@@ -381,7 +381,7 @@ export function useOrdemServico() {
   }
 
   /** Chamado quando o usuário recusa a vinculação e quer salvar a OS sem agendamento. */
-  const recusarVincularAgendamento = (): boolean => {
+  const recusarVincularAgendamento = async (): Promise<boolean> => {
     setAgendamentoSugerido(null)
 
     // Verifica conflito de box (aviso não-bloqueante)
@@ -389,7 +389,7 @@ export function useOrdemServico() {
       toast.warning(`Box ${form.box} já está em uso hoje por outra OS ativa.`)
     }
 
-    const salvo = _persistirOS()
+    const salvo = await _persistirOS()
     if (!salvo) return false
     toast.success('OS criada com sucesso!')
     resetForm()

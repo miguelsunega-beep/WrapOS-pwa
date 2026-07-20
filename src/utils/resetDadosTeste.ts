@@ -22,25 +22,6 @@ const TABELAS_INDEPENDENTES = [
 ] as const
 
 /**
- * Mesmas chaves de `migracaoFeitaKey(lojaId)` de cada use*Supabase.ts (ver
- * CLAUDE.md, "Migração de entidades pro Supabase") — precisa ser limpa após
- * o reset pra não sobrar flag apontando pra dado que não existe mais.
- * `configuracoes` fica de fora de propósito: reset não toca em config da loja.
- */
-const PREFIXO_FLAG_MIGRACAO: Record<string, string> = {
-  ordens_servico: 'wrapos_ordens_migrados_',
-  veiculos: 'wrapos_veiculos_migrados_',
-  clientes: 'wrapos_clientes_migrados_',
-  produtos: 'wrapos_produtos_migrados_',
-  lancamentos_financeiro: 'wrapos_lancamentos_migrados_',
-  agendamentos: 'wrapos_agendamentos_migrados_',
-  instaladores: 'wrapos_instaladores_migrados_',
-  garantias: 'wrapos_garantias_migrados_',
-  servicos: 'wrapos_servicos_migrados_',
-  metas: 'wrapos_meta_migrado_',
-}
-
-/**
  * Apaga todo o fluxo operacional (OS, veículos, clientes, produtos,
  * lançamentos financeiros, agendamentos, instaladores, garantias, serviços
  * e meta) da loja `lojaId`, sem tocar em `configuracoes`/`usuarios`/`lojas`/
@@ -70,9 +51,5 @@ export async function resetarDadosTeste(lojaId: string): Promise<void> {
   if (falhas.length > 0) {
     const nomes = falhas.map(f => f.label).join(', ')
     throw new Error(`Reset parcial: ordens de serviço, veículos e clientes foram apagados, mas falhou ao apagar ${nomes}. Rode o reset de novo pra concluir.`)
-  }
-
-  for (const { tabela } of [...TABELAS_DEPENDENTES, ...TABELAS_INDEPENDENTES]) {
-    localStorage.removeItem(`${PREFIXO_FLAG_MIGRACAO[tabela]}${lojaId}`)
   }
 }

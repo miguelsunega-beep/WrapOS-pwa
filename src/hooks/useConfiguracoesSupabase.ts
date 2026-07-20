@@ -5,9 +5,6 @@ import type { Configuracoes } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
-/** Chave de flag "já migrei/criei as configurações dessa loja no Supabase" — escopada por lojaId. */
-const migracaoFeitaKey = (lojaId: string) => `wrapos_configuracoes_migrado_${lojaId}`
-
 /**
  * Valores padrão pra uma loja nova sem linha em `configuracoes` ainda —
  * mesmos de `initialConfiguracoes` em AppContext.tsx (duplicado aqui, mesmo
@@ -70,18 +67,6 @@ export function useConfiguracoesSupabase(lojaId: string) {
     let cancelado = false
 
     async function carregarOuCriar() {
-      const jaMigrado = localStorage.getItem(migracaoFeitaKey(lojaId)) === '1'
-
-      let legado: Configuracoes | null = null
-      if (!jaMigrado) {
-        try {
-          const bruto = localStorage.getItem(`wrapos_perfil_${lojaId}_configuracoes`)
-          legado = bruto ? (JSON.parse(bruto) as Configuracoes) : null
-        } catch {
-          legado = null
-        }
-      }
-
       const { data: existente, error: erroBusca } = await supabase
         .from('configuracoes')
         .select('*')
@@ -97,11 +82,10 @@ export function useConfiguracoesSupabase(lojaId: string) {
 
       if (existente) {
         setConfiguracoes(normalizarConfiguracoes(existente))
-        localStorage.setItem(migracaoFeitaKey(lojaId), '1')
         return
       }
 
-      const valorInicial = legado ?? CONFIGURACOES_PADRAO
+      const valorInicial = CONFIGURACOES_PADRAO
       const { data: inserida, error: erroInsert } = await supabase
         .from('configuracoes')
         .insert(paraLinha(uid(), lojaId, valorInicial))
@@ -117,7 +101,6 @@ export function useConfiguracoesSupabase(lojaId: string) {
       }
 
       setConfiguracoes(normalizarConfiguracoes(inserida))
-      localStorage.setItem(migracaoFeitaKey(lojaId), '1')
     }
 
     carregarOuCriar()

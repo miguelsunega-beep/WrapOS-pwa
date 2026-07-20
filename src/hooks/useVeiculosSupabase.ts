@@ -5,9 +5,6 @@ import type { Veiculo } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
-/** Chave de flag "já migrei os veículos locais dessa loja pro Supabase" — escopada por lojaId. */
-const migracaoFeitaKey = (lojaId: string) => `wrapos_veiculos_migrados_${lojaId}`
-
 function normalizarVeiculo(row: Record<string, unknown>): Veiculo {
   return {
     id:        row.id as string,
@@ -33,9 +30,7 @@ function paraLinha(id: string, lojaId: string, v: Omit<Veiculo, 'id'>) {
  * Supabase (ver CLAUDE.md, "Migração de entidades pro Supabase"), seguindo o
  * mesmo modelo de useClientesSupabase.ts. Busca da loja atual ao montar,
  * expõe adicionar/editar/remover com atualização otimista (aplica local,
- * envia pro Supabase, reverte com toast de erro se falhar), e faz upload
- * único de veículos que ainda estejam só no localStorage (namespace antigo
- * por perfil).
+ * envia pro Supabase, reverte com toast de erro se falhar).
  */
 export function useVeiculosSupabase(lojaId: string) {
   const [veiculos, setVeiculos] = useState<Veiculo[]>([])
@@ -43,52 +38,7 @@ export function useVeiculosSupabase(lojaId: string) {
   useEffect(() => {
     let cancelado = false
 
-    async function migrarSeNecessario() {
-      if (localStorage.getItem(migracaoFeitaKey(lojaId)) === '1') return
-
-      let locais: Veiculo[] = []
-      try {
-        locais = JSON.parse(localStorage.getItem(`wrapos_perfil_${lojaId}_veiculos`) ?? '[]')
-      } catch {
-        locais = []
-      }
-
-      if (locais.length === 0) {
-        localStorage.setItem(migracaoFeitaKey(lojaId), '1')
-        return
-      }
-
-      const { data: existentes, error: erroBusca } = await supabase
-        .from('veiculos')
-        .select('id')
-        .eq('lojaId', lojaId)
-
-      if (erroBusca) {
-        toast.error('Não foi possível verificar veículos já migrados para a nuvem. Tentando de novo na próxima vez.')
-        return
-      }
-
-      const idsExistentes = new Set((existentes ?? []).map(r => r.id as string))
-      const faltando = locais.filter(v => !idsExistentes.has(v.id))
-
-      if (faltando.length > 0) {
-        const { error: erroInsert } = await supabase
-          .from('veiculos')
-          .insert(faltando.map(v => paraLinha(v.id, lojaId, v)))
-
-        if (erroInsert) {
-          toast.error('Falha ao migrar veículos salvos localmente para a nuvem.')
-          return
-        }
-      }
-
-      localStorage.setItem(migracaoFeitaKey(lojaId), '1')
-    }
-
     async function carregar() {
-      await migrarSeNecessario()
-      if (cancelado) return
-
       const { data, error } = await supabase.from('veiculos').select('*').eq('lojaId', lojaId)
       if (cancelado) return
 

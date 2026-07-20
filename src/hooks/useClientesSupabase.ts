@@ -5,9 +5,6 @@ import type { Cliente } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
-/** Chave de flag "já migrei os clientes locais dessa loja pro Supabase" — escopada por lojaId. */
-const migracaoFeitaKey = (lojaId: string) => `wrapos_clientes_migrados_${lojaId}`
-
 /** Coluna dataCadastro volta do Postgres como timestamp — normaliza de volta pra 'YYYY-MM-DD'. */
 function normalizarCliente(row: Record<string, unknown>): Cliente {
   return {
@@ -38,8 +35,7 @@ function paraLinha(id: string, lojaId: string, c: Omit<Cliente, 'id'>) {
  * Supabase (ver CLAUDE.md, seção "Migração de entidades pro Supabase", pro
  * modelo a seguir nas próximas). Busca da loja atual ao montar, expõe
  * adicionar/editar/remover com atualização otimista (aplica local, envia pro
- * Supabase, reverte com toast de erro se falhar), e faz upload único de
- * clientes que ainda estejam só no localStorage (namespace antigo por perfil).
+ * Supabase, reverte com toast de erro se falhar).
  */
 export function useClientesSupabase(lojaId: string) {
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -47,52 +43,7 @@ export function useClientesSupabase(lojaId: string) {
   useEffect(() => {
     let cancelado = false
 
-    async function migrarSeNecessario() {
-      if (localStorage.getItem(migracaoFeitaKey(lojaId)) === '1') return
-
-      let locais: Cliente[] = []
-      try {
-        locais = JSON.parse(localStorage.getItem(`wrapos_perfil_${lojaId}_clientes`) ?? '[]')
-      } catch {
-        locais = []
-      }
-
-      if (locais.length === 0) {
-        localStorage.setItem(migracaoFeitaKey(lojaId), '1')
-        return
-      }
-
-      const { data: existentes, error: erroBusca } = await supabase
-        .from('clientes')
-        .select('id')
-        .eq('lojaId', lojaId)
-
-      if (erroBusca) {
-        toast.error('Não foi possível verificar clientes já migrados para a nuvem. Tentando de novo na próxima vez.')
-        return
-      }
-
-      const idsExistentes = new Set((existentes ?? []).map(r => r.id as string))
-      const faltando = locais.filter(c => !idsExistentes.has(c.id))
-
-      if (faltando.length > 0) {
-        const { error: erroInsert } = await supabase
-          .from('clientes')
-          .insert(faltando.map(c => paraLinha(c.id, lojaId, c)))
-
-        if (erroInsert) {
-          toast.error('Falha ao migrar clientes salvos localmente para a nuvem.')
-          return
-        }
-      }
-
-      localStorage.setItem(migracaoFeitaKey(lojaId), '1')
-    }
-
     async function carregar() {
-      await migrarSeNecessario()
-      if (cancelado) return
-
       const { data, error } = await supabase.from('clientes').select('*').eq('lojaId', lojaId)
       if (cancelado) return
 

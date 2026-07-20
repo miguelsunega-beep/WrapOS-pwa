@@ -5,9 +5,6 @@ import type { Servico } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
-/** Chave de flag "já migrei os serviços locais dessa loja pro Supabase" — escopada por lojaId. */
-const migracaoFeitaKey = (lojaId: string) => `wrapos_servicos_migrados_${lojaId}`
-
 function normalizarServico(row: Record<string, unknown>): Servico {
   return {
     id:           row.id as string,
@@ -36,52 +33,7 @@ export function useServicosSupabase(lojaId: string) {
   useEffect(() => {
     let cancelado = false
 
-    async function migrarSeNecessario() {
-      if (localStorage.getItem(migracaoFeitaKey(lojaId)) === '1') return
-
-      let locais: Servico[] = []
-      try {
-        locais = JSON.parse(localStorage.getItem(`wrapos_perfil_${lojaId}_servicos`) ?? '[]')
-      } catch {
-        locais = []
-      }
-
-      if (locais.length === 0) {
-        localStorage.setItem(migracaoFeitaKey(lojaId), '1')
-        return
-      }
-
-      const { data: existentes, error: erroBusca } = await supabase
-        .from('servicos')
-        .select('id')
-        .eq('lojaId', lojaId)
-
-      if (erroBusca) {
-        toast.error('Não foi possível verificar serviços já migrados para a nuvem. Tentando de novo na próxima vez.')
-        return
-      }
-
-      const idsExistentes = new Set((existentes ?? []).map(r => r.id as string))
-      const faltando = locais.filter(s => !idsExistentes.has(s.id))
-
-      if (faltando.length > 0) {
-        const { error: erroInsert } = await supabase
-          .from('servicos')
-          .insert(faltando.map(s => paraLinha(s.id, lojaId, s)))
-
-        if (erroInsert) {
-          toast.error('Falha ao migrar serviços salvos localmente para a nuvem.')
-          return
-        }
-      }
-
-      localStorage.setItem(migracaoFeitaKey(lojaId), '1')
-    }
-
     async function carregar() {
-      await migrarSeNecessario()
-      if (cancelado) return
-
       const { data, error } = await supabase.from('servicos').select('*').eq('lojaId', lojaId)
       if (cancelado) return
 

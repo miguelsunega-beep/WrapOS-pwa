@@ -5,9 +5,6 @@ import type { Meta } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
-/** Chave de flag "já migrei/criei a meta dessa loja no Supabase" — escopada por lojaId. */
-const migracaoFeitaKey = (lojaId: string) => `wrapos_meta_migrado_${lojaId}`
-
 /**
  * Valores padrão pra uma loja nova sem linha em `metas` ainda — mesmos de
  * `initialMeta` em AppContext.tsx (duplicado aqui, não importado, mesmo
@@ -53,9 +50,8 @@ function paraLinha(id: string, lojaId: string, m: Omit<Meta, 'id'>) {
  * das outras (arrays), `meta` é um singleton por loja: o hook expõe um
  * objeto, não uma lista, espelhando `meta: Meta` em AppContextType. Ao
  * montar, busca a primeira linha de `metas` pra esse lojaId; se não existir
- * nenhuma ainda (loja nova, ou legado só em localStorage), insere uma — com
- * o valor legado se houver, senão `META_PADRAO` — garantindo que toda
- * mutação subsequente (`atualizarMeta`) sempre tenha uma linha real pra
+ * nenhuma ainda (loja nova), insere uma com `META_PADRAO` — garantindo que
+ * toda mutação subsequente (`atualizarMeta`) sempre tenha uma linha real pra
  * atualizar (um `.update()` sobre uma tabela sem nenhuma linha correspondente
  * não retorna erro, só não persiste nada — por isso a linha é sempre criada
  * aqui, nunca só mantida em estado local).
@@ -67,18 +63,6 @@ export function useMetasSupabase(lojaId: string) {
     let cancelado = false
 
     async function carregarOuCriar() {
-      const jaMigrado = localStorage.getItem(migracaoFeitaKey(lojaId)) === '1'
-
-      let legado: Meta | null = null
-      if (!jaMigrado) {
-        try {
-          const bruto = localStorage.getItem(`wrapos_perfil_${lojaId}_meta`)
-          legado = bruto ? (JSON.parse(bruto) as Meta) : null
-        } catch {
-          legado = null
-        }
-      }
-
       const { data: existente, error: erroBusca } = await supabase
         .from('metas')
         .select('*')
@@ -95,11 +79,10 @@ export function useMetasSupabase(lojaId: string) {
 
       if (existente) {
         setMeta(normalizarMeta(existente))
-        localStorage.setItem(migracaoFeitaKey(lojaId), '1')
         return
       }
 
-      const valorInicial = legado ?? { id: uid(), ...META_PADRAO }
+      const valorInicial = { id: uid(), ...META_PADRAO }
       const { data: inserida, error: erroInsert } = await supabase
         .from('metas')
         .insert(paraLinha(valorInicial.id, lojaId, valorInicial))
@@ -115,7 +98,6 @@ export function useMetasSupabase(lojaId: string) {
       }
 
       setMeta(normalizarMeta(inserida))
-      localStorage.setItem(migracaoFeitaKey(lojaId), '1')
     }
 
     carregarOuCriar()

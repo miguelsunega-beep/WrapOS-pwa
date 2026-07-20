@@ -4,9 +4,7 @@ import { Toaster } from 'sonner'
 import { ThemeProvider } from './context/ThemeContext'
 import { AppProvider } from './context/AppContext'
 import { MainLayout }      from './layouts/MainLayout'
-import { MigrarPerfilAntigo } from './pages/MigrarPerfilAntigo'
 import { ProtectedRoute } from './components/ProtectedRoute'
-import { useMigrarPerfilAntigo } from './hooks/useMigrarPerfilAntigo'
 import type { Usuario } from './hooks/useAuth'
 
 // Lazy Loading das páginas pesadas (Code Splitting)
@@ -30,21 +28,6 @@ const Home          = lazy(() => import('./pages/Home').then(m => ({ default: m.
 function AppAutenticado({ usuario }: { usuario: Usuario }) {
   if (sessionStorage.getItem('wrapos_perfil_ativo') !== usuario.lojaId) {
     sessionStorage.setItem('wrapos_perfil_ativo', usuario.lojaId)
-  }
-
-  const { precisaEscolher, perfisAntigos, migrar, ignorar, getStats, initials } =
-    useMigrarPerfilAntigo(usuario.lojaId)
-
-  if (precisaEscolher) {
-    return (
-      <MigrarPerfilAntigo
-        perfisAntigos={perfisAntigos}
-        migrar={migrar}
-        ignorar={ignorar}
-        getStats={getStats}
-        initials={initials}
-      />
-    )
   }
 
   return (

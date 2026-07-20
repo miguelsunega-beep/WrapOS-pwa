@@ -5,9 +5,6 @@ import type { OrdemServico } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
-/** Chave de flag "já migrei as ordens de serviço locais dessa loja pro Supabase" — escopada por lojaId. */
-const migracaoFeitaKey = (lojaId: string) => `wrapos_ordens_migrados_${lojaId}`
-
 /** Datas voltam do Postgres como timestamp — normaliza de volta pra 'YYYY-MM-DD', mesmo padrão de dataCadastro em useClientesSupabase.ts. */
 function normalizarData(v: unknown): string | undefined {
   return v ? String(v).slice(0, 10) : undefined
@@ -61,9 +58,7 @@ function paraLinha(id: string, lojaId: string, os: Omit<OrdemServico, 'id' | 'nu
  * autoincrement no Postgres (nunca enviado no insert — ver
  * adicionarOrdemServico), então o valor calculado localmente (mesmo
  * Math.max(...) + 1 de sempre) é otimista e é reconciliado com o valor real
- * assim que o insert retorna. Migração legada de OS que só existiam no
- * localStorage recebe um `numero` novo do banco (o `id`, referenciado por
- * `lancamentos`/`garantias` via `osId`, não muda).
+ * assim que o insert retorna.
  */
 export function useOrdensServicoSupabase(lojaId: string) {
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
@@ -71,52 +66,7 @@ export function useOrdensServicoSupabase(lojaId: string) {
   useEffect(() => {
     let cancelado = false
 
-    async function migrarSeNecessario() {
-      if (localStorage.getItem(migracaoFeitaKey(lojaId)) === '1') return
-
-      let locais: OrdemServico[] = []
-      try {
-        locais = JSON.parse(localStorage.getItem(`wrapos_perfil_${lojaId}_ordens`) ?? '[]')
-      } catch {
-        locais = []
-      }
-
-      if (locais.length === 0) {
-        localStorage.setItem(migracaoFeitaKey(lojaId), '1')
-        return
-      }
-
-      const { data: existentes, error: erroBusca } = await supabase
-        .from('ordens_servico')
-        .select('id')
-        .eq('lojaId', lojaId)
-
-      if (erroBusca) {
-        toast.error('Não foi possível verificar ordens de serviço já migradas para a nuvem. Tentando de novo na próxima vez.')
-        return
-      }
-
-      const idsExistentes = new Set((existentes ?? []).map(r => r.id as string))
-      const faltando = locais.filter(o => !idsExistentes.has(o.id))
-
-      if (faltando.length > 0) {
-        const { error: erroInsert } = await supabase
-          .from('ordens_servico')
-          .insert(faltando.map(o => paraLinha(o.id, lojaId, o)))
-
-        if (erroInsert) {
-          toast.error('Falha ao migrar ordens de serviço salvas localmente para a nuvem.')
-          return
-        }
-      }
-
-      localStorage.setItem(migracaoFeitaKey(lojaId), '1')
-    }
-
     async function carregar() {
-      await migrarSeNecessario()
-      if (cancelado) return
-
       const { data, error } = await supabase.from('ordens_servico').select('*').eq('lojaId', lojaId)
       if (cancelado) return
 
