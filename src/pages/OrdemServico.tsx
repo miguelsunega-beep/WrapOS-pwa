@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   Plus, Search, Trash2, Check, X,
   DollarSign, User, Wrench, MessageSquare, Zap, Link, Link2Off,
@@ -213,6 +214,7 @@ export function OrdemServico() {
   const [checkinOpen, setCheckinOpen]   = useState(false)
   const [dropdownOpen, setDropdown]     = useState(false)
   const dropdownRef                     = useRef<HTMLDivElement>(null)
+  const location                        = useLocation()
 
   // ── Click-outside: autocomplete dropdown ──────────────────────
   useEffect(() => {
@@ -226,6 +228,13 @@ export function OrdemServico() {
 
   // ── Wrapper functions ─────────────────────────────────────────
   const onNova   = () => { resetForm(); setDropdown(false); setNovaOSOpen(true) }
+
+  // ── Auto-open Nova OS from navigation state (Início → Nova OS) ──
+  useEffect(() => {
+    const state = location.state as { novaOS?: boolean } | null
+    if (state?.novaOS) onNova()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const onSalvar = async () => { if (await handleSalvar()) setNovaOSOpen(false) }
   const onCriarClienteInline = async () => { await handleCriarClienteInline() }
 

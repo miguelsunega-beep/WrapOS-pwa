@@ -34,7 +34,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
 // ── Componente principal ──────────────────────────────────────────
 export function Clientes() {
   const {
-    search, setSearch, filtered,
+    search, setSearch, filtered, veiculoLabel,
     statusFiltro, setStatusFiltro,
     totalClientes, vipCount, novosCount, posVendaCount,
     detalhes, setDetalhes,
@@ -177,7 +177,10 @@ export function Clientes() {
                         {initials(c.nome)}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-ui-text flex items-center gap-1.5">
+                        {veiculoLabel(c.id) && (
+                          <p className="text-sm font-medium text-ui-text">{veiculoLabel(c.id)}</p>
+                        )}
+                        <p className={`flex items-center gap-1.5 ${veiculoLabel(c.id) ? 'text-[11px] text-gray-500' : 'text-sm font-medium text-ui-text'}`}>
                           {c.nome}
                           {isVip(c) && <Star size={11} className="fill-amber-400 text-amber-400" />}
                         </p>

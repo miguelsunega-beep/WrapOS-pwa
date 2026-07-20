@@ -8,6 +8,8 @@ interface AcaoCardProps {
   descricao: string
   cta: string
   onClick: () => void
+  secondaryLabel?: string
+  onSecondary?: () => void
 }
 
 const TEMAS: Record<AcaoTema, { card: string; border: string; badge: string; cta: string }> = {
@@ -16,12 +18,15 @@ const TEMAS: Record<AcaoTema, { card: string; border: string; badge: string; cta
   blue:  { card: 'rgba(59,130,246,0.1)',  border: 'rgba(59,130,246,0.3)', badge: 'bg-blue-500/20 text-blue-400',  cta: 'text-blue-400'   },
 }
 
-export function AcaoCard({ badge, tema, titulo, descricao, cta, onClick }: AcaoCardProps) {
+export function AcaoCard({ badge, tema, titulo, descricao, cta, onClick, secondaryLabel, onSecondary }: AcaoCardProps) {
   const t = TEMAS[tema]
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="text-left rounded-xl p-4 flex flex-col gap-2 w-full transition-all hover:scale-[1.01] active:scale-[0.99]"
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
+      className="text-left rounded-xl p-4 flex flex-col gap-2 w-full transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
       style={{ background: t.card, border: `1px solid ${t.border}` }}
     >
       <span className={`self-start text-[10px] font-bold tracking-widest px-2 py-0.5 rounded-full ${t.badge}`}>
@@ -31,10 +36,21 @@ export function AcaoCard({ badge, tema, titulo, descricao, cta, onClick }: AcaoC
         <p className="text-sm font-semibold" style={{ color: 'var(--wrap-text)' }}>{titulo}</p>
         <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--wrap-muted)' }}>{descricao}</p>
       </div>
-      <div className={`flex items-center gap-1 text-xs font-semibold mt-auto ${t.cta}`}>
-        {cta}
-        <ChevronRight size={12} />
+      <div className="flex items-center gap-3 mt-auto">
+        <div className={`flex items-center gap-1 text-xs font-semibold ${t.cta}`}>
+          {cta}
+          <ChevronRight size={12} />
+        </div>
+        {secondaryLabel && onSecondary && (
+          <button
+            onClick={e => { e.stopPropagation(); onSecondary() }}
+            className="text-xs font-semibold px-2 py-1 rounded-lg transition-colors hover:bg-white/10"
+            style={{ color: 'var(--wrap-text)', border: '1px solid rgba(255,255,255,0.15)' }}
+          >
+            {secondaryLabel}
+          </button>
+        )}
       </div>
-    </button>
+    </div>
   )
 }

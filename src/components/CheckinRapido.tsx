@@ -501,9 +501,16 @@ function StepPeriodo({
 
 // ── Main component ───────────────────────────────────────────────
 
-export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CheckinRapido({
+  open, onClose, agendamentoId,
+}: {
+  open: boolean
+  onClose: () => void
+  /** Quando informado, pré-preenche cliente/veículo/serviço/responsável a partir de um agendamento existente e vincula a OS criada a ele. */
+  agendamentoId?: string
+}) {
   const {
-    clientes, veiculos, instaladores, servicos,
+    clientes, veiculos, instaladores, servicos, agendamentos,
     adicionarClienteSequencial, adicionarVeiculoSequencial, adicionarOSSequencial,
   } = useApp()
 
@@ -571,6 +578,26 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
   }, [])
 
   useEffect(() => { if (!open) reset() }, [open, reset])
+
+  // Pré-preenche a partir de um agendamento existente ("Dar entrada")
+  useEffect(() => {
+    if (!open || !agendamentoId) return
+    const ag = agendamentos.find(a => a.id === agendamentoId)
+    if (!ag) return
+    const cli  = clientes.find(c => c.id === ag.clienteId) ?? null
+    const veic = veiculos.find(v => v.id === ag.veiculoId) ?? null
+    setClienteSel(cli)
+    setBusca(cli?.nome ?? '')
+    setVeiculoSel(veic)
+    setServicoSel(ag.servicoId)
+    setServicoValor(ag.valor ? String(ag.valor) : '')
+    setInstSel(ag.instaladorId ?? '')
+    setMesmoDia(true)
+    setDataEntrada(ag.data)
+    setDataSaida(ag.data)
+    setStep(4)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, agendamentoId])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -703,6 +730,7 @@ export function CheckinRapido({ open, onClose }: { open: boolean; onClose: () =>
           status: 'aguardando_aprovacao',
           dataEntrada,
           dataSaidaPrevista: mesmoDia ? dataEntrada : (dataSaida || undefined),
+          ...(agendamentoId ? { agendamentoId } : {}),
         } as Omit<OrdemServico, 'id' | 'numero' | 'dataCriacao'>)
       } catch {
         toast.error('Não foi possível criar a ordem de serviço. Tente novamente.')

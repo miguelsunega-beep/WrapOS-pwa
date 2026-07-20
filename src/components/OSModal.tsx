@@ -5,7 +5,6 @@ import {
   X, Printer, Save, Trash2, RotateCcw, PlayCircle, PackageSearch, CheckCircle2,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
-import { StatusQuickEdit } from './StatusQuickEdit'
 import { MaterialSelector } from './MaterialSelector'
 import { fmt, fmtDate, FORMAS_PAGAMENTO } from '../hooks/useOrdemServico'
 import { isOSAtrasada } from '../lib/osStatus'
@@ -464,8 +463,7 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
               {/* ── Footer ── */}
               <div className="px-5 py-4 shrink-0 space-y-2" style={{ borderTop: '1px solid var(--wrap-border)' }}>
                 {os.status !== 'concluido' && os.status !== 'cancelado' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <StatusQuickEdit osId={os.id} status={os.status} variant="button" />
+                  <>
                     {os.status === 'em_andamento' ? (
                       <button
                         onClick={handleConcluir}
@@ -485,7 +483,7 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
                         {nextAction.label}
                       </button>
                     )}
-                  </div>
+                  </>
                 )}
 
                 {os.status === 'concluido' && os.statusPagamento === 'a_receber' && (

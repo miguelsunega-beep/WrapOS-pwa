@@ -168,6 +168,12 @@ export function useClientes() {
     )
     .sort((a, b) => b.totalGasto - a.totalGasto)
 
+  // ── Veículo principal (exibido em destaque na lista) ────────────
+  const veiculoLabel = (clienteId: string) => {
+    const v = veiculos.find(v => v.clienteId === clienteId)
+    return v ? `${v.marca} ${v.modelo}` : null
+  }
+
   // ── Derived data for selected client ──────────────────────────
   const detVeics = detalhes ? veiculos.filter(v => v.clienteId === detalhes.id) : []
 
@@ -368,7 +374,7 @@ export function useClientes() {
 
   return {
     // search + list
-    search, setSearch, filtered,
+    search, setSearch, filtered, veiculoLabel,
 
     // filtro de status (ativos/inativos)
     statusFiltro, setStatusFiltro,

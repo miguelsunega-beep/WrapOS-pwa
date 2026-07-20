@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useHome } from '../hooks/useHome'
 import type { ProximaHoraItem } from '../hooks/useHome'
 import { AcaoCard } from '../components/AcaoCard'
 import { KpiCard } from '../components/KpiCard'
 import { PulsoPatioBar } from '../components/PulsoPatioBar'
+import { CheckinRapido } from '../components/CheckinRapido'
 
 export function Home() {
   const {
@@ -26,6 +28,8 @@ export function Home() {
     irParaNovaOS,
     irParaMetas,
   } = useHome()
+
+  const [checkinAgendamentoId, setCheckinAgendamentoId] = useState<string | null>(null)
 
   return (
     <div className="px-6 py-5 md:p-6 space-y-6">
@@ -85,7 +89,12 @@ export function Home() {
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {acoes.map(a => (
-                  <AcaoCard key={a.id} {...a} />
+                  <AcaoCard
+                    key={a.id}
+                    {...a}
+                    secondaryLabel={a.id === 'checkin' ? 'Dar entrada' : undefined}
+                    onSecondary={a.id === 'checkin' && a.agendamentoId ? () => setCheckinAgendamentoId(a.agendamentoId!) : undefined}
+                  />
                 ))}
               </div>
             </section>
@@ -151,6 +160,16 @@ export function Home() {
 
         {/* ── RIGHT ─────────────────────────────────────────── */}
         <div className="space-y-4">
+
+          {/* Spacer invisível — alinha o topo do card com as seções da coluna
+              esquerda, que sempre têm um rótulo (uppercase + mb-2.5) acima do
+              primeiro card. Sem isso o card fica ~26px mais alto que o resto. */}
+          <p
+            className="text-[10px] font-semibold uppercase tracking-widest mb-2.5 invisible"
+            aria-hidden="true"
+          >
+            Meta do mês
+          </p>
 
           {/* Meta do mês — sempre visível */}
           <div
@@ -255,6 +274,12 @@ export function Home() {
 
         </div>
       </div>
+
+      <CheckinRapido
+        open={checkinAgendamentoId !== null}
+        onClose={() => setCheckinAgendamentoId(null)}
+        agendamentoId={checkinAgendamentoId ?? undefined}
+      />
     </div>
   )
 }

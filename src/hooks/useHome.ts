@@ -47,6 +47,8 @@ export interface AcaoEspecifica {
   descricao: string
   cta: string
   onClick: () => void
+  /** Só preenchido para id === 'checkin' — agendamento de origem, usado pelo botão "Dar entrada". */
+  agendamentoId?: string
 }
 
 export interface KpiData {
@@ -282,6 +284,7 @@ export function useHome() {
         descricao: partes.join(' · '),
         cta:       'Preparar',
         onClick:   () => navigate('/agendamento'),
+        agendamentoId: proximo.id,
       })
     }
 
@@ -346,7 +349,7 @@ export function useHome() {
     proximasHoras,
     irParaAgendamento: () => navigate('/agendamento'),
     irParaPatio:       () => navigate('/patio'),
-    irParaNovaOS:      () => navigate('/ordens'),
+    irParaNovaOS:      () => navigate('/ordens', { state: { novaOS: true } }),
     irParaMetas:       () => navigate('/metas'),
   }
 }

@@ -6,9 +6,10 @@ import {
   useDroppable, useDraggable,
 } from '@dnd-kit/core'
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
-import { Calendar, TrendingUp, LayoutGrid, AlertTriangle, CheckCircle2, Car } from 'lucide-react'
+import { Calendar, TrendingUp, LayoutGrid, AlertTriangle, CheckCircle2, Car, Zap } from 'lucide-react'
 import { OSModal } from '../components/OSModal'
 import { ConcluirOSModal } from '../components/ConcluirOSModal'
+import { CheckinRapido } from '../components/CheckinRapido'
 import { usePatio } from '../hooks/usePatio'
 import { getEtapaPatio } from '../lib/patioEtapa'
 import type { KanbanCard } from '../hooks/usePatio'
@@ -370,6 +371,9 @@ export function Patio() {
     irParaAgendamento,
   } = usePatio()
 
+  // ── Check-in Rápido ("Dar entrada") ──────────────────────────────
+  const [checkinOpen, setCheckinOpen] = useState(false)
+
   // ── DnD state ──────────────────────────────────────────────────
   const [activeId, setActiveId] = useState<string | null>(null)
   const [pendingMove, setPendingMove] = useState<{ osId: string; novaEtapa: EtapaPatio } | null>(null)
@@ -433,7 +437,7 @@ export function Patio() {
     <div className="p-4 md:p-6 space-y-6 min-h-full" style={{ backgroundColor: 'var(--wrap-bg)' }}>
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-ui-text font-display leading-tight">Pátio</h1>
           <div className="flex items-center gap-1.5 mt-0.5">
@@ -452,6 +456,12 @@ export function Patio() {
             })}
           </p>
         </div>
+        <button
+          onClick={() => setCheckinOpen(true)}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-ui-border text-gray-400 hover:text-accent hover:border-accent/40 hover:bg-accent/5 transition-all"
+        >
+          <Zap size={14} /> Dar entrada
+        </button>
       </div>
 
       {/* ── Status bar ── */}
@@ -586,6 +596,9 @@ export function Patio() {
         onClose={fecharDrawer}
         onConfirmarConcluir={handleOpenConfirm}
       />
+
+      {/* ── Check-in Rápido ("Dar entrada") ── */}
+      <CheckinRapido open={checkinOpen} onClose={() => setCheckinOpen(false)} />
     </div>
   )
 }
