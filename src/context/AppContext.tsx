@@ -1,4 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react'
+import { toast } from 'sonner'
+import { supabase } from '../lib/supabase'
 import { todayLocal } from '../lib/dateUtils'
 import { useClientesSupabase } from '../hooks/useClientesSupabase'
 import { useVeiculosSupabase } from '../hooks/useVeiculosSupabase'
@@ -40,6 +42,8 @@ function diffEstoqueDeltas(antigos: MaterialUsado[], novos: MaterialUsado[]): Ma
   })
   return deltas
 }
+
+const uid = () => Math.random().toString(36).slice(2, 10)
 
 function calcularPrazoMeses(nomesServicos: string[]): number {
   const all = nomesServicos.join(' ').toLowerCase()
@@ -382,6 +386,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     adicionarClienteSequencial: inserirClienteSequencialCloud,
     editarCliente:    atualizarClienteCloud,
     removerCliente:   removerClienteCloud,
+    aplicarPatchLocal: aplicarPatchLocalCliente,
   } = useClientesSupabase(lojaIdAtual)
 
   // veiculos: segunda entidade migrada de localStorage pro Supabase — ver
@@ -402,6 +407,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     adicionarOrdemServicoSequencial: inserirOSSequencialCloud,
     editarOrdemServico:    atualizarOSCloud,
     removerOrdemServico:   removerOSCloud,
+    aplicarPatchLocal:     aplicarPatchLocalOS,
   } = useOrdensServicoSupabase(lojaIdAtual)
 
   // produtos: quarta entidade migrada de localStorage pro Supabase — ver
@@ -413,6 +419,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     registrarEntradaEstoque: registrarEntradaEstoqueCloud,
     baixarEstoque:           baixarEstoqueCloud,
     removerProduto:          removerProdutoCloud,
+    aplicarDeltasLocal:      aplicarDeltasLocalProdutos,
   } = useProdutosSupabase(lojaIdAtual)
 
   // lancamentos: quinta entidade migrada de localStorage pro Supabase — ver
@@ -421,6 +428,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     lancamentos,
     adicionarLancamento: inserirLancamentoCloud,
     removerLancamento:   removerLancamentoCloud,
+    adicionarLancamentoLocal,
+    removerLancamentoLocal,
   } = useLancamentosSupabase(lojaIdAtual)
 
   // agendamentos: sexta entidade migrada de localStorage pro Supabase — ver
@@ -430,6 +439,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     adicionarAgendamento: inserirAgendamentoCloud,
     editarAgendamento:    atualizarAgendamentoCloud,
     removerAgendamento:   removerAgendamentoCloud,
+    aplicarPatchLocal:    aplicarPatchLocalAgendamento,
   } = useAgendamentosSupabase(lojaIdAtual)
 
   // instaladores: sétima entidade migrada de localStorage pro Supabase — ver
@@ -448,11 +458,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     adicionarGarantia: inserirGarantiaCloud,
     editarGarantia:    atualizarGarantiaCloud,
     removerGarantia:   removerGarantiaCloud,
+    adicionarGarantiaLocal,
+    removerGarantiaLocal,
   } = useGarantiasSupabase(lojaIdAtual)
 
   // meta: nona entidade migrada de localStorage pro Supabase — objeto
   // singleton (não lista), ver useMetasSupabase.ts e CLAUDE.md.
-  const { meta, atualizarMeta: atualizarMetaCloud } = useMetasSupabase(lojaIdAtual)
+  const {
+    meta,
+    atualizarMeta: atualizarMetaCloud,
+    aplicarPatchLocal: aplicarPatchLocalMeta,
+  } = useMetasSupabase(lojaIdAtual)
 
   // configuracoes: décima entidade migrada de localStorage pro Supabase —
   // objeto singleton (não lista), ver useConfiguracoesSupabase.ts e CLAUDE.md.
@@ -555,6 +571,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     atualizarGarantiaCloud(id, { status: 'acionada' as StatusGarantia })
 
   // ── Eventos centrais de OS ────────────────────────────────────
+  /**
+   * Conclui uma OS. Antes, isto disparava até 7 chamadas independentes ao
+   * Supabase (status da OS, lançamento de receita, garantia, totalGasto do
+   * cliente, numeroOS da meta, baixa de estoque por produto, lançamento de
+   * despesa de material) — uma falha no meio deixava o sistema num estado
+   * inconsistente (ex.: estoque debitado sem o lançamento financeiro
+   * correspondente). Todo o CÁLCULO abaixo continua exatamente como antes,
+   * em JS; a única mudança é que, em vez de persistir cada parte com sua
+   * própria chamada, os valores já calculados são enviados de uma vez pra
+   * supabase.rpc('concluir_os_atomica', ...) (ver
+   * supabase/migrations/009_concluir_os_atomica.sql), que grava tudo numa
+   * única transação — se qualquer parte falhar, nenhuma é aplicada. A
+   * função SQL não decide nada, só executa os valores já prontos.
+   *
+   * Estado local: aplicado otimisticamente ANTES da chamada (mesmo padrão de
+   * toda outra mutação no app), e revertido por completo se a chamada
+   * atômica falhar — já que, nesse caso, nada foi persistido no banco.
+   */
   const concluirOS = (id: string, materiaisUsados?: MaterialUsado[], pago: boolean = true, formaPagamentoRecebida?: string): { created: string[] } => {
     const os = ordens.find(x => x.id === id)
     if (!os || os.status === 'concluido') return { created: [] }
@@ -562,55 +596,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const nomeCliente = clientes.find(c => c.id === os.clienteId)?.nome ?? ''
     const created: string[] = []
 
-    atualizarOSCloud(id, {
+    const osPatch = {
       status: 'concluido' as StatusOS,
       dataFinalizacao: today,
       statusPagamento: (pago ? 'pago' : 'a_receber') as StatusPagamento,
       materiaisUsados: materiaisUsados ?? os.materiaisUsados,
       entregue: false,
-    })
+    }
 
     // formaPagamento da OS continua representando o "previsto" (definido na criação/edição);
     // o lançamento financeiro usa a forma realmente recebida, confirmada agora pelo usuário
     // (cai no previsto se ele não corrigir nada).
+    let lancamentoReceita: LancamentoFinanceiro | null = null
     if (pago && !lancamentos.some(l => l.osId === id && l.tipo === 'entrada')) {
-      adicionarLancamento({
-        tipo: 'entrada' as const, categoria: 'OS',
+      lancamentoReceita = {
+        id: uid(), tipo: 'entrada', categoria: 'OS',
         descricao: `OS #${os.numero} — ${nomeCliente}`,
         valor: os.valorTotal, data: today, formaPagamento: formaPagamentoRecebida ?? os.formaPagamento, osId: id,
-      })
+      }
       created.push('receita')
     } else if (!pago) {
       created.push('a_receber')
     }
 
+    let garantia: Garantia | null = null
     if (!garantias.some(g => g.osId === id)) {
       const prazo = calcularPrazoMeses(os.servicos.map(s => s.nome))
       const dataFimDate = new Date(today)
       dataFimDate.setMonth(dataFimDate.getMonth() + prazo)
-      adicionarGarantia({
-        osId: id, clienteId: os.clienteId, veiculoId: os.veiculoId,
+      garantia = {
+        id: uid(), osId: id, clienteId: os.clienteId, veiculoId: os.veiculoId,
         servico: os.servicos.map(s => s.nome).join(', '), produto: '',
         dataInicio: today, dataFim: dataFimDate.toISOString().slice(0, 10),
         status: 'ativa' as StatusGarantia,
-      })
+      }
       created.push('garantia')
     }
 
     const clienteAtual = clientes.find(c => c.id === os.clienteId)
-    if (clienteAtual) {
-      atualizarClienteCloud(os.clienteId, { totalGasto: clienteAtual.totalGasto + os.valorTotal })
-    }
-    atualizarMetaCloud({ numeroOS: meta.numeroOS + 1 })
 
+    const estoqueDeltas: { produtoId: string; delta: number }[] = []
+    let lancamentoDespesaMaterial: LancamentoFinanceiro | null = null
     if (materiaisUsados?.length) {
       // Só ajusta o estoque pela diferença em relação ao que já estava salvo em `os.materiaisUsados`
       // (que já foi baixado por salvarMateriaisOS) — evita baixa duplicada.
       const deltas = diffEstoqueDeltas(os.materiaisUsados ?? [], materiaisUsados)
-      deltas.forEach((delta, produtoId) => {
-        if (delta > 0) baixarEstoque(produtoId, delta)
-        else registrarEntradaEstoque(produtoId, -delta)
-      })
+      deltas.forEach((delta, produtoId) => estoqueDeltas.push({ produtoId, delta }))
+
       // Custo dos materiais tirados do estoque (preço do produto × quantidade) —
       // antes só materiais 'compra' geravam despesa; 'estoque' baixava a quantidade
       // mas nunca virava lançamento financeiro, mesmo sendo a origem mais usada.
@@ -625,18 +657,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .reduce((s, m) => s + (m.custo ?? 0), 0)
       const custoMateriais = custoEstoque + custoCompras
       if (custoMateriais > 0) {
-        adicionarLancamento({
-          tipo: 'saida' as const, categoria: 'Material',
+        lancamentoDespesaMaterial = {
+          id: uid(), tipo: 'saida', categoria: 'Material',
           descricao: `Material usado na OS #${os.numero} — ${nomeCliente}`,
           valor: custoMateriais, data: today, formaPagamento: os.formaPagamento, osId: id,
-        })
+        }
         created.push('despesa_material')
       }
     }
 
-    if (os.agendamentoId) {
-      editarAgendamento(os.agendamentoId, { status: 'concluido' as const })
-    }
+    const agendamentoAnterior = os.agendamentoId ? agendamentos.find(a => a.id === os.agendamentoId) : undefined
+
+    // ── Aplica tudo otimisticamente no estado local primeiro (mesmo padrão
+    // de toda outra mutação do app) ────────────────────────────────
+    aplicarPatchLocalOS(id, osPatch)
+    if (lancamentoReceita) adicionarLancamentoLocal(lancamentoReceita)
+    if (garantia) adicionarGarantiaLocal(garantia)
+    if (clienteAtual) aplicarPatchLocalCliente(os.clienteId, { totalGasto: clienteAtual.totalGasto + os.valorTotal })
+    aplicarPatchLocalMeta({ numeroOS: meta.numeroOS + 1 })
+    if (estoqueDeltas.length) aplicarDeltasLocalProdutos(estoqueDeltas)
+    if (lancamentoDespesaMaterial) adicionarLancamentoLocal(lancamentoDespesaMaterial)
+    if (os.agendamentoId) aplicarPatchLocalAgendamento(os.agendamentoId, { status: 'concluido' })
+
+    supabase.rpc('concluir_os_atomica', {
+      p_os_id: id,
+      p_loja_id: lojaIdAtual,
+      p_os_patch: osPatch,
+      p_lancamento_receita: lancamentoReceita,
+      p_garantia: garantia,
+      p_cliente_id: os.clienteId,
+      p_cliente_delta_total_gasto: os.valorTotal,
+      p_meta_id: meta.id,
+      p_meta_delta_numero_os: 1,
+      p_estoque_deltas: estoqueDeltas,
+      p_lancamento_despesa_material: lancamentoDespesaMaterial,
+      p_agendamento_id: os.agendamentoId ?? null,
+    }).then(({ error }) => {
+      if (!error) return
+
+      // Nada foi persistido (a função é transacional) — desfaz tudo do estado local.
+      aplicarPatchLocalOS(id, {
+        status: os.status, dataFinalizacao: os.dataFinalizacao,
+        statusPagamento: os.statusPagamento, materiaisUsados: os.materiaisUsados,
+        entregue: os.entregue,
+      })
+      if (lancamentoReceita) removerLancamentoLocal(lancamentoReceita.id)
+      if (garantia) removerGarantiaLocal(garantia.id)
+      if (clienteAtual) aplicarPatchLocalCliente(os.clienteId, { totalGasto: clienteAtual.totalGasto })
+      aplicarPatchLocalMeta({ numeroOS: meta.numeroOS })
+      if (estoqueDeltas.length) aplicarDeltasLocalProdutos(estoqueDeltas.map(d => ({ produtoId: d.produtoId, delta: -d.delta })))
+      if (lancamentoDespesaMaterial) removerLancamentoLocal(lancamentoDespesaMaterial.id)
+      if (agendamentoAnterior) aplicarPatchLocalAgendamento(agendamentoAnterior.id, { status: agendamentoAnterior.status })
+
+      toast.error('Não foi possível concluir a OS. Nenhuma alteração foi salva.')
+    })
 
     return { created }
   }

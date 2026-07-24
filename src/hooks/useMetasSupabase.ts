@@ -122,5 +122,14 @@ export function useMetasSupabase(lojaId: string) {
     })
   }
 
-  return { meta, atualizarMeta }
+  /**
+   * Aplica um patch só no estado local, sem chamada de rede — usado pela
+   * conclusão atômica de OS (ver concluirOS em AppContext.tsx), que já
+   * gravou o delta de numeroOS via supabase.rpc('concluir_os_atomica', ...)
+   * numa única transação.
+   */
+  const aplicarPatchLocal = (patch: Partial<Omit<Meta, 'id'>>) =>
+    setMeta(prev => ({ ...prev, ...patch }))
+
+  return { meta, atualizarMeta, aplicarPatchLocal }
 }

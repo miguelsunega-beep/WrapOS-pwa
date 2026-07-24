@@ -134,6 +134,16 @@ export function useOrdensServicoSupabase(lojaId: string) {
     return numero as number
   }
 
+  /**
+   * Aplica um patch só no estado local, sem chamada de rede — usado pela
+   * conclusão atômica de OS (ver concluirOS em AppContext.tsx, que chama
+   * supabase.rpc('concluir_os_atomica', ...) pra escrever tudo numa única
+   * transação). O caller já fez (ou vai fazer, em caso de rollback) a
+   * chamada real ao banco; esta função só sincroniza o cache local.
+   */
+  const aplicarPatchLocal = (id: string, patch: Partial<Omit<OrdemServico, 'id'>>) =>
+    setOrdens(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))
+
   const editarOrdemServico = (id: string, patch: Partial<Omit<OrdemServico, 'id'>>) => {
     let anterior: OrdemServico | undefined
     setOrdens(prev => prev.map(x => {
@@ -174,5 +184,5 @@ export function useOrdensServicoSupabase(lojaId: string) {
     })
   }
 
-  return { ordens, adicionarOrdemServico, adicionarOrdemServicoSequencial, editarOrdemServico, removerOrdemServico }
+  return { ordens, adicionarOrdemServico, adicionarOrdemServicoSequencial, editarOrdemServico, removerOrdemServico, aplicarPatchLocal }
 }

@@ -90,6 +90,19 @@ export function useGarantiasSupabase(lojaId: string) {
     })
   }
 
+  /**
+   * Adiciona uma garantia já pronta (id incluso) só no estado local, sem
+   * chamada de rede — usado pela conclusão atômica de OS (ver concluirOS em
+   * AppContext.tsx), que já gravou a linha via
+   * supabase.rpc('concluir_os_atomica', ...) numa única transação.
+   */
+  const adicionarGarantiaLocal = (g: Garantia) =>
+    setGarantias(prev => [...prev, g])
+
+  /** Reverte adicionarGarantiaLocal — usado só no rollback de concluirOS se a chamada atômica falhar. */
+  const removerGarantiaLocal = (id: string) =>
+    setGarantias(prev => prev.filter(x => x.id !== id))
+
   const removerGarantia = (id: string) => {
     let removida: Garantia | undefined
     let posicao = -1
@@ -113,5 +126,5 @@ export function useGarantiasSupabase(lojaId: string) {
     })
   }
 
-  return { garantias, adicionarGarantia, editarGarantia, removerGarantia }
+  return { garantias, adicionarGarantia, editarGarantia, removerGarantia, adicionarGarantiaLocal, removerGarantiaLocal }
 }

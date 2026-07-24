@@ -73,6 +73,19 @@ export function useLancamentosSupabase(lojaId: string) {
     })
   }
 
+  /**
+   * Adiciona um lançamento já pronto (id incluso) só no estado local, sem
+   * chamada de rede — usado pela conclusão atômica de OS (ver concluirOS em
+   * AppContext.tsx), que já gravou a linha via
+   * supabase.rpc('concluir_os_atomica', ...) numa única transação.
+   */
+  const adicionarLancamentoLocal = (l: LancamentoFinanceiro) =>
+    setLancamentos(prev => [...prev, l])
+
+  /** Reverte adicionarLancamentoLocal — usado só no rollback de concluirOS se a chamada atômica falhar. */
+  const removerLancamentoLocal = (id: string) =>
+    setLancamentos(prev => prev.filter(x => x.id !== id))
+
   const removerLancamento = (id: string) => {
     let removido: LancamentoFinanceiro | undefined
     let posicao = -1
@@ -96,5 +109,5 @@ export function useLancamentosSupabase(lojaId: string) {
     })
   }
 
-  return { lancamentos, adicionarLancamento, removerLancamento }
+  return { lancamentos, adicionarLancamento, removerLancamento, adicionarLancamentoLocal, removerLancamentoLocal }
 }

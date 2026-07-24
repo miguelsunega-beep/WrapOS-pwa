@@ -104,6 +104,15 @@ export function useClientesSupabase(lojaId: string) {
     })
   }
 
+  /**
+   * Aplica um patch só no estado local, sem chamada de rede — usado pela
+   * conclusão atômica de OS (ver concluirOS em AppContext.tsx), que já
+   * gravou o delta de totalGasto via
+   * supabase.rpc('concluir_os_atomica', ...) numa única transação.
+   */
+  const aplicarPatchLocal = (id: string, patch: Partial<Omit<Cliente, 'id'>>) =>
+    setClientes(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))
+
   const removerCliente = (id: string) => {
     let removido: Cliente | undefined
     let posicao = -1
@@ -127,5 +136,5 @@ export function useClientesSupabase(lojaId: string) {
     })
   }
 
-  return { clientes, adicionarCliente, adicionarClienteSequencial, editarCliente, removerCliente }
+  return { clientes, adicionarCliente, adicionarClienteSequencial, editarCliente, removerCliente, aplicarPatchLocal }
 }

@@ -93,6 +93,15 @@ export function useAgendamentosSupabase(lojaId: string) {
     })
   }
 
+  /**
+   * Aplica um patch só no estado local, sem chamada de rede — usado pela
+   * conclusão atômica de OS (ver concluirOS em AppContext.tsx), que já
+   * marcou o agendamento vinculado como concluído via
+   * supabase.rpc('concluir_os_atomica', ...) numa única transação.
+   */
+  const aplicarPatchLocal = (id: string, patch: Partial<Omit<Agendamento, 'id'>>) =>
+    setAgendamentos(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))
+
   const removerAgendamento = (id: string) => {
     let removido: Agendamento | undefined
     let posicao = -1
@@ -116,5 +125,5 @@ export function useAgendamentosSupabase(lojaId: string) {
     })
   }
 
-  return { agendamentos, adicionarAgendamento, editarAgendamento, removerAgendamento }
+  return { agendamentos, adicionarAgendamento, editarAgendamento, removerAgendamento, aplicarPatchLocal }
 }

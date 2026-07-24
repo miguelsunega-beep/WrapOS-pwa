@@ -106,6 +106,25 @@ export function useProdutosSupabase(lojaId: string) {
     })
   }
 
+  /**
+   * Aplica vários deltas de quantidade de uma vez, só no estado local, sem
+   * chamada de rede — usado pela conclusão atômica de OS (ver concluirOS em
+   * AppContext.tsx), que já gravou as baixas via
+   * supabase.rpc('concluir_os_atomica', ...) numa única transação. Mesma
+   * semântica de delta da função SQL: positivo baixa, negativo devolve
+   * (`quantidade - delta`), sempre clampado em 0 (GREATEST(0, ...) no SQL,
+   * Math.max(0, ...) aqui — inofensivo quando o delta é negativo, já que o
+   * resultado só aumenta nesse caso).
+   */
+  const aplicarDeltasLocal = (deltas: { produtoId: string; delta: number }[]) => {
+    if (deltas.length === 0) return
+    const deltaPorProduto = new Map(deltas.map(d => [d.produtoId, d.delta]))
+    setProdutos(prev => prev.map(p => {
+      const delta = deltaPorProduto.get(p.id)
+      return delta === undefined ? p : { ...p, quantidade: Math.max(0, p.quantidade - delta) }
+    }))
+  }
+
   const registrarEntradaEstoque = (id: string, qtd: number) =>
     ajustarQuantidade(id, atual => atual + qtd)
 
@@ -135,5 +154,5 @@ export function useProdutosSupabase(lojaId: string) {
     })
   }
 
-  return { produtos, adicionarProduto, editarProduto, registrarEntradaEstoque, baixarEstoque, removerProduto }
+  return { produtos, adicionarProduto, editarProduto, registrarEntradaEstoque, baixarEstoque, removerProduto, aplicarDeltasLocal }
 }
