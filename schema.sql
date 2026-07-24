@@ -28,6 +28,7 @@ CREATE TABLE "lojas" (
     "nome" TEXT NOT NULL,
     "plano" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "proximoNumero" INTEGER NOT NULL DEFAULT 1,
 
     CONSTRAINT "lojas_pkey" PRIMARY KEY ("id")
 );
@@ -80,7 +81,7 @@ CREATE TABLE "veiculos" (
 CREATE TABLE "ordens_servico" (
     "id" TEXT NOT NULL,
     "lojaId" TEXT NOT NULL,
-    "numero" SERIAL NOT NULL,
+    "numero" INTEGER NOT NULL,
     "clienteId" TEXT NOT NULL,
     "veiculoId" TEXT NOT NULL,
     "servicos" JSONB NOT NULL,
@@ -232,7 +233,7 @@ CREATE UNIQUE INDEX "usuarios_authUserId_key" ON "usuarios"("authUserId");
 CREATE INDEX "usuarios_lojaId_idx" ON "usuarios"("lojaId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ordens_servico_numero_key" ON "ordens_servico"("numero");
+CREATE UNIQUE INDEX "ordens_servico_lojaId_numero_key" ON "ordens_servico"("lojaId", "numero");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "configuracoes_lojaId_key" ON "configuracoes"("lojaId");
@@ -282,3 +283,18 @@ ALTER TABLE "configuracoes" ADD CONSTRAINT "configuracoes_lojaId_fkey" FOREIGN K
 -- AddForeignKey
 ALTER TABLE "servicos" ADD CONSTRAINT "servicos_lojaId_fkey" FOREIGN KEY ("lojaId") REFERENCES "lojas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
+
+-- CreateFunction
+-- proximo_numero_os(): gera o próximo número de OS de forma atômica, por loja
+-- (ver supabase/migrations/008_numero_os_por_loja.sql).
+CREATE OR REPLACE FUNCTION proximo_numero_os(loja_id_param text)
+RETURNS integer
+LANGUAGE sql
+AS $$
+  UPDATE lojas
+  SET "proximoNumero" = "proximoNumero" + 1
+  WHERE id = loja_id_param
+  RETURNING "proximoNumero" - 1;
+$$;
+
+GRANT EXECUTE ON FUNCTION proximo_numero_os(text) TO authenticated;

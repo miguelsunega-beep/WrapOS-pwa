@@ -52,10 +52,14 @@ enum TipoLancamento {
 }
 
 model Loja {
-  id        String   @id @default(uuid())
-  nome      String
-  plano     String
-  createdAt DateTime @default(now())
+  id            String   @id @default(uuid())
+  nome          String
+  plano         String
+  createdAt     DateTime @default(now())
+  // Próximo número de OS a ser emitido pra essa loja — ver proximo_numero_os()
+  // em supabase/migrations/008_numero_os_por_loja.sql. Cada loja conta a
+  // partir de 1, em vez de uma sequência global compartilhada entre lojas.
+  proximoNumero Int      @default(1)
 
   usuarios      Usuario[]
   clientes      Cliente[]
@@ -150,7 +154,11 @@ model Veiculo {
 model OrdemServico {
   id                String           @default(uuid())
   lojaId            String
-  numero            Int              @unique @default(autoincrement())
+  // Número sequencial da OS, por loja (não mais um autoincrement global —
+  // ver proximo_numero_os() em supabase/migrations/008_numero_os_por_loja.sql
+  // e useOrdensServicoSupabase.ts). Calculado explicitamente antes do insert,
+  // nunca gerado pelo Postgres via DEFAULT.
+  numero            Int
   clienteId         String
   veiculoId         String
   servicos          Json // Array de ItemOS: { servicoId, nome, preco }
@@ -181,6 +189,10 @@ model OrdemServico {
   // precisar do mesmo tratamento. @@index([lojaId]) removido por ser
   // redundante: o índice da PK composta já cobre buscas por lojaId sozinho.
   @@id([lojaId, id])
+  // numero é único só dentro da loja, não mais globalmente (ver comentário no
+  // campo acima) — troca do antigo @unique de coluna única por essa unique
+  // composta.
+  @@unique([lojaId, numero])
   @@map("ordens_servico")
 }
 

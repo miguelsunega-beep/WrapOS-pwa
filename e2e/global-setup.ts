@@ -71,14 +71,16 @@ const DEMO_VEICULOS = [
 /**
  * Mesmas 15 ordens de serviço de initialOrdens (src/context/AppContext.tsx) —
  * mesma ressalva de DEMO_CLIENTES/DEMO_VEICULOS acima (cópia local). Sem
- * `numero`: é autoincrement no Postgres desde a migration 005 (ver
- * useOrdensServicoSupabase.ts) — nunca setado explicitamente aqui, o banco
- * gera. Array mantido na mesma ordem (mais recente → mais antiga) de
- * initialOrdens só por legibilidade/paridade com a fonte; a inserção em
- * semearDados percorre em ordem REVERSA (mais antiga primeiro) pra que o
- * autoincrement ascendente preserve a mesma relação de recência que o
- * `numero` fixo original tinha (maior número = OS mais nova), já que telas
- * como OrdemServico/Clientes ordenam por `numero` desc.
+ * `numero`: desde a migration 008 (numero_os_por_loja), numero não tem mais
+ * DEFAULT nenhum no Postgres (nem autoincrement global, nem por loja) — é
+ * sempre calculado explicitamente antes do insert (ver PROXIMO_NUMERO_SEED
+ * abaixo e useOrdensServicoSupabase.ts). Array mantido na mesma ordem (mais
+ * recente → mais antiga) de initialOrdens só por legibilidade/paridade com a
+ * fonte; a inserção em semearDados percorre em ordem REVERSA (mais antiga
+ * primeiro), atribuindo numero 1..15 nessa ordem, pra preservar a mesma
+ * relação de recência que o `numero` fixo original tinha (maior número = OS
+ * mais nova), já que telas como OrdemServico/Clientes ordenam por `numero`
+ * desc.
  */
 const DEMO_ORDENS = [
   // em_andamento
@@ -162,6 +164,15 @@ const DEMO_ORDENS = [
     box: 3, comissao: 0, observacoes: 'Veículo vendido pelo cliente',
     status: 'cancelado', dataCriacao: '2025-04-08' },
 ]
+
+/**
+ * numero da próxima OS a ser criada na loja de teste depois do seed — as 15
+ * DEMO_ORDENS ocupam 1..15 (ver comentário acima), então a próxima é 16.
+ * semearDados grava esse valor em lojas.proximoNumero (ver migration 008)
+ * pra que specs que criam OS novas (e o teste de numeração sequencial em
+ * 06-numeracao-os-por-loja.spec.ts) partam de um valor determinístico.
+ */
+export const PROXIMO_NUMERO_SEED = DEMO_ORDENS.length + 1
 
 /**
  * Mesmos 6 produtos de initialProdutos (src/context/AppContext.tsx) — mesma
@@ -437,15 +448,28 @@ async function semearDados(email: string, password: string) {
     throw new Error(`semearDados: falha ao inserir os veículos de demonstração — ${erroInsertVeiculos.message}`)
   }
 
-  // Reversa: numero é autoincrement (migration 005) — inserindo da OS mais
-  // antiga (os15) pra mais nova (os1), o autoincrement ascendente preserva a
-  // mesma relação de recência que o `numero` fixo original tinha.
+  // Reversa: numero não tem mais DEFAULT nenhum (migration 008) — inserindo
+  // da OS mais antiga (os15) pra mais nova (os1) e numerando 1..15 nessa
+  // ordem, preserva a mesma relação de recência que o `numero` fixo original
+  // tinha (maior número = OS mais nova).
   const { error: erroInsertOrdens } = await supabase
     .from('ordens_servico')
-    .insert([...DEMO_ORDENS].reverse().map(o => ({ ...o, lojaId })))
+    .insert([...DEMO_ORDENS].reverse().map((o, idx) => ({ ...o, lojaId, numero: idx + 1 })))
 
   if (erroInsertOrdens) {
     throw new Error(`semearDados: falha ao inserir as ordens de serviço de demonstração — ${erroInsertOrdens.message}`)
+  }
+
+  // Alinha lojas.proximoNumero com as 15 OS recém-semeadas — sem isso, a
+  // primeira OS criada por um spec (ou pelo teste de numeração sequencial)
+  // colidiria com os números 1..15 já usados acima (UNIQUE (lojaId, numero)).
+  const { error: erroResetProximoNumero } = await supabase
+    .from('lojas')
+    .update({ proximoNumero: PROXIMO_NUMERO_SEED })
+    .eq('id', lojaId)
+
+  if (erroResetProximoNumero) {
+    throw new Error(`semearDados: falha ao resetar proximoNumero da loja de teste — ${erroResetProximoNumero.message}`)
   }
 
   const { error: erroInsertProdutos } = await supabase

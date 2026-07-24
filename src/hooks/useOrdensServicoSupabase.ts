@@ -35,10 +35,9 @@ function normalizarOrdemServico(row: Record<string, unknown>): OrdemServico {
   }
 }
 
-/** numero nunca entra aqui — é autoincrement no Postgres, nunca enviado no insert (ver adicionarOrdemServico). */
-function paraLinha(id: string, lojaId: string, os: Omit<OrdemServico, 'id' | 'numero'>) {
+function paraLinha(id: string, lojaId: string, numero: number, os: Omit<OrdemServico, 'id' | 'numero'>) {
   return {
-    id, lojaId,
+    id, lojaId, numero,
     clienteId: os.clienteId, veiculoId: os.veiculoId, servicos: os.servicos,
     valorTotal: os.valorTotal, formaPagamento: os.formaPagamento, instaladorId: os.instaladorId,
     box: os.box, comissao: os.comissao, observacoes: os.observacoes,
@@ -54,11 +53,11 @@ function paraLinha(id: string, lojaId: string, os: Omit<OrdemServico, 'id' | 'nu
  * Fonte de dados de `ordens_servico` — terceira entidade migrada de
  * localStorage pro Supabase (ver CLAUDE.md, "Migração de entidades pro
  * Supabase"), seguindo o mesmo modelo de useClientesSupabase.ts /
- * useVeiculosSupabase.ts. Única diferença estrutural: `numero` é
- * autoincrement no Postgres (nunca enviado no insert — ver
- * adicionarOrdemServico), então o valor calculado localmente (mesmo
- * Math.max(...) + 1 de sempre) é otimista e é reconciliado com o valor real
- * assim que o insert retorna.
+ * useVeiculosSupabase.ts. Única diferença estrutural: `numero` é sequencial
+ * POR LOJA (não mais autoincrement global — ver migration
+ * 008_numero_os_por_loja.sql), calculado de forma atômica no Postgres via
+ * `supabase.rpc('proximo_numero_os', { loja_id_param: lojaId })` antes de
+ * cada insert, e enviado explícito na linha (nunca um DEFAULT do banco).
  */
 export function useOrdensServicoSupabase(lojaId: string) {
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
@@ -89,20 +88,27 @@ export function useOrdensServicoSupabase(lojaId: string) {
     setOrdens(prev => [...prev, { ...os, id, numero: numeroOtimista }])
 
     supabase
-      .from('ordens_servico')
-      .insert(paraLinha(id, lojaId, os))
-      .select('numero')
-      .single()
-      .then(({ data, error }) => {
-        if (error || !data) {
+      .rpc('proximo_numero_os', { loja_id_param: lojaId })
+      .then(({ data: numeroReal, error: erroNumero }) => {
+        if (erroNumero || numeroReal == null) {
           setOrdens(prev => prev.filter(x => x.id !== id))
           toast.error('Não foi possível salvar a ordem de serviço na nuvem. Tente novamente.')
           return
         }
-        const numeroReal = data.numero as number
-        if (numeroReal !== numeroOtimista) {
-          setOrdens(prev => prev.map(x => x.id === id ? { ...x, numero: numeroReal } : x))
-        }
+
+        return supabase
+          .from('ordens_servico')
+          .insert(paraLinha(id, lojaId, numeroReal as number, os))
+          .then(({ error }) => {
+            if (error) {
+              setOrdens(prev => prev.filter(x => x.id !== id))
+              toast.error('Não foi possível salvar a ordem de serviço na nuvem. Tente novamente.')
+              return
+            }
+            if (numeroReal !== numeroOtimista) {
+              setOrdens(prev => prev.map(x => x.id === id ? { ...x, numero: numeroReal as number } : x))
+            }
+          })
       })
 
     return numeroOtimista
@@ -112,20 +118,20 @@ export function useOrdensServicoSupabase(lojaId: string) {
    * Versão awaited de adicionarOrdemServico — ver mesmo motivo em
    * adicionarClienteSequencial (useClientesSupabase.ts). Só atualiza o estado
    * local depois do insert confirmado no Supabase, já com o numero real
-   * (sem passo otimista intermediário); rejeita sem tocar no estado local se
-   * falhar (ex: veiculoId ainda não existe na FK composta).
+   * (pedido antes via RPC, sem passo otimista intermediário); rejeita sem
+   * tocar no estado local se falhar (ex: veiculoId ainda não existe na FK
+   * composta).
    */
   const adicionarOrdemServicoSequencial = async (os: Omit<OrdemServico, 'id' | 'numero'>): Promise<number> => {
     const id = uid()
-    const { data, error } = await supabase
-      .from('ordens_servico')
-      .insert(paraLinha(id, lojaId, os))
-      .select('numero')
-      .single()
-    if (error || !data) throw new Error('Não foi possível criar a ordem de serviço.')
-    const numero = data.numero as number
-    setOrdens(prev => [...prev, { ...os, id, numero }])
-    return numero
+    const { data: numero, error: erroNumero } = await supabase.rpc('proximo_numero_os', { loja_id_param: lojaId })
+    if (erroNumero || numero == null) throw new Error('Não foi possível gerar o número da ordem de serviço.')
+
+    const { error } = await supabase.from('ordens_servico').insert(paraLinha(id, lojaId, numero as number, os))
+    if (error) throw new Error('Não foi possível criar a ordem de serviço.')
+
+    setOrdens(prev => [...prev, { ...os, id, numero: numero as number }])
+    return numero as number
   }
 
   const editarOrdemServico = (id: string, patch: Partial<Omit<OrdemServico, 'id'>>) => {
