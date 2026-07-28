@@ -37,6 +37,7 @@ const getDisplayStatusGar = (g: GarantiaType): { label: string; variant: BadgeVa
 export const COMO_CONHECEU = ['Instagram', 'Google', 'Indicação', 'Facebook', 'TikTok', 'Outros']
 
 export const statusConfig: Record<StatusOS, { label: string; variant: BadgeVariant }> = {
+  checkin:              { label: 'Check-in',          variant: 'default' },
   em_andamento:         { label: 'Em Andamento',      variant: 'warning' },
   aguardando_material:  { label: 'Aguard. Material',  variant: 'info'    },
   aguardando_aprovacao: { label: 'Aguard. Aprovação', variant: 'purple'  },

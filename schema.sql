@@ -5,7 +5,7 @@ CREATE SCHEMA IF NOT EXISTS "public";
 CREATE TYPE "StatusCliente" AS ENUM ('ativo', 'inativo');
 
 -- CreateEnum
-CREATE TYPE "StatusOS" AS ENUM ('em_andamento', 'aguardando_material', 'aguardando_aprovacao', 'concluido', 'cancelado');
+CREATE TYPE "StatusOS" AS ENUM ('checkin', 'em_andamento', 'aguardando_material', 'aguardando_aprovacao', 'concluido', 'cancelado');
 
 -- CreateEnum
 CREATE TYPE "StatusPagamento" AS ENUM ('pago', 'a_receber');

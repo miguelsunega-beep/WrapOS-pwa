@@ -8,6 +8,7 @@ import type { StatusOS, BadgeVariant, OrdemServico, Agendamento } from '../types
 
 // ── Constants ──────────────────────────────────────────────────────
 export const statusConfig: Record<StatusOS, { label: string; variant: BadgeVariant }> = {
+  checkin:              { label: 'Check-in',          variant: 'default' },
   em_andamento:         { label: 'Em Andamento',      variant: 'warning' },
   aguardando_material:  { label: 'Aguard. Material',  variant: 'info'    },
   aguardando_aprovacao: { label: 'Aguard. Aprovação', variant: 'purple'  },
@@ -16,7 +17,7 @@ export const statusConfig: Record<StatusOS, { label: string; variant: BadgeVaria
 }
 
 const STATUS_ORDER: StatusOS[] = [
-  'em_andamento', 'aguardando_material', 'aguardando_aprovacao', 'concluido', 'cancelado',
+  'checkin', 'em_andamento', 'aguardando_material', 'aguardando_aprovacao', 'concluido', 'cancelado',
 ]
 
 export const FORMAS_PAGAMENTO = [

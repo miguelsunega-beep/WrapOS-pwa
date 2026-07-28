@@ -1,5 +1,6 @@
 // ── Utility types ─────────────────────────────────────────────
 export type StatusOS =
+  | 'checkin'
   | 'em_andamento'
   | 'aguardando_material'
   | 'aguardando_aprovacao'
