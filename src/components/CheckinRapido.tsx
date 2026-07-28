@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Search, X, Check, Zap, Loader2, Car, Plus } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { todayLocal } from '../lib/dateUtils'
+import { VeiculoMarcaModeloSelect } from './VeiculoMarcaModeloSelect'
 import type { Cliente, Veiculo } from '../types'
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -15,15 +16,6 @@ const slideVariants = {
   enter: (d: number) => ({ x: d * 44, opacity: 0 }),
   center: { x: 0, opacity: 1, transition: { duration: 0.2, ease: 'easeOut' as const } },
   exit:  (d: number) => ({ x: -d * 44, opacity: 0, transition: { duration: 0.14 } }),
-}
-
-/** Heurística simples: primeira palavra = marca, resto = modelo. Sem separação possível → marca = texto inteiro. */
-function splitMarcaModelo(texto: string): { marca: string; modelo: string } {
-  const trimmed = texto.trim().replace(/\s+/g, ' ')
-  if (!trimmed) return { marca: '', modelo: '' }
-  const idx = trimmed.indexOf(' ')
-  if (idx === -1) return { marca: trimmed, modelo: '' }
-  return { marca: trimmed.slice(0, idx), modelo: trimmed.slice(idx + 1) }
 }
 
 // ── Seção sub-renderers ───────────────────────────────────────────
@@ -166,11 +158,12 @@ function SecaoCliente({
 }
 
 function SecaoVeiculo({
-  veiculosDoCliente, veiculoSel, setVeiculoSel, veiculoTexto, setVeiculoTexto,
+  veiculosDoCliente, veiculoSel, setVeiculoSel, marca, setMarca, modelo, setModelo,
 }: {
   veiculosDoCliente: Veiculo[]
   veiculoSel: Veiculo | null; setVeiculoSel: (v: Veiculo | null) => void
-  veiculoTexto: string; setVeiculoTexto: (v: string) => void
+  marca: string; setMarca: (v: string) => void
+  modelo: string; setModelo: (v: string) => void
 }) {
   return (
     <div className="space-y-3">
@@ -205,17 +198,15 @@ function SecaoVeiculo({
           {veiculosDoCliente.length > 0 && (
             <div className="flex items-center gap-3 mb-3">
               <div className="flex-1 h-px bg-ui-border" />
-              <span className="text-[10px] text-gray-600 font-medium">ou digitar novo</span>
+              <span className="text-[10px] text-gray-600 font-medium">ou escolher novo</span>
               <div className="flex-1 h-px bg-ui-border" />
             </div>
           )}
-          <label className="text-[11px] text-gray-500 block mb-1">Marca / Modelo</label>
-          <input
-            type="text"
-            placeholder="Ex: VW Golf"
-            value={veiculoTexto}
-            onChange={e => setVeiculoTexto(e.target.value)}
-            className={inputCls}
+          <VeiculoMarcaModeloSelect
+            marca={marca}
+            modelo={modelo}
+            onChangeMarca={setMarca}
+            onChangeModelo={setModelo}
           />
         </div>
       )}
@@ -248,13 +239,14 @@ export function CheckinRapido({
   const [novoNome, setNovoNome]     = useState('')
 
   // Veículo
-  const [veiculoSel, setVeiculoSel]     = useState<Veiculo | null>(null)
-  const [veiculoTexto, setVeiculoTexto] = useState('')
+  const [veiculoSel, setVeiculoSel] = useState<Veiculo | null>(null)
+  const [marca, setMarca]           = useState('')
+  const [modelo, setModelo]         = useState('')
 
   const reset = useCallback(() => {
     setBusca(''); setClienteSel(null); setShowDrop(false)
     setCriando(false); setNovoNome('')
-    setVeiculoSel(null); setVeiculoTexto('')
+    setVeiculoSel(null); setMarca(''); setModelo('')
   }, [])
 
   useEffect(() => { if (!open) reset() }, [open, reset])
@@ -293,7 +285,7 @@ export function CheckinRapido({
   }, [busca, clientes])
 
   const clienteOk     = !!clienteSel || (criando && novoNome.trim().length > 0)
-  const veiculoOk      = !!veiculoSel || veiculoTexto.trim().length > 0
+  const veiculoOk      = !!veiculoSel || marca.trim().length > 0
   const podeConfirmar = clienteOk && veiculoOk
 
   // Cliente → veículo → OS precisam ser criados em sequência estrita e awaited:
@@ -326,11 +318,10 @@ export function CheckinRapido({
       // 2. Resolve veiculoId (depende do clienteId já confirmado no passo 1)
       let veiculoId = veiculoSel?.id ?? ''
       if (!veiculoSel) {
-        const { marca, modelo } = splitMarcaModelo(veiculoTexto)
         try {
           veiculoId = await adicionarVeiculoSequencial({
             clienteId,
-            marca, modelo,
+            marca: marca.trim(), modelo: modelo.trim(),
             ano: new Date().getFullYear(),
             cor: '', placa: '',
           })
@@ -436,9 +427,11 @@ export function CheckinRapido({
                   <SecaoVeiculo
                     veiculosDoCliente={veiculosDoCliente}
                     veiculoSel={veiculoSel}
-                    setVeiculoSel={v => { setVeiculoSel(v); if (v) setVeiculoTexto('') }}
-                    veiculoTexto={veiculoTexto}
-                    setVeiculoTexto={v => { setVeiculoTexto(v); setVeiculoSel(null) }}
+                    setVeiculoSel={v => { setVeiculoSel(v); if (v) { setMarca(''); setModelo('') } }}
+                    marca={marca}
+                    setMarca={setMarca}
+                    modelo={modelo}
+                    setModelo={setModelo}
                   />
                 </div>
 
