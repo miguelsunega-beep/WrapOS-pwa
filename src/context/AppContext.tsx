@@ -715,19 +715,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { created }
   }
 
+  /**
+   * Versão atômica de registrarPagamentoOS — mesmo motivo e mesmo padrão de
+   * concluirOS (ver comentário acima): lançamento de receita + statusPagamento
+   * da OS gravados numa única transação via supabase.rpc('registrar_pagamento_os_atomica', ...)
+   * (migration 011), em vez de duas chamadas independentes ao Supabase.
+   * Estado local aplicado otimisticamente primeiro, revertido se a RPC falhar
+   * — já que, nesse caso, nada foi persistido no banco.
+   */
   const registrarPagamentoOS = (id: string, formaPagamentoRecebida?: string): void => {
     const os = ordens.find(x => x.id === id)
     if (!os) return
     const today = todayLocal()
     const nomeCliente = clientes.find(c => c.id === os.clienteId)?.nome ?? ''
+
+    const osPatch = { statusPagamento: 'pago' as StatusPagamento }
+
+    let lancamentoReceita: LancamentoFinanceiro | null = null
     if (!lancamentos.some(l => l.osId === id && l.tipo === 'entrada')) {
-      adicionarLancamento({
-        tipo: 'entrada' as const, categoria: 'OS',
+      lancamentoReceita = {
+        id: uid(), tipo: 'entrada', categoria: 'OS',
         descricao: `OS #${os.numero} — ${nomeCliente} (pagamento)`,
         valor: os.valorTotal, data: today, formaPagamento: formaPagamentoRecebida ?? os.formaPagamento, osId: id,
-      })
+      }
     }
-    atualizarOSCloud(id, { statusPagamento: 'pago' as StatusPagamento })
+
+    aplicarPatchLocalOS(id, osPatch)
+    if (lancamentoReceita) adicionarLancamentoLocal(lancamentoReceita)
+
+    supabase.rpc('registrar_pagamento_os_atomica', {
+      p_os_id: id,
+      p_loja_id: lojaIdAtual,
+      p_os_patch: osPatch,
+      p_lancamento_receita: lancamentoReceita,
+    }).then(({ error }) => {
+      if (!error) return
+
+      // Nada foi persistido (a função é transacional) — desfaz tudo do estado local.
+      aplicarPatchLocalOS(id, { statusPagamento: os.statusPagamento })
+      if (lancamentoReceita) removerLancamentoLocal(lancamentoReceita.id)
+
+      toast.error('Não foi possível registrar o pagamento. Nenhuma alteração foi salva.')
+    })
   }
 
   const entregarVeiculo = (id: string): void => {

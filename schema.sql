@@ -401,3 +401,54 @@ $$;
 GRANT EXECUTE ON FUNCTION concluir_os_atomica(
   text, text, jsonb, jsonb, jsonb, text, numeric, text, integer, jsonb, jsonb, text
 ) TO authenticated;
+
+
+-- CreateFunction
+-- registrar_pagamento_os_atomica(): faz as 2 escritas de registrarPagamentoOS
+-- (lançamento de receita + statusPagamento da OS) numa única transação (ver
+-- supabase/migrations/011_registrar_pagamento_os_atomica.sql).
+CREATE OR REPLACE FUNCTION registrar_pagamento_os_atomica(
+  p_os_id              text,
+  p_loja_id            text,
+  p_os_patch           jsonb,
+  p_lancamento_receita jsonb
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  linhas_afetadas integer;
+BEGIN
+  UPDATE ordens_servico
+  SET "statusPagamento" = (p_os_patch->>'statusPagamento')::"StatusPagamento"
+  WHERE "lojaId" = p_loja_id AND id = p_os_id;
+
+  GET DIAGNOSTICS linhas_afetadas = ROW_COUNT;
+  IF linhas_afetadas = 0 THEN
+    RAISE EXCEPTION 'registrar_pagamento_os_atomica: nenhuma OS encontrada para lojaId=%, id=%', p_loja_id, p_os_id;
+  END IF;
+
+  IF p_lancamento_receita IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM lancamentos_financeiro
+       WHERE "lojaId" = p_loja_id AND "osId" = p_os_id AND tipo = 'entrada'
+     )
+  THEN
+    INSERT INTO lancamentos_financeiro (id, "lojaId", tipo, categoria, descricao, valor, data, "formaPagamento", "osId")
+    VALUES (
+      p_lancamento_receita->>'id', p_loja_id,
+      'entrada',
+      p_lancamento_receita->>'categoria',
+      p_lancamento_receita->>'descricao',
+      (p_lancamento_receita->>'valor')::float8,
+      (p_lancamento_receita->>'data')::date,
+      p_lancamento_receita->>'formaPagamento',
+      p_os_id
+    );
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION registrar_pagamento_os_atomica(
+  text, text, jsonb, jsonb
+) TO authenticated;
