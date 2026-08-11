@@ -3,14 +3,18 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   X, Printer, Save, Trash2, RotateCcw, PlayCircle, PackageSearch, CheckCircle2,
+  ChevronDown, ChevronUp, ArrowRight,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { MaterialSelector } from './MaterialSelector'
+import { VeiculoMarcaModeloSelect } from './VeiculoMarcaModeloSelect'
+import { DateField } from './DateField'
 import { fmt, fmtDate, FORMAS_PAGAMENTO } from '../hooks/useOrdemServico'
 import { isOSAtrasada } from '../lib/osStatus'
 import type { OrdemServico, Cliente, Veiculo, Instalador, MaterialUsado, ItemOS, StatusOS } from '../types'
 
 const STATUS_LABEL: Record<string, string> = {
+  checkin:              'Check-in',
   em_andamento:         'Em Andamento',
   aguardando_material:  'Aguard. Material',
   aguardando_aprovacao: 'Aguard. Aprovação',
@@ -19,6 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const STATUS_COLOR: Record<string, string> = {
+  checkin:              'rgba(245,158,11,0.15)',
   em_andamento:         'rgba(52,211,153,0.15)',
   aguardando_material:  'rgba(255,107,53,0.15)',
   aguardando_aprovacao: 'rgba(139,92,246,0.15)',
@@ -27,6 +32,7 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 const STATUS_TEXT: Record<string, string> = {
+  checkin:              '#f59e0b',
   em_andamento:         '#34d399',
   aguardando_material:  '#ff6b35',
   aguardando_aprovacao: '#8b5cf6',
@@ -54,18 +60,33 @@ interface FormState {
   instaladorId:   string
   formaPagamento: string
   observacoes:    string
+  comissao:       number
+}
+
+/** Estado dos campos de "completar cadastro", visíveis só quando os.status === 'checkin'. */
+interface EnriquecimentoState {
+  telefone: string
+  marca:    string
+  modelo:   string
+  placa:    string
+  cor:      string
 }
 
 const inputCls =
   'w-full px-3 py-2 rounded-lg text-[13px] outline-none transition-colors bg-surface-700 border border-ui-border text-ui-text placeholder-gray-600'
 
 export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirmarConcluir, onExcluir }: OSModalProps) {
-  const { servicos, produtos, editarOS, salvarMateriaisOS, lancamentos, deletarLancamento, cancelarOS, registrarPagamentoOS, mudarStatusOS } = useApp()
+  const { servicos, produtos, editarOS, salvarMateriaisOS, lancamentos, deletarLancamento, cancelarOS, registrarPagamentoOS, mudarStatusOS, editarCliente, editarVeiculo } = useApp()
 
-  const [form, setForm]           = useState<FormState>({ instaladorId: '', formaPagamento: '', observacoes: '' })
+  const [form, setForm]           = useState<FormState>({ instaladorId: '', formaPagamento: '', observacoes: '', comissao: 0 })
   const [materiais, setMateriais] = useState<MaterialUsado[]>([])
   const [servicosForm, setServicosForm] = useState<ItemOS[]>([])
   const [novoServicoId, setNovoServicoId] = useState('')
+
+  // "Completar cadastro" (só quando os.status === 'checkin')
+  const [enriquecimento, setEnriquecimento] = useState<EnriquecimentoState>({ telefone: '', marca: '', modelo: '', placa: '', cor: '' })
+  const [dataSaidaPrevista, setDataSaidaPrevista] = useState('')
+  const [mostrarMaisOpcoes, setMostrarMaisOpcoes] = useState(false)
 
   const [voltarConfirm, setVoltarConfirm]     = useState(false)
   const [excluirConfirm, setExcluirConfirm]   = useState(false)
@@ -80,6 +101,7 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
         instaladorId:   os.instaladorId,
         formaPagamento: os.formaPagamento,
         observacoes:    os.observacoes,
+        comissao:       os.comissao,
       })
       setMateriais(os.materiaisUsados ?? [])
       setServicosForm(os.servicos)
@@ -90,7 +112,17 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
       setCloseConfirm(false)
       setPagamentoConfirm(false)
       setFormaPagamentoRecebida(os.formaPagamento)
+      setEnriquecimento({
+        telefone: cliente?.telefone ?? '',
+        marca:    veiculo?.marca    ?? '',
+        modelo:   veiculo?.modelo   ?? '',
+        placa:    veiculo?.placa    ?? '',
+        cor:      veiculo?.cor      ?? '',
+      })
+      setDataSaidaPrevista(os.dataSaidaPrevista ?? '')
+      setMostrarMaisOpcoes(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [os?.id])
 
   const valorTotal = useMemo(
@@ -112,6 +144,8 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
     form.instaladorId !== os.instaladorId ||
     form.formaPagamento !== os.formaPagamento ||
     form.observacoes !== os.observacoes ||
+    form.comissao !== os.comissao ||
+    dataSaidaPrevista !== (os.dataSaidaPrevista ?? '') ||
     JSON.stringify(materiais) !== JSON.stringify(os.materiaisUsados ?? []) ||
     JSON.stringify(servicosForm) !== JSON.stringify(os.servicos)
   )
@@ -134,13 +168,52 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
   const persist = () => {
     if (!os) return
     editarOS(os.id, {
-      instaladorId:   form.instaladorId,
-      formaPagamento: form.formaPagamento,
-      observacoes:    form.observacoes,
-      servicos:       servicosForm,
+      instaladorId:      form.instaladorId,
+      formaPagamento:    form.formaPagamento,
+      observacoes:       form.observacoes,
+      comissao:          form.comissao,
+      servicos:          servicosForm,
       valorTotal,
+      dataSaidaPrevista: dataSaidaPrevista || undefined,
     })
     salvarMateriaisOS(os.id, materiais)
+  }
+
+  // ── "Completar cadastro" (checkin) ───────────────────────────────
+  const commitTelefone = () => {
+    if (cliente && enriquecimento.telefone !== cliente.telefone) {
+      editarCliente(cliente.id, { telefone: enriquecimento.telefone })
+    }
+  }
+  const commitPlaca = () => {
+    if (veiculo && enriquecimento.placa !== veiculo.placa) {
+      editarVeiculo(veiculo.id, { placa: enriquecimento.placa })
+    }
+  }
+  const commitCor = () => {
+    if (veiculo && enriquecimento.cor !== veiculo.cor) {
+      editarVeiculo(veiculo.id, { cor: enriquecimento.cor })
+    }
+  }
+  const handleChangeMarca = (marca: string) => {
+    setEnriquecimento(p => ({ ...p, marca }))
+    if (veiculo) editarVeiculo(veiculo.id, { marca })
+  }
+  const handleChangeModelo = (modelo: string) => {
+    setEnriquecimento(p => ({ ...p, modelo }))
+    if (veiculo) editarVeiculo(veiculo.id, { modelo })
+  }
+
+  const gateOk = servicosForm.length > 0 && dataSaidaPrevista.trim().length > 0
+  const faltando: string[] = []
+  if (servicosForm.length === 0) faltando.push('serviço')
+  if (!dataSaidaPrevista.trim()) faltando.push('data de saída')
+  const textoGate = faltando.length === 0 ? 'Tudo certo, pronto para avançar' : `Falta: ${faltando.join(' e ')}`
+
+  const handleMoverParaAguardando = () => {
+    if (!os || !gateOk) return
+    editarOS(os.id, { servicos: servicosForm, dataSaidaPrevista, valorTotal })
+    mudarStatusOS(os.id, 'aguardando_aprovacao')
   }
 
   const handleSalvar = () => {
@@ -355,27 +428,119 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
               {/* ── Corpo scrollável ── */}
               <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
+                {/* 0) Completar cadastro — só quando ainda não passou do check-in */}
+                {os.status === 'checkin' && (
+                  <section>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-3 text-gray-500">Completar cadastro</p>
+                    <div className="mb-3">
+                      <label className="block text-[11px] mb-1.5 text-gray-500">Telefone do cliente</label>
+                      <input
+                        type="text"
+                        placeholder="(00) 00000-0000"
+                        value={enriquecimento.telefone}
+                        onChange={e => setEnriquecimento(p => ({ ...p, telefone: e.target.value }))}
+                        onBlur={commitTelefone}
+                        className={inputCls}
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <VeiculoMarcaModeloSelect
+                        marca={enriquecimento.marca}
+                        modelo={enriquecimento.modelo}
+                        onChangeMarca={handleChangeMarca}
+                        onChangeModelo={handleChangeModelo}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] mb-1.5 text-gray-500">Placa</label>
+                        <input
+                          type="text"
+                          placeholder="ABC1D23"
+                          value={enriquecimento.placa}
+                          onChange={e => setEnriquecimento(p => ({ ...p, placa: e.target.value }))}
+                          onBlur={commitPlaca}
+                          className={`${inputCls} uppercase font-mono`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] mb-1.5 text-gray-500">Cor</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Preto"
+                          value={enriquecimento.cor}
+                          onChange={e => setEnriquecimento(p => ({ ...p, cor: e.target.value }))}
+                          onBlur={commitCor}
+                          className={inputCls}
+                        />
+                      </div>
+                    </div>
+                  </section>
+                )}
+
                 {/* a) Operacional */}
                 <section>
                   <p className="text-[10px] font-semibold uppercase tracking-widest mb-3 text-gray-500">Operacional</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] mb-1.5 text-gray-500">Responsável</label>
-                      <select value={form.instaladorId} onChange={e => setForm(p => ({ ...p, instaladorId: e.target.value }))} className={inputCls}>
-                        <option className="bg-surface-700 text-ui-text" value="">Não definido</option>
-                        {instaladores.filter(i => i.ativo).map(i => (
-                          <option className="bg-surface-700 text-ui-text" key={i.id} value={i.id}>{i.nome.split(' ')[0]}</option>
-                        ))}
-                      </select>
+                  {os.status === 'checkin' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setMostrarMaisOpcoes(v => !v)}
+                        className="flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-ui-text transition-colors"
+                      >
+                        Mais opções
+                        {mostrarMaisOpcoes ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      </button>
+                      {mostrarMaisOpcoes && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                          <div>
+                            <label className="block text-[11px] mb-1.5 text-gray-500">Responsável</label>
+                            <select value={form.instaladorId} onChange={e => setForm(p => ({ ...p, instaladorId: e.target.value }))} className={inputCls}>
+                              <option className="bg-surface-700 text-ui-text" value="">Não definido</option>
+                              {instaladores.filter(i => i.ativo).map(i => (
+                                <option className="bg-surface-700 text-ui-text" key={i.id} value={i.id}>{i.nome.split(' ')[0]}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] mb-1.5 text-gray-500">Forma de Pagamento</label>
+                            <select value={form.formaPagamento} onChange={e => setForm(p => ({ ...p, formaPagamento: e.target.value }))} className={inputCls}>
+                              <option className="bg-surface-700 text-ui-text" value="">Não definida</option>
+                              {FORMAS_PAGAMENTO.map(f => <option className="bg-surface-700 text-ui-text" key={f}>{f}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] mb-1.5 text-gray-500">Comissão (R$)</label>
+                            <input
+                              type="number" min={0} step={10}
+                              value={form.comissao || ''}
+                              onChange={e => setForm(p => ({ ...p, comissao: parseFloat(e.target.value) || 0 }))}
+                              className={inputCls}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] mb-1.5 text-gray-500">Responsável</label>
+                        <select value={form.instaladorId} onChange={e => setForm(p => ({ ...p, instaladorId: e.target.value }))} className={inputCls}>
+                          <option className="bg-surface-700 text-ui-text" value="">Não definido</option>
+                          {instaladores.filter(i => i.ativo).map(i => (
+                            <option className="bg-surface-700 text-ui-text" key={i.id} value={i.id}>{i.nome.split(' ')[0]}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] mb-1.5 text-gray-500">Forma de Pagamento</label>
+                        <select value={form.formaPagamento} onChange={e => setForm(p => ({ ...p, formaPagamento: e.target.value }))} className={inputCls}>
+                          <option className="bg-surface-700 text-ui-text" value="">Não definida</option>
+                          {FORMAS_PAGAMENTO.map(f => <option className="bg-surface-700 text-ui-text" key={f}>{f}</option>)}
+                        </select>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[11px] mb-1.5 text-gray-500">Forma de Pagamento</label>
-                      <select value={form.formaPagamento} onChange={e => setForm(p => ({ ...p, formaPagamento: e.target.value }))} className={inputCls}>
-                        <option className="bg-surface-700 text-ui-text" value="">Não definida</option>
-                        {FORMAS_PAGAMENTO.map(f => <option className="bg-surface-700 text-ui-text" key={f}>{f}</option>)}
-                      </select>
-                    </div>
-                  </div>
+                  )}
                   <div className="mt-3">
                     <label className="block text-[11px] mb-1.5 text-gray-500">Descrição do serviço / observações</label>
                     <textarea
@@ -439,6 +604,13 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
                       <span className="text-[16px] font-bold text-ui-text">{fmt(valorTotal)}</span>
                     </div>
                   </div>
+
+                  {os.status === 'checkin' && (
+                    <div className="mt-3">
+                      <label className="block text-[11px] mb-1.5 text-gray-500">Entrega prevista</label>
+                      <DateField value={dataSaidaPrevista} onChange={setDataSaidaPrevista} />
+                    </div>
+                  )}
                 </section>
 
                 {/* d) Informações adicionais */}
@@ -464,7 +636,20 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
               <div className="px-5 py-4 shrink-0 space-y-2" style={{ borderTop: '1px solid var(--wrap-border)' }}>
                 {os.status !== 'concluido' && os.status !== 'cancelado' && (
                   <>
-                    {os.status === 'em_andamento' ? (
+                    {os.status === 'checkin' ? (
+                      <>
+                        <p className="text-center text-[11px] text-gray-500">{textoGate}</p>
+                        <button
+                          onClick={handleMoverParaAguardando}
+                          disabled={!gateOk}
+                          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[13px] font-bold transition-opacity hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
+                          style={{ backgroundColor: '#34d399', color: '#0a0c12' }}
+                        >
+                          <ArrowRight size={15} />
+                          Mover para Aguardando
+                        </button>
+                      </>
+                    ) : os.status === 'em_andamento' ? (
                       <button
                         onClick={handleConcluir}
                         className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[13px] font-bold transition-opacity hover:opacity-90 active:scale-[0.98]"
