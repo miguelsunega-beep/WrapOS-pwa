@@ -520,15 +520,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const editarOS = (id: string, os: Partial<Omit<OrdemServico, 'id'>>) =>
     atualizarOSCloud(id, os)
 
+  /**
+   * Versão atômica de salvarMateriaisOS — mesmo motivo e mesmo padrão de
+   * concluirOS/registrarPagamentoOS (ver comentários acima): materiais da OS
+   * + baixa/devolução de estoque por produto gravados numa única transação
+   * via supabase.rpc('salvar_materiais_os_atomica', ...) (migration 012), em
+   * vez de 1 chamada por produto alterado + 1 pra OS, todas independentes.
+   * Estado local aplicado otimisticamente primeiro, revertido se a RPC falhar
+   * — já que, nesse caso, nada foi persistido no banco.
+   */
   const salvarMateriaisOS = (osId: string, novosMateriais: MaterialUsado[]) => {
     const os = ordens.find(x => x.id === osId)
     if (!os) return
-    const deltas = diffEstoqueDeltas(os.materiaisUsados ?? [], novosMateriais)
-    deltas.forEach((delta, produtoId) => {
-      if (delta > 0) baixarEstoque(produtoId, delta)
-      else registrarEntradaEstoque(produtoId, -delta)
+
+    const materiaisAnteriores = os.materiaisUsados ?? []
+    const deltas = diffEstoqueDeltas(materiaisAnteriores, novosMateriais)
+    const estoqueDeltas = Array.from(deltas, ([produtoId, delta]) => ({ produtoId, delta }))
+
+    aplicarPatchLocalOS(osId, { materiaisUsados: novosMateriais })
+    if (estoqueDeltas.length) aplicarDeltasLocalProdutos(estoqueDeltas)
+
+    supabase.rpc('salvar_materiais_os_atomica', {
+      p_os_id: osId,
+      p_loja_id: lojaIdAtual,
+      p_materiais_usados: novosMateriais,
+      p_estoque_deltas: estoqueDeltas,
+    }).then(({ error }) => {
+      if (!error) return
+
+      // Nada foi persistido (a função é transacional) — desfaz tudo do estado local.
+      aplicarPatchLocalOS(osId, { materiaisUsados: materiaisAnteriores })
+      if (estoqueDeltas.length) {
+        aplicarDeltasLocalProdutos(estoqueDeltas.map(d => ({ produtoId: d.produtoId, delta: -d.delta })))
+      }
+      toast.error('Não foi possível salvar os materiais. Nenhuma alteração foi salva.')
     })
-    atualizarOSCloud(osId, { materiaisUsados: novosMateriais })
   }
 
   const deletarOS = (id: string) => removerOSCloud(id)
@@ -766,13 +792,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     atualizarOSCloud(id, { entregue: true, dataSaida: today })
   }
 
+  /**
+   * Versão atômica de cancelarOS — mesmo motivo e mesmo padrão de
+   * concluirOS/registrarPagamentoOS/salvarMateriaisOS (ver comentários
+   * acima): status da OS + status do agendamento vinculado gravados numa
+   * única transação via supabase.rpc('cancelar_os_atomica', ...) (migration
+   * 013), em vez de duas chamadas independentes ao Supabase. Estado local
+   * aplicado otimisticamente primeiro, revertido se a RPC falhar — já que,
+   * nesse caso, nada foi persistido no banco.
+   */
   const cancelarOS = (id: string): void => {
     const os = ordens.find(x => x.id === id)
     if (!os || os.status === 'cancelado') return
-    atualizarOSCloud(id, { status: 'cancelado' as StatusOS })
-    if (os.agendamentoId) {
-      editarAgendamento(os.agendamentoId, { status: 'agendado' as const })
-    }
+
+    const agendamentoAnterior = os.agendamentoId ? agendamentos.find(a => a.id === os.agendamentoId) : undefined
+
+    aplicarPatchLocalOS(id, { status: 'cancelado' as StatusOS })
+    if (agendamentoAnterior) aplicarPatchLocalAgendamento(agendamentoAnterior.id, { status: 'agendado' })
+
+    supabase.rpc('cancelar_os_atomica', {
+      p_os_id: id,
+      p_loja_id: lojaIdAtual,
+      p_agendamento_id: os.agendamentoId ?? null,
+    }).then(({ error }) => {
+      if (!error) return
+
+      aplicarPatchLocalOS(id, { status: os.status })
+      if (agendamentoAnterior) aplicarPatchLocalAgendamento(agendamentoAnterior.id, { status: agendamentoAnterior.status })
+      toast.error('Não foi possível cancelar a OS. Nenhuma alteração foi salva.')
+    })
   }
 
   // ── Meta & Configurações (Supabase — objetos singleton, ver

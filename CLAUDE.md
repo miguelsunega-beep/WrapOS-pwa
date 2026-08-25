@@ -130,5 +130,8 @@ Cor de acento (`--wrap-accent-rgb`) é injetada em runtime via ThemeContext.
 - SEMPRE zero erros TypeScript (`npx tsc --noEmit` limpo antes de considerar concluído).
 - Suíte Playwright (`e2e/`) deve continuar passando após qualquer mudança — rodar antes de finalizar.
 
+## Decisões de produto — comportamento intencional (não são bugs)
+- **Agendamento de OS cancelada fica travado em "OS cancelada" pra sempre** (não reabre pra edição/reagendar aquele registro específico): decisão consciente (2026-08-25). Não bloqueia reagendar o mesmo horário/cliente (getStatusEfetivo exclui 'os_cancelada' do conflito de horário em 3 pontos de useAgendamento.ts) e fica oculto da agenda por padrão. Criar um novo agendamento é o caminho esperado — não "reabrir" o cancelado.
+
 ## Redesign visual em andamento
 Tela de Agendamento e tela Início já passaram por redesign completo (grid semanal, cards de ação, KPIs com tendência). Pátio está em fila pra virar kanban por etapa (Aguardando/Execução/Concluído, baseado em patioEtapa.ts), com troca de etapa automática por status mas também arrastável manualmente. Configurações (metas avançadas, colaboradores, avisos/alertas, cadastro de serviços) ainda não foi redesenhado — fica pra depois.

@@ -452,3 +452,63 @@ $$;
 GRANT EXECUTE ON FUNCTION registrar_pagamento_os_atomica(
   text, text, jsonb, jsonb
 ) TO authenticated;
+
+
+-- CreateFunction
+-- salvar_materiais_os_atomica(): grava os materiais da OS e aplica os deltas
+-- de estoque numa única transação (ver
+-- supabase/migrations/012_salvar_materiais_os_atomica.sql).
+CREATE OR REPLACE FUNCTION salvar_materiais_os_atomica(
+  p_os_id            text,
+  p_loja_id          text,
+  p_materiais_usados jsonb,
+  p_estoque_deltas   jsonb
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  item jsonb;
+BEGIN
+  UPDATE ordens_servico
+  SET "materiaisUsados" = p_materiais_usados
+  WHERE "lojaId" = p_loja_id AND id = p_os_id;
+
+  FOR item IN SELECT * FROM jsonb_array_elements(coalesce(p_estoque_deltas, '[]'::jsonb))
+  LOOP
+    UPDATE produtos
+    SET quantidade = GREATEST(0, quantidade - (item->>'delta')::integer)
+    WHERE "lojaId" = p_loja_id AND id = item->>'produtoId';
+  END LOOP;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION salvar_materiais_os_atomica(text, text, jsonb, jsonb) TO authenticated;
+
+
+-- CreateFunction
+-- cancelar_os_atomica(): cancela a OS e reverte o agendamento vinculado (se
+-- houver) pra 'agendado' numa única transação (ver
+-- supabase/migrations/013_cancelar_os_atomica.sql).
+CREATE OR REPLACE FUNCTION cancelar_os_atomica(
+  p_os_id          text,
+  p_loja_id        text,
+  p_agendamento_id text
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  UPDATE ordens_servico
+  SET status = 'cancelado'
+  WHERE "lojaId" = p_loja_id AND id = p_os_id;
+
+  IF p_agendamento_id IS NOT NULL THEN
+    UPDATE agendamentos
+    SET status = 'agendado'
+    WHERE "lojaId" = p_loja_id AND id = p_agendamento_id;
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION cancelar_os_atomica(text, text, text) TO authenticated;
