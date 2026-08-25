@@ -88,6 +88,7 @@ export function useClientes() {
 
   // ── Edit mode flag ────────────────────────────────────────────
   const [editando, setEditando] = useState(false)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
 
   // ── Delete confirm ────────────────────────────────────────────
   const [confirmarDelete, setConfirmarDelete] = useState<string | null>(null)
@@ -218,7 +219,7 @@ export function useClientes() {
     setNovoVeiculoForm(blankVeiculoForm)
   }
 
-  const prepararNovo = () => { resetForm(); setEditando(false) }
+  const prepararNovo = () => { resetForm(); setEditando(false); setEditandoId(null) }
 
   const prepararEditar = (c: Cliente) => {
     setForm({
@@ -227,6 +228,7 @@ export function useClientes() {
     })
     setCepInput('')
     setEditando(true)
+    setEditandoId(c.id)
   }
 
   // No fluxo de cadastro (cliente novo + veículo inline), cliente → veículo
@@ -234,12 +236,12 @@ export function useClientes() {
   // em CheckinRapido.tsx (bug de FK order corrigido em 2026-07-07).
   const handleSalvarCliente = async (): Promise<boolean> => {
     if (!form.nome.trim()) { toast.error('Nome é obrigatório.'); return false }
-    if (editando && detalhes) {
-      editarCliente(detalhes.id, {
+    if (editando && editandoId) {
+      editarCliente(editandoId, {
         nome: form.nome, telefone: form.telefone, email: form.email,
         cpf: form.cpf, comoConheceu: form.comoConheceu, cidade: form.cidade,
       })
-      setDetalhes(c => c ? { ...c, ...form } : null)
+      setDetalhes(c => c && c.id === editandoId ? { ...c, ...form } : c)
       toast.success('Cliente atualizado!')
     } else {
       // Se o usuário preencheu veículo inline, valida antes de criar o cliente.
