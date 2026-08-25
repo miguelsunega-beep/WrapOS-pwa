@@ -15,6 +15,13 @@ import { Page, Locator, expect } from '@playwright/test'
 export async function abrirApp(page: Page) {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Início' })).toBeVisible()
+  // A Home renderiza instantaneamente com os arrays do AppContext ainda vazios
+  // (nenhuma das 11 entidades tem estado de loading — ver CLAUDE.md) e só
+  // preenche os KPIs quando os fetches ao Supabase (disparados no mount)
+  // resolvem. Sem esperar a rede quietar aqui, testes que leem um KPI logo
+  // após abrirApp (ex.: "Carros no pátio" como baseline) podem flakily capturar
+  // o valor 0 do primeiro render em vez do valor real pós-fetch.
+  await page.waitForLoadState('networkidle')
 }
 
 /**

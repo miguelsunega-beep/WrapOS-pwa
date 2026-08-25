@@ -215,6 +215,12 @@ export function useOrdemServico() {
     if (!novoCli.nome.trim())     { toast.error('Informe o nome do cliente.'); return false }
     if (!novoCli.telefone.trim()) { toast.error('Informe o telefone.');        return false }
 
+    const telNormalizado = novoCli.telefone.replace(/\D/g, '')
+    const jaExiste = clientes.some(c => c.telefone.replace(/\D/g, '') === telNormalizado)
+    if (jaExiste && !window.confirm(`Já existe um cliente com o telefone "${novoCli.telefone.trim()}". Criar mesmo assim?`)) {
+      return false
+    }
+
     let clienteId: string
     try {
       clienteId = await adicionarClienteSequencial({

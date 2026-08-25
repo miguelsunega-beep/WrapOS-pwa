@@ -490,10 +490,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deletarCliente = (id: string): 'excluido' | 'inativado' => {
     const temOSVinculada = ordens.some(o => o.clienteId === id)
-    if (temOSVinculada) {
+    const temAgendamentoVinculado = agendamentos.some(a => a.clienteId === id)
+    if (temOSVinculada || temAgendamentoVinculado) {
       atualizarClienteCloud(id, { status: 'inativo' })
       return 'inativado'
     }
+    garantias.filter(g => g.clienteId === id).forEach(g => removerGarantiaCloud(g.id))
     removerClienteCloud(id)
     return 'excluido'
   }

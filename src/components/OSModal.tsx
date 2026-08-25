@@ -232,6 +232,11 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
 
   const handleExcluir = () => {
     if (!os || !onExcluir) return
+    if (os.status === 'concluido') {
+      toast.error('OS concluída não pode ser excluída — os registros financeiros e de garantia dependem dela.')
+      setExcluirConfirm(false)
+      return
+    }
     onExcluir(os.id)
     setExcluirConfirm(false)
     onClose()

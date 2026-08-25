@@ -300,6 +300,12 @@ export function CheckinRapido({
       // 1. Resolve clienteId
       let clienteId = clienteSel?.id ?? ''
       if (!clienteSel) {
+        const nomeNormalizado = novoNome.trim().toLowerCase()
+        const jaExiste = clientes.some(c => c.nome.trim().toLowerCase() === nomeNormalizado)
+        if (jaExiste && !window.confirm(`Já existe um cliente chamado "${novoNome.trim()}". Criar mesmo assim?`)) {
+          setSalvando(false)
+          return
+        }
         try {
           clienteId = await adicionarClienteSequencial({
             nome: novoNome.trim(),
