@@ -212,7 +212,7 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
 
   const handleMoverParaAguardando = () => {
     if (!os || !gateOk) return
-    editarOS(os.id, { servicos: servicosForm, dataSaidaPrevista, valorTotal })
+    persist()
     mudarStatusOS(os.id, 'aguardando_aprovacao')
   }
 

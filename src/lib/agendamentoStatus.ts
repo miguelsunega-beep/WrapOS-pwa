@@ -19,6 +19,7 @@ export function getOSVinculada(agendamentoId: string, ordens: OrdemServico[]): O
 export function getStatusEfetivo(ag: Agendamento, ordens: OrdemServico[]): StatusEfetivoAgendamento {
   const os = getOSVinculada(ag.id, ordens)
   if (!os) return 'agendado'
+  if (os.status === 'checkin') return 'agendado' // check-in mínimo ainda não "trava" o agendamento
   if (os.status === 'concluido') return 'concluido'
   if (os.status === 'cancelado') return 'os_cancelada'
   return 'em_andamento' // em_andamento | aguardando_material | aguardando_aprovacao

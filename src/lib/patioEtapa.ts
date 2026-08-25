@@ -12,6 +12,7 @@ export type EtapaPatio = 'aguardando' | 'execucao' | 'concluido'
  */
 export function getEtapaPatio(status: StatusOS, entregue?: boolean): EtapaPatio | null {
   switch (status) {
+    case 'checkin':
     case 'aguardando_material':
     case 'aguardando_aprovacao': return 'aguardando'
     case 'em_andamento':         return 'execucao'
