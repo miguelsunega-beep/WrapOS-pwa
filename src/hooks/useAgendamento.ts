@@ -319,7 +319,16 @@ export function useAgendamento() {
       getStatusEfetivo(a, ordens) !== 'os_cancelada'
     )
     if (conflito) { toast.error('Conflito: já existe agendamento neste horário.'); return false }
-    const payload = { ...editForm, duracao: 0, valor: parseFloat(editForm.valor) || 0 }
+    const payload = {
+      clienteId:    editForm.clienteId,
+      veiculoId:    editForm.veiculoId,
+      servicoId:    editForm.servicoId,
+      instaladorId: editForm.instaladorId,
+      data:         editForm.data,
+      horario:      editForm.horario,
+      duracao:      0,
+      valor:        parseFloat(editForm.valor) || 0,
+    }
     editarAgendamento(editandoId, payload)
     if (detalhes?.id === editandoId) setDetalhes(prev => prev ? { ...prev, ...payload } : null)
     toast.success('Agendamento atualizado!')
