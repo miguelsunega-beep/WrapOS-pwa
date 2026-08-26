@@ -543,6 +543,7 @@ export function Agendamento() {
                     value={form.novoVeiculoForm}
                     onChange={v => setForm(p => ({ ...p, novoVeiculoForm: v }))}
                     showTitle
+                    obrigatorio={false}
                   />
                 </div>
               </div>

@@ -383,9 +383,6 @@ export function useAgendamento() {
     if (form.criandoCliente) {
       if (!form.novoClienteNome.trim()) { toast.error('Informe o nome do cliente.'); return false }
       if (!form.novoClienteTel.trim())  { toast.error('Informe o telefone.'); return false }
-      if (!form.novoVeiculoForm.placa.trim()) { toast.error('Informe a placa do veículo.'); return false }
-      if (!form.novoVeiculoForm.marca.trim()) { toast.error('Informe a marca do veículo.'); return false }
-      if (!form.novoVeiculoForm.modelo.trim()) { toast.error('Informe o modelo do veículo.'); return false }
       try {
         clienteId = await adicionarClienteSequencial({
           nome: form.novoClienteNome.trim(),

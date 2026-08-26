@@ -23,13 +23,15 @@ interface VeiculoInlineFormProps {
   onChange:   (v: VeiculoFormData) => void
   /** Se falso, o título "Dados do Veículo" não é renderizado */
   showTitle?: boolean
+  /** Se falso, Placa/Marca/Modelo não são marcados como obrigatórios (sem asterisco) */
+  obrigatorio?: boolean
 }
 
 /**
  * Campos inline de veículo com lookup automático por placa.
  * Compartilhado entre CheckinRapido, Agendamento e Clientes.
  */
-export function VeiculoInlineForm({ value, onChange, showTitle = true }: VeiculoInlineFormProps) {
+export function VeiculoInlineForm({ value, onChange, showTitle = true, obrigatorio = true }: VeiculoInlineFormProps) {
   const { loading, apiOk, data: placaData } = usePlacaLookup(value.placa)
 
   // Preenchimento automático quando a API retorna dados
@@ -60,7 +62,7 @@ export function VeiculoInlineForm({ value, onChange, showTitle = true }: Veiculo
       {/* Placa */}
       <div>
         <label className="block text-xs text-gray-500 mb-1.5">
-          Placa <span className="text-accent">*</span>
+          Placa {obrigatorio && <span className="text-accent">*</span>}
         </label>
         <div className="relative">
           <input
@@ -88,7 +90,7 @@ export function VeiculoInlineForm({ value, onChange, showTitle = true }: Veiculo
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs text-gray-500 mb-1.5">
-            Marca <span className="text-accent">*</span>
+            Marca {obrigatorio && <span className="text-accent">*</span>}
           </label>
           <input
             type="text"
@@ -100,7 +102,7 @@ export function VeiculoInlineForm({ value, onChange, showTitle = true }: Veiculo
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1.5">
-            Modelo <span className="text-accent">*</span>
+            Modelo {obrigatorio && <span className="text-accent">*</span>}
           </label>
           <input
             type="text"
