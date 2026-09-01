@@ -2,11 +2,12 @@ import { useState, useRef, useEffect } from 'react'
 import {
   Plus, ChevronLeft, ChevronRight,
   Check, Trash2, Pencil, FilePlus2, CheckCircle2, Repeat,
-  User, Wrench, CalendarClock, Car, Clock, UserPlus,
+  User, Wrench, CalendarClock, Car, Clock, UserPlus, SlidersHorizontal,
 } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import { ptBR } from 'date-fns/locale'
 import { format, isValid, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth } from 'date-fns'
+import { motion, AnimatePresence } from 'framer-motion'
 import 'react-day-picker/dist/style.css'
 import { useDraftState } from '../hooks/useDraftState'
 import { Card } from '../components/Card'
@@ -16,11 +17,12 @@ import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
 import { DateField } from '../components/DateField'
 import { AgendaGrid } from '../components/AgendaGrid'
+import { AgendaList } from '../components/AgendaList'
 import { VeiculoInlineForm } from '../components/VeiculoInlineForm'
 import {
   useAgendamento, todayISO, statusEfetivoConfig, DIAS_SEMANA,
   TIPOS_SERVICO, STATUS_FILTROS,
-  type AppointmentVM,
+  type AppointmentVM, type DiaSemana,
 } from '../hooks/useAgendamento'
 
 const inputCls = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text placeholder-gray-500 focus:outline-none focus:border-accent/50 transition-colors'
@@ -98,6 +100,141 @@ function MonthOverview({ monthDate, diaSelecionado, todayISO, getAppointmentsFor
   )
 }
 
+// ── Tira de 7 dias (mobile, views Dia/Semana) — substitui o mini calendário
+//    de mês inteiro, que fica ilegível/desnecessário quando só se navega
+//    dentro da semana corrente. Mesmo clique/navegação do calendário de mês.
+interface WeekStripProps {
+  dias:           DiaSemana[]
+  todayISO:       string
+  diaSelecionado: string
+  onSelectDia:    (iso: string) => void
+}
+
+function WeekStrip({ dias, todayISO, diaSelecionado, onSelectDia }: WeekStripProps) {
+  return (
+    <div className="bg-surface-700 border border-ui-border rounded-[10px] p-2 flex gap-1.5">
+      {dias.map((d, i) => {
+        const isToday = d.iso === todayISO
+        const isSel   = d.iso === diaSelecionado
+        return (
+          <button
+            key={d.iso}
+            onClick={() => onSelectDia(d.iso)}
+            className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-lg border transition-colors ${
+              isToday
+                ? 'bg-accent border-accent text-white'
+                : isSel
+                  ? 'border-accent/60 text-ui-text'
+                  : 'border-transparent text-gray-400'
+            }`}
+          >
+            <span className="text-[9px] uppercase tracking-wider">{DIAS_SEMANA[i]}</span>
+            <span className="text-sm font-bold">{d.date.getDate()}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Conteúdo dos filtros — reaproveitado inline (desktop) e dentro do
+//    bottom sheet (mobile). Mesma lógica de estado, só muda onde é renderizado.
+interface FiltrosContentProps {
+  filtroTipos:  Record<string, boolean>
+  toggleTipo:   (key: string) => void
+  filtroStatus: Record<string, boolean>
+  toggleStatus: (key: string) => void
+}
+
+function FiltrosContent({ filtroTipos, toggleTipo, filtroStatus, toggleStatus }: FiltrosContentProps) {
+  return (
+    <>
+      <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Tipo de Serviço</p>
+      <div className="space-y-2 mb-4">
+        {TIPOS_SERVICO.map(t => (
+          <label key={t.key} className="flex items-center gap-2 cursor-pointer text-xs select-none">
+            <input
+              type="checkbox"
+              checked={!!filtroTipos[t.key]}
+              onChange={() => toggleTipo(t.key)}
+              className="hidden"
+            />
+            <span
+              className="w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0"
+              style={filtroTipos[t.key]
+                ? { backgroundColor: 'var(--wrap-accent)', borderColor: 'var(--wrap-accent)' }
+                : { borderColor: 'var(--wrap-border2)' }}
+            >
+              {filtroTipos[t.key] && <Check size={11} className="text-white" />}
+            </span>
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.cor }} />
+            <span className="text-gray-300">{t.label}</span>
+          </label>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Status</p>
+      <div className="flex flex-wrap gap-1.5">
+        {STATUS_FILTROS.map(s => (
+          <button
+            key={s.key}
+            onClick={() => toggleStatus(s.key)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] border transition-colors"
+            style={filtroStatus[s.key]
+              ? { backgroundColor: `${s.cor}1f`, borderColor: `${s.cor}40`, color: s.cor }
+              : { borderColor: 'var(--wrap-border2)', color: '#5a6070' }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: s.cor }} />
+            {s.label}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// ── Bottom sheet de filtros (mobile) — mesmo estado/lógica de FiltrosContent,
+//    só muda o container: painel ancorado na base da tela em vez de inline.
+interface FiltrosSheetProps extends FiltrosContentProps {
+  open:    boolean
+  onClose: () => void
+}
+
+function FiltrosSheet({ open, onClose, ...filtrosProps }: FiltrosSheetProps) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end md:hidden">
+          <motion.div
+            className="absolute inset-0 bg-black/60"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="relative w-full max-h-[80vh] overflow-y-auto bg-surface-800 border-t border-ui-border rounded-t-2xl p-5"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'tween', duration: 0.22, ease: 'easeOut' }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-semibold text-ui-text">Filtros</p>
+              <button onClick={onClose} className="text-xs text-gray-500 hover:text-ui-text transition-colors">
+                Fechar
+              </button>
+            </div>
+            <FiltrosContent {...filtrosProps} />
+            <Button onClick={onClose} className="w-full mt-5">Aplicar filtros</Button>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  )
+}
+
 export function Agendamento() {
   const {
     clientes, veiculos, servicos,
@@ -124,7 +261,11 @@ export function Agendamento() {
   const [editOpen, setEditOpen]     = useState(false)
   const [reagendarOpen, setReagendarOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [filtrosSheetOpen, setFiltrosSheetOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const filtrosAtivosCount =
+    Object.values(filtroTipos).filter(Boolean).length + Object.values(filtroStatus).filter(Boolean).length
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -238,8 +379,20 @@ export function Agendamento() {
         {/* ── Sidebar ──────────────────────────────────────────── */}
         <aside className="w-full md:w-[262px] shrink-0 flex flex-col gap-4">
 
-          {/* Mini calendário */}
-          <Card padding={false} className="p-2">
+          {/* Mini calendário — no mobile, views Dia/Semana trocam por uma tira de 7
+              dias (ilegível manter o mês inteiro só pra navegar dentro da semana
+              corrente); view Mês e desktop mantêm o calendário como sempre foi. */}
+          {view !== 'mes' && (
+            <div className="md:hidden">
+              <WeekStrip
+                dias={diasDaSemana}
+                todayISO={todayISO}
+                diaSelecionado={diaSelecionado}
+                onSelectDia={irParaData}
+              />
+            </div>
+          )}
+          <Card padding={false} className={`p-2 ${view !== 'mes' ? 'hidden md:block' : ''}`}>
             <div className="wrapos-daypicker flex justify-center">
               <DayPicker
                 mode="single"
@@ -285,50 +438,28 @@ export function Agendamento() {
             </div>
           )}
 
-          {/* Filtros */}
-          <Card padding={false} className="p-4">
+          {/* Filtros — mobile: botão que abre bottom sheet; desktop: inline como sempre */}
+          <button
+            onClick={() => setFiltrosSheetOpen(true)}
+            className="md:hidden w-full flex items-center justify-between px-4 py-3 rounded-xl border border-ui-border bg-surface-700 text-sm font-medium text-ui-text"
+          >
+            <span className="flex items-center gap-2">
+              <SlidersHorizontal size={14} className="text-gray-500" />
+              Filtros
+            </span>
+            {filtrosAtivosCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                {filtrosAtivosCount}
+              </span>
+            )}
+          </button>
+
+          <Card padding={false} className="p-4 hidden md:block">
             <p className="text-xs font-semibold text-gray-400 mb-3">Filtros</p>
-
-            <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Tipo de Serviço</p>
-            <div className="space-y-2 mb-4">
-              {TIPOS_SERVICO.map(t => (
-                <label key={t.key} className="flex items-center gap-2 cursor-pointer text-xs select-none">
-                  <input
-                    type="checkbox"
-                    checked={!!filtroTipos[t.key]}
-                    onChange={() => toggleTipo(t.key)}
-                    className="hidden"
-                  />
-                  <span
-                    className="w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0"
-                    style={filtroTipos[t.key]
-                      ? { backgroundColor: 'var(--wrap-accent)', borderColor: 'var(--wrap-accent)' }
-                      : { borderColor: 'var(--wrap-border2)' }}
-                  >
-                    {filtroTipos[t.key] && <Check size={11} className="text-white" />}
-                  </span>
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.cor }} />
-                  <span className="text-gray-300">{t.label}</span>
-                </label>
-              ))}
-            </div>
-
-            <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Status</p>
-            <div className="flex flex-wrap gap-1.5">
-              {STATUS_FILTROS.map(s => (
-                <button
-                  key={s.key}
-                  onClick={() => toggleStatus(s.key)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] border transition-colors"
-                  style={filtroStatus[s.key]
-                    ? { backgroundColor: `${s.cor}1f`, borderColor: `${s.cor}40`, color: s.cor }
-                    : { borderColor: 'var(--wrap-border2)', color: '#5a6070' }}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: s.cor }} />
-                  {s.label}
-                </button>
-              ))}
-            </div>
+            <FiltrosContent
+              filtroTipos={filtroTipos} toggleTipo={toggleTipo}
+              filtroStatus={filtroStatus} toggleStatus={toggleStatus}
+            />
           </Card>
         </aside>
 
@@ -343,15 +474,37 @@ export function Agendamento() {
               onSelectDia={(iso) => { irParaData(iso); setView('semana') }}
             />
           ) : (
-            <AgendaGrid
-              dias={view === 'dia' ? [{ date: diaAtualDate, iso: diaSelecionado }] : diasDaSemana}
-              appointmentsByDia={appointmentsByDia}
-              todayISO={todayISO}
-              onSelect={setDetalhes}
-            />
+            <>
+              {/* Mobile: lista cronológica — grade de 7 colunas x hora fica ilegível em ~390px */}
+              <div className="md:hidden">
+                <AgendaList
+                  dias={view === 'dia' ? [{ date: diaAtualDate, iso: diaSelecionado }] : diasDaSemana}
+                  appointmentsByDia={appointmentsByDia}
+                  todayISO={todayISO}
+                  onSelect={setDetalhes}
+                />
+              </div>
+              {/* Desktop: grade de horas, inalterada */}
+              <div className="hidden md:block">
+                <AgendaGrid
+                  dias={view === 'dia' ? [{ date: diaAtualDate, iso: diaSelecionado }] : diasDaSemana}
+                  appointmentsByDia={appointmentsByDia}
+                  todayISO={todayISO}
+                  onSelect={setDetalhes}
+                />
+              </div>
+            </>
           )}
         </div>
       </div>
+
+      {/* ── Bottom sheet: Filtros (mobile) ──────────────────────── */}
+      <FiltrosSheet
+        open={filtrosSheetOpen}
+        onClose={() => setFiltrosSheetOpen(false)}
+        filtroTipos={filtroTipos} toggleTipo={toggleTipo}
+        filtroStatus={filtroStatus} toggleStatus={toggleStatus}
+      />
 
       {/* ── Modal Detalhes ──────────────────────────────────────── */}
       <Modal isOpen={!!detalhes} onClose={() => setDetalhes(null)} title="Detalhes do Agendamento" size="lg">
