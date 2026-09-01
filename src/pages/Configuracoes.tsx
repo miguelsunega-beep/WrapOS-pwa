@@ -76,7 +76,7 @@ export function Configuracoes() {
             <p className="text-[11px] text-gray-600">Nome, cidade, contato e informações gerais</p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Nome da Loja</label>
             <input
@@ -115,7 +115,7 @@ export function Configuracoes() {
           </div>
         </div>
         <div className="mt-4 flex justify-end">
-          <Button size="sm" onClick={handleSalvarLoja}>Salvar Alterações</Button>
+          <Button size="sm" onClick={handleSalvarLoja} className="w-full md:w-auto">Salvar Alterações</Button>
         </div>
       </Card>
 
@@ -157,7 +157,7 @@ export function Configuracoes() {
           </div>
         </div>
         <div className="mt-4 flex justify-end">
-          <Button size="sm" onClick={handleSalvarOp}>Salvar</Button>
+          <Button size="sm" onClick={handleSalvarOp} className="w-full sm:w-auto">Salvar</Button>
         </div>
       </Card>
 

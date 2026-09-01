@@ -49,7 +49,7 @@ interface StatusCardsProps {
 
 function OSStatusCards({ counts, statusFilter, onToggle }: StatusCardsProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div className="flex overflow-x-auto gap-3 -mx-4 px-4 pb-1 snap-x [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-5 md:overflow-visible md:mx-0 md:px-0 md:pb-0">
       {([
         { s: 'em_andamento',         label: 'Em Andamento',      color: 'text-amber-400',   ring: 'ring-amber-500/30'   },
         { s: 'aguardando_material',  label: 'Aguard. Material',  color: 'text-blue-400',    ring: 'ring-blue-500/30'    },
@@ -60,7 +60,7 @@ function OSStatusCards({ counts, statusFilter, onToggle }: StatusCardsProps) {
         <button
           key={item.s}
           onClick={() => onToggle(item.s)}
-          className={`text-left p-4 rounded-xl border transition-all ${
+          className={`text-left p-4 rounded-xl border transition-all shrink-0 min-w-[100px] snap-start md:min-w-0 md:shrink ${
             statusFilter === item.s
               ? `bg-surface-700 border-ui-border ring-2 ${item.ring}`
               : 'bg-surface-800 border-ui-border hover:border-gray-600'
@@ -253,7 +253,7 @@ export function OrdemServico() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCheckinOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-ui-border text-gray-400 hover:text-accent hover:border-accent/40 hover:bg-accent/5 transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all bg-accent/10 text-accent border border-accent/30 hover:bg-accent/15 md:bg-transparent md:text-gray-400 md:border-ui-border md:hover:text-accent md:hover:border-accent/40 md:hover:bg-accent/5"
           >
             <Zap size={14} /> Check-in Rápido
           </button>

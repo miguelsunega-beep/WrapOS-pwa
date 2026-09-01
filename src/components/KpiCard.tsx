@@ -63,7 +63,7 @@ export function KpiCard({ label, value, variacaoPct, variacaoLabel, sparkline, o
             {variacaoLabel}
           </span>
         </div>
-        <div className={up ? 'text-emerald-400' : 'text-orange-400'}>
+        <div className={`hidden md:block ${up ? 'text-emerald-400' : 'text-orange-400'}`}>
           <Sparkline data={sparkline} positive={up} />
         </div>
       </div>

@@ -458,7 +458,7 @@ export function Patio() {
         </div>
         <button
           onClick={() => setCheckinOpen(true)}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-ui-border text-gray-400 hover:text-accent hover:border-accent/40 hover:bg-accent/5 transition-all"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all bg-accent text-white shadow-sm shadow-accent/20 hover:opacity-90 md:bg-transparent md:text-gray-400 md:shadow-none md:border md:border-ui-border md:hover:text-accent md:hover:border-accent/40 md:hover:bg-accent/5"
         >
           <Zap size={14} /> Dar entrada
         </button>
@@ -490,6 +490,12 @@ export function Patio() {
           <Car size={32} className="text-gray-700" />
           <p className="mt-3 text-[14px] font-medium text-gray-400">Nenhum carro no pátio</p>
           <p className="text-[12px] text-gray-600 mt-1">Use o Check-in para registrar a entrada de um veículo.</p>
+          <button
+            onClick={() => setCheckinOpen(true)}
+            className="md:hidden mt-4 flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold bg-accent text-white shadow-sm shadow-accent/20 hover:opacity-90 transition-all"
+          >
+            <Zap size={14} /> Fazer check-in
+          </button>
         </div>
       ) : (
         <DndContext

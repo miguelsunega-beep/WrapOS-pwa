@@ -108,7 +108,7 @@ export function Home() {
             >
               Hoje em números
             </p>
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 auto-rows-fr md:auto-rows-auto xl:grid-cols-4 gap-3">
               {kpis.map(k => (
                 <KpiCard key={k.label} {...k} />
               ))}
