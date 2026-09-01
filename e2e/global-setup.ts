@@ -178,14 +178,37 @@ export const PROXIMO_NUMERO_SEED = DEMO_ORDENS.length + 1
  * Mesmos 6 produtos de initialProdutos (src/context/AppContext.tsx) — mesma
  * ressalva de DEMO_CLIENTES acima (cópia local). Sem FK com nenhuma outra
  * tabela (só com lojas).
+ *
+ * p1/p2/p3 (categoria PPF/Envelopamento) levam tipoControle/quantidadeOriginal
+ * explícitos — sem isso, o DELETE+INSERT desta função reverte silenciosamente
+ * o backfill da migration 014/016 (tipoControle='bobina' pra essas 3 linhas)
+ * pro DEFAULT da coluna ('unidade', quantidadeOriginal=null) toda vez que a
+ * suíte roda, porque esse INSERT não sabe desses 3 campos novos. Descoberto
+ * rodando `npx playwright test` como gate check logo depois de aplicar a
+ * migration 014 em produção: a reseed do global-setup apagou o backfill que
+ * tinha acabado de ser verificado como correto, sem nenhum erro visível — só
+ * um SELECT direto no banco depois expôs a divergência.
+ *
+ * IMPORTANTE — os OUTROS 3 (p4/p5/p6) também precisam de tipoControle/isRetalho
+ * explícitos, mesmo sendo o mesmo valor do DEFAULT da coluna ('unidade'/false):
+ * `.insert()` do supabase-js/PostgREST manda **um único INSERT** pra todo o
+ * array, com a lista de colunas sendo a união das chaves de todos os objetos —
+ * uma linha que não tem uma chave presente em outra linha do mesmo array
+ * recebe NULL explícito nessa coluna, não o DEFAULT do Postgres (que só entra
+ * quando a coluna fica de fora do INSERT inteiro, não quando ela aparece pra
+ * qualquer linha do batch). Descoberto direto no primeiro `npx playwright
+ * test` depois de adicionar tipoControle/isRetalho só em p1/p2/p3: a suíte
+ * quebrou com "null value in column isRetalho... violates not-null
+ * constraint" ao inserir p4 — nenhuma linha do array pode ficar com um
+ * subconjunto de chaves diferente das outras nesse tipo de insert em lote.
  */
 const DEMO_PRODUTOS = [
-  { id: 'p1', nome: 'Filme PPF Xpel Ultimate Plus',  sku: 'XPEL-ULT-60',    categoria: 'PPF',          fornecedor: 'Xpel Brasil',         quantidade:  2, minimo:  5, unidade: 'rolo',    valorUnitario: 1850 },
-  { id: 'p2', nome: 'Filme PPF Llumar Platinum',     sku: 'LLUM-PLT-60',    categoria: 'PPF',          fornecedor: 'Llumar',              quantidade:  7, minimo:  4, unidade: 'rolo',    valorUnitario: 1420 },
-  { id: 'p3', nome: 'Vinil Oracal 970 Preto Fosco',  sku: 'ORACAL-970-070', categoria: 'Envelopamento', fornecedor: 'Oracal Distribuidora', quantidade: 12, minimo:  3, unidade: 'rolo',    valorUnitario:  340 },
-  { id: 'p4', nome: 'Primer de Adesão 3M 94',        sku: '3M-94-100ML',    categoria: 'Acessórios',   fornecedor: '3M Brasil',           quantidade:  1, minimo:  4, unidade: 'unidade', valorUnitario:   89 },
-  { id: 'p5', nome: 'Ceramic Pro 9H (30ml)',          sku: 'CP-9H-30',       categoria: 'Cerâmica',     fornecedor: 'Ceramic Pro Brasil',  quantidade:  6, minimo:  3, unidade: 'frasco',  valorUnitario:  680 },
-  { id: 'p6', nome: 'Espátula de Plástico 15cm',     sku: 'ESP-PLAS-15',    categoria: 'Ferramentas',  fornecedor: 'Tools Auto',          quantidade: 24, minimo: 10, unidade: 'unidade', valorUnitario:   12 },
+  { id: 'p1', nome: 'Filme PPF Xpel Ultimate Plus',  sku: 'XPEL-ULT-60',    categoria: 'PPF',          fornecedor: 'Xpel Brasil',         quantidade:  2, minimo:  5, unidade: 'rolo',    valorUnitario: 1850, tipoControle: 'bobina',  quantidadeOriginal:  2, isRetalho: false },
+  { id: 'p2', nome: 'Filme PPF Llumar Platinum',     sku: 'LLUM-PLT-60',    categoria: 'PPF',          fornecedor: 'Llumar',              quantidade:  7, minimo:  4, unidade: 'rolo',    valorUnitario: 1420, tipoControle: 'bobina',  quantidadeOriginal:  7, isRetalho: false },
+  { id: 'p3', nome: 'Vinil Oracal 970 Preto Fosco',  sku: 'ORACAL-970-070', categoria: 'Envelopamento', fornecedor: 'Oracal Distribuidora', quantidade: 12, minimo:  3, unidade: 'rolo',    valorUnitario:  340, tipoControle: 'bobina',  quantidadeOriginal: 12, isRetalho: false },
+  { id: 'p4', nome: 'Primer de Adesão 3M 94',        sku: '3M-94-100ML',    categoria: 'Acessórios',   fornecedor: '3M Brasil',           quantidade:  1, minimo:  4, unidade: 'unidade', valorUnitario:   89, tipoControle: 'unidade',                         isRetalho: false },
+  { id: 'p5', nome: 'Ceramic Pro 9H (30ml)',          sku: 'CP-9H-30',       categoria: 'Cerâmica',     fornecedor: 'Ceramic Pro Brasil',  quantidade:  6, minimo:  3, unidade: 'frasco',  valorUnitario:  680, tipoControle: 'unidade',                         isRetalho: false },
+  { id: 'p6', nome: 'Espátula de Plástico 15cm',     sku: 'ESP-PLAS-15',    categoria: 'Ferramentas',  fornecedor: 'Tools Auto',          quantidade: 24, minimo: 10, unidade: 'unidade', valorUnitario:   12, tipoControle: 'unidade',                         isRetalho: false },
 ]
 
 /**

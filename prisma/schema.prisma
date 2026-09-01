@@ -52,6 +52,17 @@ enum TipoLancamento {
   saida
 }
 
+// Como um produto é controlado no estoque: 'unidade' (peça avulsa, quantidade
+// inteira na prática), 'bobina' (comprimento — total e restante — em metros,
+// ex. filme PPF/vinil vendido a metro) ou 'volume' (ML/litro, produto
+// líquido). Substitui o hack anterior de inferir "é bobina?" a partir de
+// categoria ∈ ('PPF','Envelopamento') hardcoded em useEstoque.ts.
+enum TipoControleEstoque {
+  unidade
+  bobina
+  volume
+}
+
 model Loja {
   id            String   @id @default(uuid())
   nome          String
@@ -271,10 +282,29 @@ model Produto {
   sku           String
   categoria     String
   fornecedor    String
-  quantidade    Int
-  minimo        Int
+  // numeric(10,2), não Int: precisa guardar fração de metro (bobina) ou de
+  // ML/litro (volume) — Int truncava as duas antes desta migration (014).
+  // Confirmado que numeric(10,2) volta como number nativo via PostgREST
+  // neste projeto (não string, ao contrário de bigint) — testado direto
+  // contra a REST API antes de decidir o tipo.
+  quantidade    Decimal @db.Decimal(10, 2)
+  minimo        Decimal @db.Decimal(10, 2)
   unidade       String
   valorUnitario Float
+  // Ver enum TipoControleEstoque — substitui o hack de inferir "é bobina?"
+  // via categoria hardcoded. Default 'unidade' pra não quebrar produtos
+  // existentes; migration 014 faz o backfill pontual pra 'bobina' nos
+  // produtos hoje em categoria PPF/Envelopamento.
+  tipoControle  TipoControleEstoque @default(unidade)
+  // Só relevante pra tipoControle='bobina': comprimento total no momento do
+  // cadastro/reabastecimento (a metragem "restante" continua em `quantidade`).
+  // Nullable porque não se aplica a 'unidade'/'volume'.
+  quantidadeOriginal Decimal? @db.Decimal(10, 2)
+  // Marca produto que é sobra/retalho de corte reaproveitável (não remessa
+  // comprada nova) — usado pra filtrar a listagem principal e exibir uma
+  // badge diferente (Round 2 de UI); a baixa de estoque em si funciona igual
+  // a qualquer outro produto.
+  isRetalho     Boolean @default(false)
 
   loja Loja @relation(fields: [lojaId], references: [id])
 

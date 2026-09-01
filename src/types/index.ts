@@ -60,8 +60,8 @@ export type OrigemMaterial = 'estoque' | 'compra' | 'retalho'
 
 export interface MaterialUsado {
   origem: OrigemMaterial
-  produtoId?: string   // usado quando origem === 'estoque'
-  nome?: string        // usado quando origem === 'compra' | 'retalho'
+  produtoId?: string   // usado quando origem === 'estoque', ou 'retalho' vinculado a um produto real de inventário (baixa estoque igual 'estoque')
+  nome?: string        // usado quando origem === 'compra' | 'retalho' (retalho em texto livre, sem produtoId, não baixa estoque)
   quantidade: number
   custo?: number       // custo total do material; obrigatório em 'compra', opcional em 'retalho'
 }
@@ -125,6 +125,8 @@ export interface LancamentoFinanceiro {
   osId?: string
 }
 
+export type TipoControleEstoque = 'unidade' | 'bobina' | 'volume'
+
 export interface Produto {
   id: string
   nome: string
@@ -135,6 +137,11 @@ export interface Produto {
   minimo: number
   unidade: string
   valorUnitario: number
+  tipoControle: TipoControleEstoque
+  /** Só relevante pra tipoControle === 'bobina': comprimento total no momento do cadastro/reabastecimento (a metragem restante é `quantidade`). */
+  quantidadeOriginal?: number
+  /** true = sobra/retalho de corte reaproveitável, não remessa comprada nova. */
+  isRetalho: boolean
 }
 
 export interface Garantia {

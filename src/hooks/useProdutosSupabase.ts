@@ -1,21 +1,28 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
-import type { Produto } from '../types'
+import type { Produto, TipoControleEstoque } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
+// quantidade/minimo/quantidadeOriginal são numeric(10,2) no Postgres (migration 014) —
+// confirmado empiricamente que essa coluna volta como number nativo via PostgREST neste
+// projeto (não string, ao contrário de bigint), então `as number` já é seguro aqui, sem
+// precisar de parseFloat/Number() extra.
 function normalizarProduto(row: Record<string, unknown>): Produto {
   return {
-    id:            row.id as string,
-    nome:          row.nome as string,
-    sku:           row.sku as string,
-    categoria:     row.categoria as string,
-    fornecedor:    row.fornecedor as string,
-    quantidade:    row.quantidade as number,
-    minimo:        row.minimo as number,
-    unidade:       row.unidade as string,
-    valorUnitario: row.valorUnitario as number,
+    id:                 row.id as string,
+    nome:               row.nome as string,
+    sku:                row.sku as string,
+    categoria:          row.categoria as string,
+    fornecedor:         row.fornecedor as string,
+    quantidade:         row.quantidade as number,
+    minimo:             row.minimo as number,
+    unidade:            row.unidade as string,
+    valorUnitario:      row.valorUnitario as number,
+    tipoControle:       row.tipoControle as TipoControleEstoque,
+    quantidadeOriginal: row.quantidadeOriginal as number | undefined,
+    isRetalho:          row.isRetalho as boolean,
   }
 }
 
@@ -24,6 +31,7 @@ function paraLinha(id: string, lojaId: string, p: Omit<Produto, 'id'>) {
     id, lojaId,
     nome: p.nome, sku: p.sku, categoria: p.categoria, fornecedor: p.fornecedor,
     quantidade: p.quantidade, minimo: p.minimo, unidade: p.unidade, valorUnitario: p.valorUnitario,
+    tipoControle: p.tipoControle, quantidadeOriginal: p.quantidadeOriginal, isRetalho: p.isRetalho,
   }
 }
 
@@ -85,8 +93,14 @@ export function useProdutosSupabase(lojaId: string) {
     })
   }
 
-  /** Aplica um patch de quantidade calculado a partir do valor atual (functional update, evita closure obsoleta). */
-  const ajustarQuantidade = (id: string, calcularNovaQuantidade: (atual: number) => number) => {
+  /**
+   * Aplica um patch de quantidade calculado a partir do valor atual (functional update,
+   * evita closure obsoleta). `motivo` (só relevante pra baixa, ver baixarEstoque) chega
+   * até aqui — onde o ajuste de fato acontece — mas ainda não é persistido em lugar
+   * nenhum; ver comentário em baixarEstoque.
+   */
+  const ajustarQuantidade = (id: string, calcularNovaQuantidade: (atual: number) => number, motivo?: string) => {
+    void motivo
     let anterior: Produto | undefined
     let novaQuantidade: number | undefined
     setProdutos(prev => prev.map(x => {
@@ -128,8 +142,14 @@ export function useProdutosSupabase(lojaId: string) {
   const registrarEntradaEstoque = (id: string, qtd: number) =>
     ajustarQuantidade(id, atual => atual + qtd)
 
-  const baixarEstoque = (id: string, qtd: number, _motivo?: string) =>
-    ajustarQuantidade(id, atual => Math.max(0, atual - qtd))
+  /**
+   * `motivo` não é persistido ainda — não existe tabela de histórico de movimentação de
+   * estoque hoje (movimentos_estoque, "Alternativa B" do plano de otimização de Estoque).
+   * Fica de passagem até ajustarQuantidade só pra já existir a costura de onde ele entra
+   * no fluxo; vira um INSERT real quando essa tabela for criada.
+   */
+  const baixarEstoque = (id: string, qtd: number, motivo?: string) =>
+    ajustarQuantidade(id, atual => Math.max(0, atual - qtd), motivo)
 
   const removerProduto = (id: string) => {
     let removido: Produto | undefined

@@ -22,6 +22,9 @@ CREATE TYPE "StatusGarantia" AS ENUM ('ativa', 'acionada', 'expirada');
 -- CreateEnum
 CREATE TYPE "TipoLancamento" AS ENUM ('entrada', 'saida');
 
+-- CreateEnum
+CREATE TYPE "TipoControleEstoque" AS ENUM ('unidade', 'bobina', 'volume');
+
 -- CreateTable
 CREATE TABLE "lojas" (
     "id" TEXT NOT NULL,
@@ -158,10 +161,13 @@ CREATE TABLE "produtos" (
     "sku" TEXT NOT NULL,
     "categoria" TEXT NOT NULL,
     "fornecedor" TEXT NOT NULL,
-    "quantidade" INTEGER NOT NULL,
-    "minimo" INTEGER NOT NULL,
+    "quantidade" DECIMAL(10,2) NOT NULL,
+    "minimo" DECIMAL(10,2) NOT NULL,
     "unidade" TEXT NOT NULL,
     "valorUnitario" DOUBLE PRECISION NOT NULL,
+    "tipoControle" "TipoControleEstoque" NOT NULL DEFAULT 'unidade',
+    "quantidadeOriginal" DECIMAL(10,2),
+    "isRetalho" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "produtos_pkey" PRIMARY KEY ("lojaId","id")
 );
@@ -303,6 +309,9 @@ GRANT EXECUTE ON FUNCTION proximo_numero_os(text) TO authenticated;
 -- CreateFunction
 -- concluir_os_atomica(): faz as 7 escritas da conclusão de uma OS numa única
 -- transação (ver supabase/migrations/009_concluir_os_atomica.sql).
+-- Cast do delta de estoque ::integer -> ::numeric na migration 015 (ver
+-- supabase/migrations/015_estoque_numeric_rpc.sql), acompanhando
+-- produtos.quantidade/minimo virarem numeric(10,2) na migration 014.
 CREATE OR REPLACE FUNCTION concluir_os_atomica(
   p_os_id                       text,
   p_loja_id                     text,
@@ -374,7 +383,7 @@ BEGIN
   FOR item IN SELECT * FROM jsonb_array_elements(coalesce(p_estoque_deltas, '[]'::jsonb))
   LOOP
     UPDATE produtos
-    SET quantidade = GREATEST(0, quantidade - (item->>'delta')::integer)
+    SET quantidade = GREATEST(0, quantidade - (item->>'delta')::numeric)
     WHERE "lojaId" = p_loja_id AND id = item->>'produtoId';
   END LOOP;
 
@@ -458,6 +467,8 @@ GRANT EXECUTE ON FUNCTION registrar_pagamento_os_atomica(
 -- salvar_materiais_os_atomica(): grava os materiais da OS e aplica os deltas
 -- de estoque numa única transação (ver
 -- supabase/migrations/012_salvar_materiais_os_atomica.sql).
+-- Cast do delta de estoque ::integer -> ::numeric na migration 015 (ver
+-- supabase/migrations/015_estoque_numeric_rpc.sql).
 CREATE OR REPLACE FUNCTION salvar_materiais_os_atomica(
   p_os_id            text,
   p_loja_id          text,
@@ -477,7 +488,7 @@ BEGIN
   FOR item IN SELECT * FROM jsonb_array_elements(coalesce(p_estoque_deltas, '[]'::jsonb))
   LOOP
     UPDATE produtos
-    SET quantidade = GREATEST(0, quantidade - (item->>'delta')::integer)
+    SET quantidade = GREATEST(0, quantidade - (item->>'delta')::numeric)
     WHERE "lojaId" = p_loja_id AND id = item->>'produtoId';
   END LOOP;
 END;

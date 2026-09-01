@@ -20,15 +20,17 @@ import type {
 } from '../types'
 
 /**
- * Compara os materiais de origem 'estoque' entre a lista antiga e a nova de uma OS,
+ * Compara os materiais de origem 'estoque' (ou 'retalho' já vinculado a um produtoId
+ * real de inventário — ver Produto.isRetalho) entre a lista antiga e a nova de uma OS,
  * retornando o delta de quantidade por produto (positivo = precisa baixar do estoque,
  * negativo = precisa devolver ao estoque). Soma quantidades quando o mesmo produto
- * aparece em mais de uma linha.
+ * aparece em mais de uma linha. Retalho em texto livre (sem produtoId) nunca entra
+ * aqui — continua sem baixar estoque, mesmo comportamento de sempre.
  */
 function diffEstoqueDeltas(antigos: MaterialUsado[], novos: MaterialUsado[]): Map<string, number> {
   const somarPorProduto = (materiais: MaterialUsado[]) => {
     const mapa = new Map<string, number>()
-    materiais.filter(m => m.origem === 'estoque' && m.produtoId).forEach(m => {
+    materiais.filter(m => (m.origem === 'estoque' || m.origem === 'retalho') && m.produtoId).forEach(m => {
       mapa.set(m.produtoId!, (mapa.get(m.produtoId!) ?? 0) + m.quantidade)
     })
     return mapa
@@ -247,13 +249,18 @@ export const initialLancamentos: LancamentoFinanceiro[] = [
   { id: 'l20', tipo: 'saida',   categoria: 'Estoque',      descricao: 'Compra Ceramic Pro 9H — 5 frascos',                valor: 3400, data: '2025-05-06', formaPagamento: 'Boleto'                       },
 ]
 
+// tipoControle/quantidadeOriginal/isRetalho seguem a mesma regra do backfill da migration
+// 014 (categoria PPF/Envelopamento → 'bobina', quantidadeOriginal = quantidade) — esta
+// lista é só referência do dado de demonstração original (ver comentário acima do bloco de
+// mock data), não é lida como estado real por nenhuma entidade, mas precisa tipar como
+// Produto mesmo assim.
 export const initialProdutos: Produto[] = [
-  { id: 'p1', nome: 'Filme PPF Xpel Ultimate Plus',  sku: 'XPEL-ULT-60',    categoria: 'PPF',          fornecedor: 'Xpel Brasil',         quantidade:  2, minimo:  5, unidade: 'rolo',    valorUnitario: 1850 },
-  { id: 'p2', nome: 'Filme PPF Llumar Platinum',     sku: 'LLUM-PLT-60',    categoria: 'PPF',          fornecedor: 'Llumar',              quantidade:  7, minimo:  4, unidade: 'rolo',    valorUnitario: 1420 },
-  { id: 'p3', nome: 'Vinil Oracal 970 Preto Fosco',  sku: 'ORACAL-970-070', categoria: 'Envelopamento', fornecedor: 'Oracal Distribuidora', quantidade: 12, minimo:  3, unidade: 'rolo',    valorUnitario:  340 },
-  { id: 'p4', nome: 'Primer de Adesão 3M 94',        sku: '3M-94-100ML',    categoria: 'Acessórios',   fornecedor: '3M Brasil',           quantidade:  1, minimo:  4, unidade: 'unidade', valorUnitario:   89 },
-  { id: 'p5', nome: 'Ceramic Pro 9H (30ml)',          sku: 'CP-9H-30',       categoria: 'Cerâmica',     fornecedor: 'Ceramic Pro Brasil',  quantidade:  6, minimo:  3, unidade: 'frasco',  valorUnitario:  680 },
-  { id: 'p6', nome: 'Espátula de Plástico 15cm',     sku: 'ESP-PLAS-15',    categoria: 'Ferramentas',  fornecedor: 'Tools Auto',          quantidade: 24, minimo: 10, unidade: 'unidade', valorUnitario:   12 },
+  { id: 'p1', nome: 'Filme PPF Xpel Ultimate Plus',  sku: 'XPEL-ULT-60',    categoria: 'PPF',          fornecedor: 'Xpel Brasil',         quantidade:  2, minimo:  5, unidade: 'rolo',    valorUnitario: 1850, tipoControle: 'bobina',  quantidadeOriginal: 2,  isRetalho: false },
+  { id: 'p2', nome: 'Filme PPF Llumar Platinum',     sku: 'LLUM-PLT-60',    categoria: 'PPF',          fornecedor: 'Llumar',              quantidade:  7, minimo:  4, unidade: 'rolo',    valorUnitario: 1420, tipoControle: 'bobina',  quantidadeOriginal: 7,  isRetalho: false },
+  { id: 'p3', nome: 'Vinil Oracal 970 Preto Fosco',  sku: 'ORACAL-970-070', categoria: 'Envelopamento', fornecedor: 'Oracal Distribuidora', quantidade: 12, minimo:  3, unidade: 'rolo',    valorUnitario:  340, tipoControle: 'bobina',  quantidadeOriginal: 12, isRetalho: false },
+  { id: 'p4', nome: 'Primer de Adesão 3M 94',        sku: '3M-94-100ML',    categoria: 'Acessórios',   fornecedor: '3M Brasil',           quantidade:  1, minimo:  4, unidade: 'unidade', valorUnitario:   89, tipoControle: 'unidade', isRetalho: false },
+  { id: 'p5', nome: 'Ceramic Pro 9H (30ml)',          sku: 'CP-9H-30',       categoria: 'Cerâmica',     fornecedor: 'Ceramic Pro Brasil',  quantidade:  6, minimo:  3, unidade: 'frasco',  valorUnitario:  680, tipoControle: 'unidade', isRetalho: false },
+  { id: 'p6', nome: 'Espátula de Plástico 15cm',     sku: 'ESP-PLAS-15',    categoria: 'Ferramentas',  fornecedor: 'Tools Auto',          quantidade: 24, minimo: 10, unidade: 'unidade', valorUnitario:   12, tipoControle: 'unidade', isRetalho: false },
 ]
 
 export const initialGarantias: Garantia[] = [
