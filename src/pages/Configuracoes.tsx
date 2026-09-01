@@ -179,14 +179,14 @@ export function Configuracoes() {
               <div key={item.titulo} className="flex items-center justify-between py-2.5 border-b border-ui-border last:border-0">
                 <div className="flex items-center gap-2.5">
                   <Icon size={14} className="text-gray-500" />
-                  <p className="text-sm text-gray-300">{item.titulo}</p>
+                  <p className={`text-sm transition-colors ${item.ativo ? 'text-ui-text font-medium' : 'text-gray-400'}`}>{item.titulo}</p>
                 </div>
                 <button
                   onClick={item.toggle}
                   className={`relative w-10 h-5 rounded-full transition-colors ${item.ativo ? 'bg-accent' : 'bg-surface-600 border border-ui-border'}`}
                 >
                   <span
-                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${item.ativo ? 'translate-x-5' : 'translate-x-0.5'}`}
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${item.ativo ? 'translate-x-5' : 'translate-x-0'}`}
                   />
                 </button>
               </div>

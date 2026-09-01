@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Bell, Shield, Palette } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -51,6 +51,27 @@ export function useConfiguracoes() {
     comissaoPadrao: String(configuracoes.comissaoPadrao),
     corPrimaria:    configuracoes.corPrimaria,
   })
+
+  // `configuracoes` chega assíncrono do Supabase — no mount desta página ele
+  // ainda pode estar no valor padrão (fetch em voo). Os useState acima só
+  // capturam esse valor uma vez; sem isso os forms ficam presos no padrão
+  // pra sempre quando a página monta antes do fetch resolver (refresh direto
+  // em /configuracoes, ou navegação rápida logo após o login).
+  useEffect(() => {
+    setLoja({
+      nomeLoja: configuracoes.nomeLoja,
+      cidade:   configuracoes.cidade,
+      telefone: configuracoes.telefone,
+      email:    configuracoes.email,
+    })
+  }, [configuracoes.nomeLoja, configuracoes.cidade, configuracoes.telefone, configuracoes.email])
+
+  useEffect(() => {
+    setOp({
+      comissaoPadrao: String(configuracoes.comissaoPadrao),
+      corPrimaria:    configuracoes.corPrimaria,
+    })
+  }, [configuracoes.comissaoPadrao, configuracoes.corPrimaria])
 
   // ── Notification values ────────────────────────────────────────
   const notifEstoque  = configuracoes.notifEstoque  ?? true
