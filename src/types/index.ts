@@ -144,6 +144,26 @@ export interface Produto {
   isRetalho: boolean
 }
 
+export type TipoMovimentacaoEstoque = 'entrada' | 'saida' | 'ajuste'
+export type OrigemMovimentacaoEstoque = 'ajuste_manual' | 'os_materiais' | 'os_conclusao'
+
+/** Linha de histórico de uma alteração em Produto.quantidade — append-only, nunca editada. */
+export interface MovimentacaoEstoque {
+  id: string
+  produtoId: string
+  tipo: TipoMovimentacaoEstoque
+  origem: OrigemMovimentacaoEstoque
+  /** Sinal natural: positivo = estoque aumentou, negativo = diminuiu. */
+  delta: number
+  quantidadeAnterior: number
+  quantidadeNova: number
+  motivo?: string
+  /** Id da OS quando origem === 'os_materiais'; undefined quando 'ajuste_manual'. */
+  referenciaId?: string
+  usuarioId: string
+  createdAt: string
+}
+
 export interface Garantia {
   id: string
   osId: string

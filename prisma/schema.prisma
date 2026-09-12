@@ -63,6 +63,33 @@ enum TipoControleEstoque {
   volume
 }
 
+// Direção do movimento em movimentacoes_estoque — 'ajuste' reservado pra um
+// futuro caso de correção/recontagem que hoje nenhum fluxo produz (ver
+// comentário em MovimentacaoEstoque abaixo); 'entrada'/'saida' são os únicos
+// valores gravados pelos dois fluxos existentes (ajuste manual e consumo em OS).
+enum TipoMovimentacaoEstoque {
+  entrada
+  saida
+  ajuste
+}
+
+// Categoriza o PROCESSO que gerou a movimentação — ortogonal a `tipo` (que só
+// descreve a direção). Mapeamento 1:1 com os pontos de mutação de quantidade
+// mapeados no levantamento (ver CLAUDE.md/relatório): 'ajuste_manual' (tela
+// Estoque, Entrada/Baixa), 'os_materiais' (consumo/devolução de material ao
+// EDITAR materiais numa OS ainda aberta, via salvar_materiais_os_atomica) e
+// 'os_conclusao' (delta de estoque que concluir_os_atomica calcula por conta
+// própria na conclusão, comparando materiaisUsados já salvos vs. os
+// recebidos na conclusão — distinto de 'os_materiais' porque é uma segunda
+// RPC com seu próprio cálculo, não porque a origem "de negócio" seja
+// diferente). Valor adicionado depois da criação inicial da tabela (ver
+// migration 020) — Postgres só permite ADD VALUE, nunca inserir no meio.
+enum OrigemMovimentacaoEstoque {
+  ajuste_manual
+  os_materiais
+  os_conclusao
+}
+
 model Loja {
   id            String   @id @default(uuid())
   nome          String
@@ -85,6 +112,7 @@ model Loja {
   metas         Meta[]
   configuracoes Configuracoes?
   servicos      Servico[]
+  movimentacoesEstoque MovimentacaoEstoque[]
 
   @@map("lojas")
 }
@@ -306,7 +334,8 @@ model Produto {
   // a qualquer outro produto.
   isRetalho     Boolean @default(false)
 
-  loja Loja @relation(fields: [lojaId], references: [id])
+  loja          Loja                  @relation(fields: [lojaId], references: [id])
+  movimentacoes MovimentacaoEstoque[]
 
   // Chave composta (lojaId, id) — mesmo motivo e mesmo padrão de
   // Cliente/Veiculo/OrdemServico (ver comentário em Cliente): quarta entidade
@@ -314,6 +343,59 @@ model Produto {
   // índice da PK composta já cobre buscas por lojaId sozinho.
   @@id([lojaId, id])
   @@map("produtos")
+}
+
+// Histórico append-only de toda alteração em Produto.quantidade — nunca é
+// editada nem limpa, só recebe INSERT (sempre dentro da mesma transação que
+// já altera produtos.quantidade, via RPC — ver ajustar_estoque_atomica e
+// salvar_materiais_os_atomica em supabase/migrations). quantidadeAnterior/
+// quantidadeNova são snapshot no momento do movimento, pra não depender de
+// recalcular a partir do histórico depois. `delta` usa sinal NATURAL
+// (positivo = estoque aumentou, negativo = diminuiu) — convenção diferente
+// do `estoqueDeltas` interno usado por diffEstoqueDeltas em AppContext.tsx
+// (que usa "positivo = baixa"); a inversão de sinal acontece dentro das RPCs,
+// não no client.
+model MovimentacaoEstoque {
+  id                 String                    @default(uuid())
+  lojaId             String
+  produtoId          String
+  tipo               TipoMovimentacaoEstoque
+  origem             OrigemMovimentacaoEstoque
+  delta              Decimal                   @db.Decimal(10, 2)
+  quantidadeAnterior Decimal                   @db.Decimal(10, 2)
+  quantidadeNova     Decimal                   @db.Decimal(10, 2)
+  motivo             String?
+  // Id da OS quando origem='os_materiais'; null quando origem='ajuste_manual'.
+  // Sem FK (mesmo padrão de LancamentoFinanceiro.osId/Garantia.osId — ver
+  // comentário no topo do schema sobre campos soltos entre entidades de
+  // negócio que não sejam Loja).
+  referenciaId String?
+  // Sem FK pra usuarios — nenhuma outra entidade de negócio referencia
+  // usuarios hoje; mantém o mesmo padrão de campo solto.
+  usuarioId String
+  createdAt DateTime @default(now())
+
+  loja    Loja    @relation(fields: [lojaId], references: [id])
+  // FK composta (lojaId, produtoId) → produtos(lojaId, id), mesmo padrão de
+  // Veiculo.cliente/OrdemServico.cliente. onDelete: Restrict (migration 022 —
+  // trocado de Cascade, decisão deliberada e revertida no mesmo dia: perder
+  // histórico silenciosamente ao excluir um produto foi considerado pior que
+  // bloquear a exclusão). Diferente de Cliente (que INATIVA em vez de excluir
+  // quando há vínculo — deletarCliente em AppContext.tsx), Produto não tem
+  // esse fluxo de inativação: excluir um produto com histórico simplesmente
+  // falha (23503), e useProdutosSupabase.ts traduz isso pra uma mensagem
+  // clara na UI em vez de inativar ou introduzir qualquer fluxo novo. Produto
+  // sem nenhuma linha em movimentacoes_estoque continua excluível normalmente
+  // — RESTRICT só bloqueia quando existe linha filha de verdade.
+  produto Produto @relation(fields: [lojaId, produtoId], references: [lojaId, id], onDelete: Restrict)
+
+  // Índice pro padrão de consulta da tela de Histórico: por produto e por
+  // período, sempre dentro da própria loja. Tabela só cresce (nunca é
+  // limpa) — sem este índice, filtrar por produtoId/createdAt em volume
+  // futuro exigiria varrer a tabela inteira da loja.
+  @@id([lojaId, id])
+  @@index([lojaId, produtoId, createdAt])
+  @@map("movimentacoes_estoque")
 }
 
 model Garantia {

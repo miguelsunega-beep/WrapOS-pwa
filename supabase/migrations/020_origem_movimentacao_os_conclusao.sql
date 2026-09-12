@@ -1,0 +1,13 @@
+-- Adiciona 'os_conclusao' ao enum OrigemMovimentacaoEstoque (migration 019
+-- criou só 'ajuste_manual'/'os_materiais') — fecha o gap deixado
+-- deliberadamente aberto na 019: concluir_os_atomica tem seu próprio cálculo
+-- de delta de estoque (comparando materiaisUsados já salvos vs. os recebidos
+-- na conclusão) e ainda não grava histórico. A RPC em si é alterada na
+-- migration 021, em separado.
+--
+-- Migration SEPARADA da que altera concluir_os_atomica (021) de propósito:
+-- Postgres não permite usar um valor de enum recém-adicionado (via ADD
+-- VALUE) na MESMA transação em que ele foi criado — só é seguro referenciar
+-- 'os_conclusao' (no INSERT dentro da function) depois que este ADD VALUE já
+-- tiver COMMITADO em sua própria transação.
+ALTER TYPE "OrigemMovimentacaoEstoque" ADD VALUE 'os_conclusao';

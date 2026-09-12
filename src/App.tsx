@@ -32,7 +32,7 @@ function AppAutenticado({ usuario }: { usuario: Usuario }) {
   }
 
   return (
-    <AppProvider>
+    <AppProvider usuarioId={usuario.id} usuarioNome={usuario.nome}>
       <Suspense fallback={<div className="flex h-screen items-center justify-center text-ui-text font-medium text-sm">Carregando módulo...</div>}>
         <Routes>
           <Route path="/" element={<MainLayout />}>

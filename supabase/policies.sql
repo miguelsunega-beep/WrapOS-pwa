@@ -312,3 +312,21 @@ USING (
    FROM usuarios
    WHERE (usuarios."authUserId" = (auth.uid())::text)))
 );
+
+
+-- ── movimentacoes_estoque (migration 019) ───────────────────────────────
+-- Mesmo padrão de sempre, aplicado já na própria migration 019 (não é uma
+-- tabela pré-existente com RLS pendente, como aconteceu na migration 007) —
+-- replicado aqui só pra manter este arquivo como fonte da verdade completa.
+ALTER TABLE movimentacoes_estoque ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "movimentacoes_estoque_por_loja" ON "public"."movimentacoes_estoque";
+CREATE POLICY "movimentacoes_estoque_por_loja"
+ON "public"."movimentacoes_estoque"
+FOR ALL
+TO public
+USING (
+  ("lojaId" IN ( SELECT usuarios."lojaId"
+   FROM usuarios
+   WHERE (usuarios."authUserId" = (auth.uid())::text)))
+);

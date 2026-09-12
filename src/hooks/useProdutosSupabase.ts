@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
-import type { Produto, TipoControleEstoque } from '../types'
+import type { Produto, TipoControleEstoque, TipoMovimentacaoEstoque } from '../types'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
@@ -40,10 +40,13 @@ function paraLinha(id: string, lojaId: string, p: Omit<Produto, 'id'>) {
  * Supabase (ver CLAUDE.md, "Migração de entidades pro Supabase"), seguindo o
  * mesmo modelo de useVeiculosSupabase.ts. `registrarEntradaEstoque` e
  * `baixarEstoque` são mutações otimistas na mesma coluna `quantidade` — não
- * precisam de um hook separado, só de um patch parcial diferente de
- * `editarProduto`.
+ * precisam de um hook separado, só de uma chamada diferente de
+ * `editarProduto`: em vez de update direto, passam por
+ * supabase.rpc('ajustar_estoque_atomica', ...) (migration 019), que grava
+ * quantidade + a linha de histórico em movimentacoes_estoque na mesma
+ * transação. `usuarioId` só é usado pra essa gravação (quem fez o ajuste).
  */
-export function useProdutosSupabase(lojaId: string) {
+export function useProdutosSupabase(lojaId: string, usuarioId: string) {
   const [produtos, setProdutos] = useState<Produto[]>([])
 
   useEffect(() => {
@@ -94,24 +97,31 @@ export function useProdutosSupabase(lojaId: string) {
   }
 
   /**
-   * Aplica um patch de quantidade calculado a partir do valor atual (functional update,
-   * evita closure obsoleta). `motivo` (só relevante pra baixa, ver baixarEstoque) chega
-   * até aqui — onde o ajuste de fato acontece — mas ainda não é persistido em lugar
-   * nenhum; ver comentário em baixarEstoque.
+   * Aplica um delta de quantidade (sinal natural: positivo = entrada, negativo = saída)
+   * via supabase.rpc('ajustar_estoque_atomica', ...) (migration 019) — grava
+   * produtos.quantidade + a linha de histórico em movimentacoes_estoque numa única
+   * transação, com o mesmo clamp (nunca abaixo de 0) que o client já aplicava. Estado
+   * local atualizado otimisticamente primeiro (functional update, evita closure
+   * obsoleta), revertido se a RPC falhar.
    */
-  const ajustarQuantidade = (id: string, calcularNovaQuantidade: (atual: number) => number, motivo?: string) => {
-    void motivo
+  const ajustarQuantidade = (id: string, delta: number, tipo: TipoMovimentacaoEstoque, motivo?: string) => {
     let anterior: Produto | undefined
-    let novaQuantidade: number | undefined
     setProdutos(prev => prev.map(x => {
       if (x.id !== id) return x
       anterior = x
-      novaQuantidade = calcularNovaQuantidade(x.quantidade)
-      return { ...x, quantidade: novaQuantidade }
+      return { ...x, quantidade: Math.max(0, x.quantidade + delta) }
     }))
-    if (anterior === undefined || novaQuantidade === undefined) return
+    if (anterior === undefined) return
 
-    supabase.from('produtos').update({ quantidade: novaQuantidade }).eq('id', id).eq('lojaId', lojaId).then(({ error }) => {
+    supabase.rpc('ajustar_estoque_atomica', {
+      p_produto_id: id,
+      p_loja_id: lojaId,
+      p_movimentacao_id: uid(),
+      p_tipo: tipo,
+      p_delta: delta,
+      p_motivo: motivo ?? null,
+      p_usuario_id: usuarioId,
+    }).then(({ error }) => {
       if (error && anterior) {
         const snapshot = anterior
         setProdutos(prev => prev.map(x => x.id === id ? snapshot : x))
@@ -140,16 +150,10 @@ export function useProdutosSupabase(lojaId: string) {
   }
 
   const registrarEntradaEstoque = (id: string, qtd: number) =>
-    ajustarQuantidade(id, atual => atual + qtd)
+    ajustarQuantidade(id, qtd, 'entrada')
 
-  /**
-   * `motivo` não é persistido ainda — não existe tabela de histórico de movimentação de
-   * estoque hoje (movimentos_estoque, "Alternativa B" do plano de otimização de Estoque).
-   * Fica de passagem até ajustarQuantidade só pra já existir a costura de onde ele entra
-   * no fluxo; vira um INSERT real quando essa tabela for criada.
-   */
   const baixarEstoque = (id: string, qtd: number, motivo?: string) =>
-    ajustarQuantidade(id, atual => Math.max(0, atual - qtd), motivo)
+    ajustarQuantidade(id, -qtd, 'saida', motivo)
 
   const removerProduto = (id: string) => {
     let removido: Produto | undefined
@@ -169,7 +173,15 @@ export function useProdutosSupabase(lojaId: string) {
           copia.splice(Math.min(pos, copia.length), 0, item)
           return copia
         })
-        toast.error('Não foi possível excluir o produto na nuvem.')
+        // 23503 = foreign_key_violation — FK de movimentacoes_estoque pra produtos é
+        // ON DELETE RESTRICT (migration 022): produto com histórico não pode ser
+        // excluído. Sem tela de inativação equivalente à de Cliente aqui de propósito
+        // (ver migration 022) — só traduz o erro em vez de deixar a mensagem genérica.
+        toast.error(
+          error.code === '23503'
+            ? 'Este produto tem histórico de movimentação e não pode ser excluído.'
+            : 'Não foi possível excluir o produto na nuvem.'
+        )
       }
     })
   }

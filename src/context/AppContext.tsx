@@ -13,10 +13,11 @@ import { useGarantiasSupabase } from '../hooks/useGarantiasSupabase'
 import { useServicosSupabase } from '../hooks/useServicosSupabase'
 import { useMetasSupabase } from '../hooks/useMetasSupabase'
 import { useConfiguracoesSupabase } from '../hooks/useConfiguracoesSupabase'
+import { useMovimentacoesEstoqueSupabase, type FiltroMovimentacoesEstoque } from '../hooks/useMovimentacoesEstoqueSupabase'
 import type {
   Cliente, Veiculo, OrdemServico, Servico, Agendamento, Instalador,
   LancamentoFinanceiro, Produto, Garantia, Meta, Configuracoes,
-  StatusOS, StatusGarantia, StatusPagamento, MaterialUsado,
+  StatusOS, StatusGarantia, StatusPagamento, MaterialUsado, MovimentacaoEstoque,
 } from '../types'
 
 /**
@@ -357,6 +358,18 @@ interface AppContextType {
   deletarProduto: (id: string) => void
   registrarEntradaEstoque: (id: string, qtd: number) => void
   baixarEstoque: (id: string, qtd: number, motivo?: string) => void
+  /** Busca sob demanda em movimentacoes_estoque — nunca pré-carregado (ver useMovimentacoesEstoqueSupabase.ts). */
+  buscarMovimentacoesEstoque: (filtro: FiltroMovimentacoesEstoque) => Promise<MovimentacaoEstoque[]>
+  /**
+   * Usuário logado (id + nome) — só pra exibição de "quem fez" no histórico de
+   * movimentação. Resolve o nome apenas do PRÓPRIO usuário (RLS de `usuarios`
+   * restringe SELECT à própria linha — ver supabase/policies.sql,
+   * usuarios_por_loja); a tela de Histórico usa isso pra reconhecer os
+   * próprios movimentos e cai num rótulo genérico pra usuarioId de outra
+   * pessoa (hoje raro: cada loja em produção tem 1 usuário só).
+   */
+  usuarioId: string
+  usuarioNome: string
 
   // Lançamentos Financeiros
   adicionarLancamento: (l: Omit<LancamentoFinanceiro, 'id'>) => void
@@ -383,7 +396,14 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null)
 
-export function AppProvider({ children }: { children: ReactNode }) {
+/**
+ * `usuarioId` (novo — ver migration 019/movimentacoes_estoque): vem de
+ * usuario.id em App.tsx (a linha resolvida da tabela `usuarios`, já
+ * garantida pelo ProtectedRoute antes deste componente montar). Usado só
+ * pra registrar quem fez um ajuste manual de estoque ou um consumo de
+ * material em OS — não afeta nenhuma outra entidade.
+ */
+export function AppProvider({ children, usuarioId, usuarioNome }: { children: ReactNode; usuarioId: string; usuarioNome: string }) {
   // clientes: primeira entidade migrada de localStorage pro Supabase — ver
   // useClientesSupabase.ts e CLAUDE.md ("Migração de entidades pro Supabase").
   const lojaIdAtual = sessionStorage.getItem('wrapos_perfil_ativo') ?? '_'
@@ -427,7 +447,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     baixarEstoque:           baixarEstoqueCloud,
     removerProduto:          removerProdutoCloud,
     aplicarDeltasLocal:      aplicarDeltasLocalProdutos,
-  } = useProdutosSupabase(lojaIdAtual)
+  } = useProdutosSupabase(lojaIdAtual, usuarioId)
+
+  // movimentacoes_estoque: histórico append-only de Produto.quantidade (ver
+  // migration 019 e useMovimentacoesEstoqueSupabase.ts) — só busca sob
+  // demanda, nunca pré-carrega (tabela só cresce, sem paginação hoje).
+  const { buscarMovimentacoes: buscarMovimentacoesEstoque } = useMovimentacoesEstoqueSupabase(lojaIdAtual)
 
   // lancamentos: quinta entidade migrada de localStorage pro Supabase — ver
   // useLancamentosSupabase.ts e CLAUDE.md ("Migração de entidades pro Supabase").
@@ -530,11 +555,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /**
    * Versão atômica de salvarMateriaisOS — mesmo motivo e mesmo padrão de
    * concluirOS/registrarPagamentoOS (ver comentários acima): materiais da OS
-   * + baixa/devolução de estoque por produto gravados numa única transação
-   * via supabase.rpc('salvar_materiais_os_atomica', ...) (migration 012), em
-   * vez de 1 chamada por produto alterado + 1 pra OS, todas independentes.
-   * Estado local aplicado otimisticamente primeiro, revertido se a RPC falhar
-   * — já que, nesse caso, nada foi persistido no banco.
+   * + baixa/devolução de estoque por produto + histórico em
+   * movimentacoes_estoque (origem='os_materiais', migration 019) gravados
+   * numa única transação via supabase.rpc('salvar_materiais_os_atomica', ...)
+   * (migration 012), em vez de 1 chamada por produto alterado + 1 pra OS,
+   * todas independentes. `movimentacaoId` gerado aqui (mesmo uid() de
+   * sempre) porque nenhuma RPC deste projeto gera id no banco — ver
+   * comentário na migration. Estado local aplicado otimisticamente primeiro,
+   * revertido se a RPC falhar — já que, nesse caso, nada foi persistido no
+   * banco.
    */
   const salvarMateriaisOS = (osId: string, novosMateriais: MaterialUsado[]) => {
     const os = ordens.find(x => x.id === osId)
@@ -542,7 +571,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const materiaisAnteriores = os.materiaisUsados ?? []
     const deltas = diffEstoqueDeltas(materiaisAnteriores, novosMateriais)
-    const estoqueDeltas = Array.from(deltas, ([produtoId, delta]) => ({ produtoId, delta }))
+    const estoqueDeltas = Array.from(deltas, ([produtoId, delta]) => ({ produtoId, delta, movimentacaoId: uid() }))
 
     aplicarPatchLocalOS(osId, { materiaisUsados: novosMateriais })
     if (estoqueDeltas.length) aplicarDeltasLocalProdutos(estoqueDeltas)
@@ -552,6 +581,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       p_loja_id: lojaIdAtual,
       p_materiais_usados: novosMateriais,
       p_estoque_deltas: estoqueDeltas,
+      p_usuario_id: usuarioId,
     }).then(({ error }) => {
       if (!error) return
 
@@ -670,13 +700,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const clienteAtual = clientes.find(c => c.id === os.clienteId)
 
-    const estoqueDeltas: { produtoId: string; delta: number }[] = []
+    const estoqueDeltas: { produtoId: string; delta: number; movimentacaoId: string }[] = []
     let lancamentoDespesaMaterial: LancamentoFinanceiro | null = null
     if (materiaisUsados?.length) {
       // Só ajusta o estoque pela diferença em relação ao que já estava salvo em `os.materiaisUsados`
-      // (que já foi baixado por salvarMateriaisOS) — evita baixa duplicada.
+      // (que já foi baixado por salvarMateriaisOS) — evita baixa duplicada. `movimentacaoId` gerado
+      // aqui (mesmo uid() de sempre) pra concluir_os_atomica gravar em movimentacoes_estoque
+      // (origem='os_conclusao', migration 021) — esse delta é distinto do que salvarMateriaisOS já
+      // grava, mesmo motivo do comentário ali.
       const deltas = diffEstoqueDeltas(os.materiaisUsados ?? [], materiaisUsados)
-      deltas.forEach((delta, produtoId) => estoqueDeltas.push({ produtoId, delta }))
+      deltas.forEach((delta, produtoId) => estoqueDeltas.push({ produtoId, delta, movimentacaoId: uid() }))
 
       // Custo dos materiais tirados do estoque (preço do produto × quantidade) —
       // antes só materiais 'compra' geravam despesa; 'estoque' baixava a quantidade
@@ -727,6 +760,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       p_estoque_deltas: estoqueDeltas,
       p_lancamento_despesa_material: lancamentoDespesaMaterial,
       p_agendamento_id: os.agendamentoId ?? null,
+      p_usuario_id: usuarioId,
     }).then(({ error }) => {
       if (!error) return
 
@@ -845,7 +879,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       adicionarAgendamento, editarAgendamento, deletarAgendamento,
       adicionarInstalador, editarInstalador, deletarInstalador,
       adicionarServico, editarServico, deletarServico,
-      adicionarProduto, editarProduto, deletarProduto, registrarEntradaEstoque, baixarEstoque,
+      adicionarProduto, editarProduto, deletarProduto, registrarEntradaEstoque, baixarEstoque, buscarMovimentacoesEstoque,
+      usuarioId, usuarioNome,
       adicionarLancamento, deletarLancamento,
       adicionarGarantia, editarGarantia, deletarGarantia, registrarAcionamento,
       concluirOS, registrarPagamentoOS, cancelarOS, entregarVeiculo,

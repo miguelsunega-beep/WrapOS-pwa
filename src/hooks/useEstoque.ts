@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { Package, AlertTriangle, DollarSign, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useApp } from '../context/AppContext'
-import type { Produto } from '../types'
+import type { MovimentacaoEstoque, Produto } from '../types'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -11,6 +11,12 @@ const fmt = (v: number) =>
 export const CATEGORIAS     = ['PPF', 'Envelopamento', 'Cerâmica', 'Acessórios', 'Ferramentas', 'Outros']
 export const UNIDADES        = ['rolo', 'unidade', 'frasco', 'caixa', 'litro', 'metro']
 const        CATEGORIAS_ROLO = ['PPF', 'Envelopamento']
+
+// Passos de período do histórico de movimentação — 30 dias por padrão (ver
+// ITEM 5 do levantamento: a tabela só cresce, nunca é limpa, então a consulta
+// padrão vem sempre com um filtro de período em vez de puxar tudo de uma vez).
+// "Expandir" avança pra 90 → 365 → um teto bem alto (equivalente a "tudo").
+const PASSOS_PERIODO_HISTORICO = [30, 90, 365, 36500]
 
 export interface ProdutoForm {
   nome: string; sku: string; categoria: string; fornecedor: string
@@ -45,7 +51,10 @@ export interface ProdutoEnriquecido extends Produto {
 }
 
 export function useEstoque() {
-  const { produtos, adicionarProduto, editarProduto, deletarProduto, registrarEntradaEstoque, baixarEstoque } = useApp()
+  const {
+    produtos, adicionarProduto, editarProduto, deletarProduto, registrarEntradaEstoque, baixarEstoque,
+    buscarMovimentacoesEstoque, usuarioId, usuarioNome,
+  } = useApp()
 
   // ── Search / filter ────────────────────────────────────────────
   const [search, setSearch] = useState('')
@@ -138,6 +147,21 @@ export function useEstoque() {
       quantidadeOriginal = undefined
     }
 
+    // Quantidade só é definida a partir do form na CRIAÇÃO. Editar um produto já
+    // existente NUNCA muda a quantidade em estoque por aqui, mesmo que os campos
+    // acima (Qtd. Inicial / Metragem do rolo) tragam outro valor — esses campos
+    // ficam travados/somente-leitura na UI ao editar (ver Estoque.tsx) justamente
+    // por isso, mas a garantia real é esta linha: mudar quantidade depois da
+    // criação é exclusivo de Entrada/Baixa de estoque (que agora geram histórico
+    // em movimentacoes_estoque, ver useProdutosSupabase.ts) ou consumo em OS —
+    // nunca de "editar cadastro". Achado durante o levantamento pro histórico de
+    // movimentação: antes desta mudança, salvar o formulário de edição
+    // recalculava e sobrescrevia quantidade silenciosamente, sem motivo nem
+    // rastro nenhum, mesmo quando a intenção era só corrigir nome/fornecedor.
+    if (editandoId && produtoEmEdicao) {
+      quantidade = produtoEmEdicao.quantidade
+    }
+
     // minimo/unidade não são mais forçados pra 0/'metro' em produtos rolo — o form
     // simplesmente não mostra esses campos quando isRolo (inalterado nesta etapa), então
     // pra um produto novo eles saem com o default do form (minimo '0', unidade UNIDADES[0]);
@@ -194,6 +218,48 @@ export function useEstoque() {
     toast.success('Produto excluído do estoque.')
   }
 
+  // ── Histórico de movimentação (ver movimentacoes_estoque, migration 019) ─
+  // Sempre "Ver histórico" por produto (não uma aba separada) — mesmo motivo
+  // documentado na migration: exige menos reestruturação da tela atual, e já
+  // cobre "filtro por produto" só por ser escopado a um produto por vez.
+  const [historicoProduto, setHistoricoProduto] = useState<Produto | null>(null)
+  const [historicoItens, setHistoricoItens] = useState<MovimentacaoEstoque[]>([])
+  const [historicoCarregando, setHistoricoCarregando] = useState(false)
+  const [historicoDias, setHistoricoDias] = useState(PASSOS_PERIODO_HISTORICO[0])
+
+  const carregarHistorico = async (produto: Produto, dias: number) => {
+    setHistoricoCarregando(true)
+    const desde = new Date()
+    desde.setDate(desde.getDate() - dias)
+    const itens = await buscarMovimentacoesEstoque({ produtoId: produto.id, desde: desde.toLocaleDateString('sv-SE') })
+    setHistoricoItens(itens)
+    setHistoricoCarregando(false)
+  }
+
+  const abrirHistorico = (produto: Produto) => {
+    setHistoricoProduto(produto)
+    setHistoricoDias(PASSOS_PERIODO_HISTORICO[0])
+    void carregarHistorico(produto, PASSOS_PERIODO_HISTORICO[0])
+  }
+
+  const fecharHistorico = () => setHistoricoProduto(null)
+
+  const historicoPodeExpandir = historicoDias < PASSOS_PERIODO_HISTORICO[PASSOS_PERIODO_HISTORICO.length - 1]
+
+  const expandirHistorico = () => {
+    if (!historicoProduto) return
+    const proximo = PASSOS_PERIODO_HISTORICO.find(d => d > historicoDias) ?? historicoDias
+    setHistoricoDias(proximo)
+    void carregarHistorico(historicoProduto, proximo)
+  }
+
+  // RLS de `usuarios` só permite ler a própria linha (ver policies.sql,
+  // usuarios_por_loja) — não tem como resolver o nome de OUTRO usuário da
+  // mesma loja a partir do client hoje. Reconhece o próprio nome; cai num
+  // rótulo genérico pro resto (hoje raro: cada loja em produção tem 1
+  // usuário só).
+  const nomeAutor = (mov: MovimentacaoEstoque) => mov.usuarioId === usuarioId ? usuarioNome : 'Outro usuário'
+
   return {
     search,
     setSearch,
@@ -212,5 +278,13 @@ export function useEstoque() {
     registrarEntrada,
     registrarBaixa,
     deletarProdutoById,
+    historicoProduto,
+    historicoItens,
+    historicoCarregando,
+    historicoPodeExpandir,
+    abrirHistorico,
+    fecharHistorico,
+    expandirHistorico,
+    nomeAutor,
   }
 }

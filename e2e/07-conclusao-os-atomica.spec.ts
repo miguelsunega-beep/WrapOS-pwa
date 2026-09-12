@@ -38,6 +38,14 @@ async function lojaIdDoClient(client: SupabaseClient): Promise<string> {
   return usuario.lojaId as string
 }
 
+/** id (não authUserId) do usuário logado — p_usuario_id de concluir_os_atomica (migration 021, ver movimentacoes_estoque.usuarioId). */
+async function usuarioIdDoClient(client: SupabaseClient): Promise<string> {
+  const { data: { user } } = await client.auth.getUser()
+  const { data: usuario, error } = await client.from('usuarios').select('id').eq('authUserId', user!.id).maybeSingle()
+  if (error || !usuario) throw new Error(`usuarioIdDoClient: falha ao resolver id — ${error?.message ?? 'sem linha vinculada'}`)
+  return usuario.id as string
+}
+
 /** Cria uma OS mínima e aprova (aguardando_aprovacao → em_andamento). Retorna o número (#N) exibido na listagem. */
 async function criarEAprovarOS(
   page: import('@playwright/test').Page,
@@ -162,6 +170,7 @@ test.describe('Cenário 7 — Conclusão de OS é atômica (migration 009_conclu
   test('concluir a mesma OS duas vezes seguidas não duplica lançamento nem garantia', async ({ page }) => {
     const client = await supabaseAutenticado()
     const lojaId = await lojaIdDoClient(client)
+    const usuarioId = await usuarioIdDoClient(client)
 
     await abrirApp(page)
     await irPara(page, 'Ordens de Serviço')
@@ -192,6 +201,7 @@ test.describe('Cenário 7 — Conclusão de OS é atômica (migration 009_conclu
       p_estoque_deltas: [],
       p_lancamento_despesa_material: null,
       p_agendamento_id: null,
+      p_usuario_id: usuarioId,
     }
 
     const { error: erro1 } = await client.rpc('concluir_os_atomica', payload)

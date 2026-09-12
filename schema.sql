@@ -25,6 +25,12 @@ CREATE TYPE "TipoLancamento" AS ENUM ('entrada', 'saida');
 -- CreateEnum
 CREATE TYPE "TipoControleEstoque" AS ENUM ('unidade', 'bobina', 'volume');
 
+-- CreateEnum
+CREATE TYPE "TipoMovimentacaoEstoque" AS ENUM ('entrada', 'saida', 'ajuste');
+
+-- CreateEnum
+CREATE TYPE "OrigemMovimentacaoEstoque" AS ENUM ('ajuste_manual', 'os_materiais', 'os_conclusao');
+
 -- CreateTable
 CREATE TABLE "lojas" (
     "id" TEXT NOT NULL,
@@ -173,6 +179,24 @@ CREATE TABLE "produtos" (
 );
 
 -- CreateTable
+CREATE TABLE "movimentacoes_estoque" (
+    "id" TEXT NOT NULL,
+    "lojaId" TEXT NOT NULL,
+    "produtoId" TEXT NOT NULL,
+    "tipo" "TipoMovimentacaoEstoque" NOT NULL,
+    "origem" "OrigemMovimentacaoEstoque" NOT NULL,
+    "delta" DECIMAL(10,2) NOT NULL,
+    "quantidadeAnterior" DECIMAL(10,2) NOT NULL,
+    "quantidadeNova" DECIMAL(10,2) NOT NULL,
+    "motivo" TEXT,
+    "referenciaId" TEXT,
+    "usuarioId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "movimentacoes_estoque_pkey" PRIMARY KEY ("lojaId","id")
+);
+
+-- CreateTable
 CREATE TABLE "garantias" (
     "id" TEXT NOT NULL,
     "lojaId" TEXT NOT NULL,
@@ -242,6 +266,9 @@ CREATE INDEX "usuarios_lojaId_idx" ON "usuarios"("lojaId");
 CREATE UNIQUE INDEX "ordens_servico_lojaId_numero_key" ON "ordens_servico"("lojaId", "numero");
 
 -- CreateIndex
+CREATE INDEX "movimentacoes_estoque_lojaId_produtoId_createdAt_idx" ON "movimentacoes_estoque"("lojaId", "produtoId", "createdAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "configuracoes_lojaId_key" ON "configuracoes"("lojaId");
 
 -- AddForeignKey
@@ -278,6 +305,12 @@ ALTER TABLE "lancamentos_financeiro" ADD CONSTRAINT "lancamentos_financeiro_loja
 ALTER TABLE "produtos" ADD CONSTRAINT "produtos_lojaId_fkey" FOREIGN KEY ("lojaId") REFERENCES "lojas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "movimentacoes_estoque" ADD CONSTRAINT "movimentacoes_estoque_lojaId_fkey" FOREIGN KEY ("lojaId") REFERENCES "lojas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "movimentacoes_estoque" ADD CONSTRAINT "movimentacoes_estoque_lojaId_produtoId_fkey" FOREIGN KEY ("lojaId", "produtoId") REFERENCES "produtos"("lojaId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "garantias" ADD CONSTRAINT "garantias_lojaId_fkey" FOREIGN KEY ("lojaId") REFERENCES "lojas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -289,237 +322,3 @@ ALTER TABLE "configuracoes" ADD CONSTRAINT "configuracoes_lojaId_fkey" FOREIGN K
 -- AddForeignKey
 ALTER TABLE "servicos" ADD CONSTRAINT "servicos_lojaId_fkey" FOREIGN KEY ("lojaId") REFERENCES "lojas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
-
--- CreateFunction
--- proximo_numero_os(): gera o próximo número de OS de forma atômica, por loja
--- (ver supabase/migrations/008_numero_os_por_loja.sql).
-CREATE OR REPLACE FUNCTION proximo_numero_os(loja_id_param text)
-RETURNS integer
-LANGUAGE sql
-AS $$
-  UPDATE lojas
-  SET "proximoNumero" = "proximoNumero" + 1
-  WHERE id = loja_id_param
-  RETURNING "proximoNumero" - 1;
-$$;
-
-GRANT EXECUTE ON FUNCTION proximo_numero_os(text) TO authenticated;
-
-
--- CreateFunction
--- concluir_os_atomica(): faz as 7 escritas da conclusão de uma OS numa única
--- transação (ver supabase/migrations/009_concluir_os_atomica.sql).
--- Cast do delta de estoque ::integer -> ::numeric na migration 015 (ver
--- supabase/migrations/015_estoque_numeric_rpc.sql), acompanhando
--- produtos.quantidade/minimo virarem numeric(10,2) na migration 014.
-CREATE OR REPLACE FUNCTION concluir_os_atomica(
-  p_os_id                       text,
-  p_loja_id                     text,
-  p_os_patch                    jsonb,
-  p_lancamento_receita          jsonb,
-  p_garantia                    jsonb,
-  p_cliente_id                  text,
-  p_cliente_delta_total_gasto   numeric,
-  p_meta_id                     text,
-  p_meta_delta_numero_os        integer,
-  p_estoque_deltas              jsonb,
-  p_lancamento_despesa_material jsonb,
-  p_agendamento_id              text
-)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  item jsonb;
-BEGIN
-  UPDATE ordens_servico
-  SET status            = (p_os_patch->>'status')::"StatusOS",
-      "dataFinalizacao" = (p_os_patch->>'dataFinalizacao')::date,
-      "statusPagamento" = (p_os_patch->>'statusPagamento')::"StatusPagamento",
-      "materiaisUsados" = p_os_patch->'materiaisUsados',
-      entregue          = (p_os_patch->>'entregue')::boolean
-  WHERE "lojaId" = p_loja_id AND id = p_os_id;
-
-  IF p_lancamento_receita IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1 FROM lancamentos_financeiro
-       WHERE "lojaId" = p_loja_id AND "osId" = p_os_id AND tipo = 'entrada'
-     )
-  THEN
-    INSERT INTO lancamentos_financeiro (id, "lojaId", tipo, categoria, descricao, valor, data, "formaPagamento", "osId")
-    VALUES (
-      p_lancamento_receita->>'id', p_loja_id,
-      (p_lancamento_receita->>'tipo')::"TipoLancamento",
-      p_lancamento_receita->>'categoria',
-      p_lancamento_receita->>'descricao',
-      (p_lancamento_receita->>'valor')::float8,
-      (p_lancamento_receita->>'data')::date,
-      p_lancamento_receita->>'formaPagamento',
-      p_os_id
-    );
-  END IF;
-
-  IF p_garantia IS NOT NULL
-     AND NOT EXISTS (SELECT 1 FROM garantias WHERE "lojaId" = p_loja_id AND "osId" = p_os_id)
-  THEN
-    INSERT INTO garantias (id, "lojaId", "osId", "clienteId", "veiculoId", servico, produto, "dataInicio", "dataFim", status)
-    VALUES (
-      p_garantia->>'id', p_loja_id, p_os_id,
-      p_garantia->>'clienteId', p_garantia->>'veiculoId',
-      p_garantia->>'servico', p_garantia->>'produto',
-      (p_garantia->>'dataInicio')::date, (p_garantia->>'dataFim')::date,
-      (p_garantia->>'status')::"StatusGarantia"
-    );
-  END IF;
-
-  UPDATE clientes
-  SET "totalGasto" = "totalGasto" + p_cliente_delta_total_gasto
-  WHERE "lojaId" = p_loja_id AND id = p_cliente_id;
-
-  UPDATE metas
-  SET "numeroOS" = "numeroOS" + p_meta_delta_numero_os
-  WHERE "lojaId" = p_loja_id AND id = p_meta_id;
-
-  FOR item IN SELECT * FROM jsonb_array_elements(coalesce(p_estoque_deltas, '[]'::jsonb))
-  LOOP
-    UPDATE produtos
-    SET quantidade = GREATEST(0, quantidade - (item->>'delta')::numeric)
-    WHERE "lojaId" = p_loja_id AND id = item->>'produtoId';
-  END LOOP;
-
-  IF p_lancamento_despesa_material IS NOT NULL THEN
-    INSERT INTO lancamentos_financeiro (id, "lojaId", tipo, categoria, descricao, valor, data, "formaPagamento", "osId")
-    VALUES (
-      p_lancamento_despesa_material->>'id', p_loja_id,
-      (p_lancamento_despesa_material->>'tipo')::"TipoLancamento",
-      p_lancamento_despesa_material->>'categoria',
-      p_lancamento_despesa_material->>'descricao',
-      (p_lancamento_despesa_material->>'valor')::float8,
-      (p_lancamento_despesa_material->>'data')::date,
-      p_lancamento_despesa_material->>'formaPagamento',
-      p_os_id
-    );
-  END IF;
-
-  IF p_agendamento_id IS NOT NULL THEN
-    UPDATE agendamentos SET status = 'concluido' WHERE "lojaId" = p_loja_id AND id = p_agendamento_id;
-  END IF;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION concluir_os_atomica(
-  text, text, jsonb, jsonb, jsonb, text, numeric, text, integer, jsonb, jsonb, text
-) TO authenticated;
-
-
--- CreateFunction
--- registrar_pagamento_os_atomica(): faz as 2 escritas de registrarPagamentoOS
--- (lançamento de receita + statusPagamento da OS) numa única transação (ver
--- supabase/migrations/011_registrar_pagamento_os_atomica.sql).
-CREATE OR REPLACE FUNCTION registrar_pagamento_os_atomica(
-  p_os_id              text,
-  p_loja_id            text,
-  p_os_patch           jsonb,
-  p_lancamento_receita jsonb
-)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  linhas_afetadas integer;
-BEGIN
-  UPDATE ordens_servico
-  SET "statusPagamento" = (p_os_patch->>'statusPagamento')::"StatusPagamento"
-  WHERE "lojaId" = p_loja_id AND id = p_os_id;
-
-  GET DIAGNOSTICS linhas_afetadas = ROW_COUNT;
-  IF linhas_afetadas = 0 THEN
-    RAISE EXCEPTION 'registrar_pagamento_os_atomica: nenhuma OS encontrada para lojaId=%, id=%', p_loja_id, p_os_id;
-  END IF;
-
-  IF p_lancamento_receita IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1 FROM lancamentos_financeiro
-       WHERE "lojaId" = p_loja_id AND "osId" = p_os_id AND tipo = 'entrada'
-     )
-  THEN
-    INSERT INTO lancamentos_financeiro (id, "lojaId", tipo, categoria, descricao, valor, data, "formaPagamento", "osId")
-    VALUES (
-      p_lancamento_receita->>'id', p_loja_id,
-      'entrada',
-      p_lancamento_receita->>'categoria',
-      p_lancamento_receita->>'descricao',
-      (p_lancamento_receita->>'valor')::float8,
-      (p_lancamento_receita->>'data')::date,
-      p_lancamento_receita->>'formaPagamento',
-      p_os_id
-    );
-  END IF;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION registrar_pagamento_os_atomica(
-  text, text, jsonb, jsonb
-) TO authenticated;
-
-
--- CreateFunction
--- salvar_materiais_os_atomica(): grava os materiais da OS e aplica os deltas
--- de estoque numa única transação (ver
--- supabase/migrations/012_salvar_materiais_os_atomica.sql).
--- Cast do delta de estoque ::integer -> ::numeric na migration 015 (ver
--- supabase/migrations/015_estoque_numeric_rpc.sql).
-CREATE OR REPLACE FUNCTION salvar_materiais_os_atomica(
-  p_os_id            text,
-  p_loja_id          text,
-  p_materiais_usados jsonb,
-  p_estoque_deltas   jsonb
-)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  item jsonb;
-BEGIN
-  UPDATE ordens_servico
-  SET "materiaisUsados" = p_materiais_usados
-  WHERE "lojaId" = p_loja_id AND id = p_os_id;
-
-  FOR item IN SELECT * FROM jsonb_array_elements(coalesce(p_estoque_deltas, '[]'::jsonb))
-  LOOP
-    UPDATE produtos
-    SET quantidade = GREATEST(0, quantidade - (item->>'delta')::numeric)
-    WHERE "lojaId" = p_loja_id AND id = item->>'produtoId';
-  END LOOP;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION salvar_materiais_os_atomica(text, text, jsonb, jsonb) TO authenticated;
-
-
--- CreateFunction
--- cancelar_os_atomica(): cancela a OS e reverte o agendamento vinculado (se
--- houver) pra 'agendado' numa única transação (ver
--- supabase/migrations/013_cancelar_os_atomica.sql).
-CREATE OR REPLACE FUNCTION cancelar_os_atomica(
-  p_os_id          text,
-  p_loja_id        text,
-  p_agendamento_id text
-)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  UPDATE ordens_servico
-  SET status = 'cancelado'
-  WHERE "lojaId" = p_loja_id AND id = p_os_id;
-
-  IF p_agendamento_id IS NOT NULL THEN
-    UPDATE agendamentos
-    SET status = 'agendado'
-    WHERE "lojaId" = p_loja_id AND id = p_agendamento_id;
-  END IF;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION cancelar_os_atomica(text, text, text) TO authenticated;

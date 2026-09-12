@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Package, AlertTriangle, Plus, Pencil, PackagePlus, PackageMinus, Trash2,
-  Search,
+  Search, History, ChevronDown,
 } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
@@ -28,6 +28,14 @@ export function Estoque() {
     registrarEntrada,
     registrarBaixa,
     deletarProdutoById,
+    historicoProduto,
+    historicoItens,
+    historicoCarregando,
+    historicoPodeExpandir,
+    abrirHistorico,
+    fecharHistorico,
+    expandirHistorico,
+    nomeAutor,
   } = useEstoque()
 
   const [produtoModal, setProdutoModal] = useState<'novo' | 'editar' | null>(null)
@@ -72,8 +80,14 @@ export function Estoque() {
     setDeletarId(null)
   }
 
-  const inputCls = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text placeholder-gray-500 focus:outline-none focus:border-accent/50 transition-colors'
+  const inputCls = 'w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-text placeholder-gray-500 focus:outline-none focus:border-accent/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
   const labelCls = 'block text-xs font-medium text-gray-400 mb-1.5'
+  // Editar um produto nunca muda a quantidade em estoque (ver comentário em
+  // useEstoque.ts/salvarProduto) — os dois campos que representariam isso
+  // (Metragem do rolo / Qtd. Inicial) ficam travados só na edição; mudar
+  // quantidade depois da criação é sempre via Entrada/Baixa (que geram
+  // histórico) ou consumo em OS.
+  const editandoProduto = produtoModal === 'editar'
 
   return (
     <div className="px-6 py-5 space-y-5 md:p-6">
@@ -186,6 +200,7 @@ export function Estoque() {
                       <button onClick={() => { prepararEditar(produto); setProdutoModal('editar') }} className="p-1.5 rounded-lg hover:bg-surface-500 text-gray-500 hover:text-ui-text transition-colors"><Pencil size={13} /></button>
                       <button onClick={() => abrirEntrada(produto)} className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-gray-500 hover:text-emerald-400 transition-colors"><PackagePlus size={13} /></button>
                       <button onClick={() => abrirBaixa(produto)} className="p-1.5 rounded-lg hover:bg-amber-500/10 text-gray-500 hover:text-amber-400 transition-colors"><PackageMinus size={13} /></button>
+                      <button onClick={() => abrirHistorico(produto)} className="p-1.5 rounded-lg hover:bg-blue-500/10 text-gray-500 hover:text-blue-400 transition-colors"><History size={13} /></button>
                       <button onClick={() => setDeletarId(produto.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
                     </div>
                   </td>
@@ -235,6 +250,7 @@ export function Estoque() {
                 <button onClick={() => { prepararEditar(produto); setProdutoModal('editar') }} className="flex-1 py-2 rounded-lg bg-surface-600 text-gray-300 text-xs font-medium flex justify-center items-center gap-1.5"><Pencil size={13}/> Editar</button>
                 <button onClick={() => abrirEntrada(produto)} className="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium flex justify-center items-center gap-1.5"><PackagePlus size={13}/> Entrar</button>
                 <button onClick={() => abrirBaixa(produto)} className="flex-1 py-2 rounded-lg bg-amber-500/10 text-amber-400 text-xs font-medium flex justify-center items-center gap-1.5"><PackageMinus size={13}/> Baixar</button>
+                <button onClick={() => abrirHistorico(produto)} className="p-2 rounded-lg bg-blue-500/10 text-blue-400 flex justify-center items-center shrink-0"><History size={15}/></button>
                 <button onClick={() => setDeletarId(produto.id)} className="p-2 rounded-lg bg-red-500/10 text-red-400 flex justify-center items-center shrink-0"><Trash2 size={15}/></button>
               </div>
             </div>
@@ -315,7 +331,11 @@ export function Estoque() {
                     onChange={e => setForm(p => ({ ...p, metragemRolo: e.target.value }))}
                     placeholder="Ex: 30"
                     className={inputCls}
+                    disabled={editandoProduto}
                   />
+                  {editandoProduto && (
+                    <p className="mt-1 text-[11px] text-gray-500">Pra mudar a metragem em estoque, use Entrada/Baixa.</p>
+                  )}
                 </div>
                 <div>
                   <label className={labelCls}>Valor pago pelo rolo (R$) <span className="text-accent">*</span></label>
@@ -347,14 +367,18 @@ export function Estoque() {
               {/* Quantidade + Mínimo + Unidade */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className={labelCls}>Qtd. Inicial</label>
+                  <label className={labelCls}>{editandoProduto ? 'Quantidade em Estoque' : 'Qtd. Inicial'}</label>
                   <input
                     type="number"
                     min={0}
                     value={form.quantidade}
                     onChange={e => setForm(p => ({ ...p, quantidade: e.target.value }))}
                     className={inputCls}
+                    disabled={editandoProduto}
                   />
+                  {editandoProduto && (
+                    <p className="mt-1 text-[11px] text-gray-500">Pra mudar a quantidade, use Entrada/Baixa.</p>
+                  )}
                 </div>
                 <div>
                   <label className={labelCls}>Estoque Mínimo</label>
@@ -503,6 +527,86 @@ export function Estoque() {
           <Button variant="secondary" onClick={() => setDeletarId(null)}>Cancelar</Button>
           <Button variant="danger" onClick={handleDeletar}>Excluir</Button>
         </div>
+      </Modal>
+
+      {/* Modal Histórico de Movimentação */}
+      <Modal
+        isOpen={historicoProduto !== null}
+        onClose={fecharHistorico}
+        title={`Histórico — ${historicoProduto?.nome ?? ''}`}
+        size="lg"
+      >
+        {historicoProduto && (
+          <div className="space-y-4">
+            <div className="bg-surface-700 rounded-xl px-4 py-3 flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center shrink-0">
+                <History size={15} className="text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-ui-text">{historicoProduto.nome}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Estoque atual: <span className="text-ui-text font-semibold">{historicoProduto.quantidade}</span> {historicoProduto.unidade}(s)
+                </p>
+              </div>
+            </div>
+
+            {historicoCarregando ? (
+              <p className="text-sm text-gray-500 text-center py-8">Carregando...</p>
+            ) : historicoItens.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-8">Nenhuma movimentação neste período.</p>
+            ) : (
+              <div className="max-h-96 overflow-y-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-ui-border">
+                      {['Data', 'Tipo', 'Qtd.', 'Motivo', 'Quem fez'].map(h => (
+                        <th key={h} className="text-left py-2 px-2 text-[10px] font-semibold text-gray-600 uppercase tracking-wider sticky top-0 bg-surface-800">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ui-border">
+                    {historicoItens.map(mov => (
+                      <tr key={mov.id}>
+                        <td className="py-2 px-2 text-xs text-gray-400 whitespace-nowrap">
+                          {new Date(mov.createdAt).toLocaleDateString('pt-BR')}{' '}
+                          <span className="text-gray-600">
+                            {new Date(mov.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2">
+                          <Badge
+                            label={mov.tipo === 'entrada' ? 'Entrada' : mov.tipo === 'saida' ? 'Saída' : 'Ajuste'}
+                            variant={mov.tipo === 'entrada' ? 'success' : mov.tipo === 'saida' ? 'warning' : 'default'}
+                          />
+                        </td>
+                        <td className={`py-2 px-2 text-sm font-semibold whitespace-nowrap ${mov.delta > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {mov.delta > 0 ? '+' : ''}{mov.delta} {historicoProduto.unidade}(s)
+                        </td>
+                        <td className="py-2 px-2 text-xs text-gray-500">
+                          {mov.motivo || (mov.origem !== 'ajuste_manual' ? 'Consumo em OS' : '—')}
+                        </td>
+                        <td className="py-2 px-2 text-xs text-gray-500">{nomeAutor(mov)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {historicoPodeExpandir && !historicoCarregando && (
+              <button
+                onClick={expandirHistorico}
+                className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-gray-500 hover:text-ui-text transition-colors"
+              >
+                <ChevronDown size={13} /> Ver período maior
+              </button>
+            )}
+
+            <div className="flex justify-end pt-1 border-t border-ui-border">
+              <Button variant="secondary" onClick={fecharHistorico}>Fechar</Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

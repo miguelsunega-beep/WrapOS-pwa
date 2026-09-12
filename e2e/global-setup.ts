@@ -435,6 +435,17 @@ async function semearDados(email: string, password: string) {
     throw new Error(`semearDados: falha ao limpar lançamentos financeiros antigos da loja de teste — ${erroDeleteLancamentos.message}`)
   }
 
+  // movimentacoes_estoque ANTES de produtos — FK (lojaId, produtoId) é ON DELETE
+  // RESTRICT desde a migration 022 (decisão deliberada: excluir produto com
+  // histórico deve falhar, não apagar o histórico silenciosamente). Sem este
+  // delete primeiro, o DELETE de produtos abaixo falha com 23503 assim que
+  // algum spec anterior (ex.: Entrada/Baixa/histórico) já tiver gerado
+  // qualquer linha de movimentação pros produtos da loja de teste.
+  const { error: erroDeleteMovimentacoesEstoque } = await supabase.from('movimentacoes_estoque').delete().eq('lojaId', lojaId)
+  if (erroDeleteMovimentacoesEstoque) {
+    throw new Error(`semearDados: falha ao limpar movimentações de estoque antigas da loja de teste — ${erroDeleteMovimentacoesEstoque.message}`)
+  }
+
   const { error: erroDeleteProdutos } = await supabase.from('produtos').delete().eq('lojaId', lojaId)
   if (erroDeleteProdutos) {
     throw new Error(`semearDados: falha ao limpar produtos antigos da loja de teste — ${erroDeleteProdutos.message}`)
