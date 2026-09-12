@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext'
 import { usePlacaLookup } from './usePlacaLookup'
 import { useCepLookup } from './useCepLookup'
 import { todayLocal } from '../lib/dateUtils'
+import { buildCsv, slugifyForFilename, downloadCsv } from '../lib/csvExport'
 import { blankVeiculoForm, type VeiculoFormData } from '../components/VeiculoInlineForm'
 import type { Cliente, BadgeVariant, StatusOS, Garantia as GarantiaType, Veiculo } from '../types'
 
@@ -71,7 +72,7 @@ interface GarantiaEnriquecida extends GarantiaType {
 // ── Hook ──────────────────────────────────────────────────────────
 export function useClientes() {
   const {
-    clientes, veiculos, ordens, garantias,
+    clientes, veiculos, ordens, garantias, configuracoes,
     adicionarClienteSequencial, adicionarVeiculoSequencial, editarCliente, deletarCliente, reativarCliente,
     adicionarVeiculo, editarVeiculo, deletarVeiculo,
     editarGarantia, deletarGarantia, registrarAcionamento,
@@ -174,6 +175,22 @@ export function useClientes() {
   const veiculoLabel = (clienteId: string) => {
     const v = veiculos.find(v => v.clienteId === clienteId)
     return v ? `${v.marca} ${v.modelo}` : null
+  }
+
+  // ── Export CSV ────────────────────────────────────────────────
+  const exportarCsv = () => {
+    const headers = ['Nome', 'Telefone', 'Veículo(s)', 'CPF', 'Data de Cadastro']
+    const rows = filtered.map(c => {
+      const veiculosCliente = veiculos
+        .filter(v => v.clienteId === c.id)
+        .map(v => `${v.marca} ${v.modelo} (${v.placa})`)
+        .join(', ')
+      return [c.nome, c.telefone, veiculosCliente, c.cpf, fmtDate(c.dataCadastro)]
+    })
+    const csv = buildCsv(headers, rows)
+    const loja = slugifyForFilename(configuracoes.nomeLoja || 'loja')
+    downloadCsv(`clientes_${loja}_${todayLocal()}.csv`, csv)
+    toast.success('CSV exportado com sucesso!')
   }
 
   // ── Derived data for selected client ──────────────────────────
@@ -377,7 +394,7 @@ export function useClientes() {
 
   return {
     // search + list
-    search, setSearch, filtered, veiculoLabel,
+    search, setSearch, filtered, veiculoLabel, exportarCsv,
 
     // filtro de status (ativos/inativos)
     statusFiltro, setStatusFiltro,

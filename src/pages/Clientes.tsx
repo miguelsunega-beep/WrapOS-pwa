@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import {
   Plus, Search, Star, Pencil, Trash2, Car, ClipboardList,
   User, Phone, Mail, CheckCircle, RotateCcw,
-  LayoutDashboard, X, Loader2, Check, Shield, Zap,
+  LayoutDashboard, X, Loader2, Check, Shield, Zap, Download,
 } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
@@ -34,7 +34,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
 // ── Componente principal ──────────────────────────────────────────
 export function Clientes() {
   const {
-    search, setSearch, filtered, veiculoLabel,
+    search, setSearch, filtered, veiculoLabel, exportarCsv,
     statusFiltro, setStatusFiltro,
     totalClientes, vipCount, novosCount, posVendaCount,
     detalhes, setDetalhes,
@@ -83,9 +83,14 @@ export function Clientes() {
           <h1 className="text-xl font-bold text-ui-text">Clientes</h1>
           <p className="text-gray-500 text-xs mt-0.5">Base de clientes da loja</p>
         </div>
-        <Button onClick={onAbrirNovo}>
-          <Plus size={15} /> Novo Cliente
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={exportarCsv}>
+            <Download size={15} /> Exportar CSV
+          </Button>
+          <Button onClick={onAbrirNovo}>
+            <Plus size={15} /> Novo Cliente
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}

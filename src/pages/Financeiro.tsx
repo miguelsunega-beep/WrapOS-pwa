@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   ArrowUpRight, ArrowDownRight,
   Plus, Trash2, BarChart2, Eye, EyeOff,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Download,
 } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
@@ -24,6 +24,7 @@ export function Financeiro() {
     chartData,
     gridColor, tickColor, tooltipBg, tooltipBrd, tooltipLabel, tooltipItem, fmt,
     lancOrdenados,
+    exportarCsv,
     deletarLancamentoById,
     form, setForm,
     categorias,
@@ -76,6 +77,10 @@ export function Financeiro() {
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
+              <Button variant="secondary" onClick={exportarCsv}>
+                <Download size={15} />
+                Exportar CSV
+              </Button>
               <Button onClick={() => setModalOpen(true)}>
                 <Plus size={15} />
                 Novo Lançamento

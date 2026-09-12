@@ -5,6 +5,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { todayLocal } from '../lib/dateUtils'
+import { buildCsv, formatCsvValor, slugifyForFilename, downloadCsv } from '../lib/csvExport'
 import type { LancamentoFinanceiro } from '../types'
 
 const fmt = (v: number) =>
@@ -13,6 +14,11 @@ const fmt = (v: number) =>
 const fmtDate = (iso: string) => {
   const [, m, d] = iso.split('-')
   return `${d}/${m}`
+}
+
+const fmtDataCompleta = (iso: string) => {
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
 }
 
 const FORMAS_PAGAMENTO = [
@@ -56,7 +62,7 @@ export interface LancamentoEnriquecido extends LancamentoFinanceiro {
 }
 
 export function useFinanceiro() {
-  const { lancamentos, ordens, clientes, registrarPagamentoOS, adicionarLancamento, deletarLancamento } = useApp()
+  const { lancamentos, ordens, clientes, configuracoes, registrarPagamentoOS, adicionarLancamento, deletarLancamento } = useApp()
   const { theme } = useTheme()
 
   // ── Chart / tooltip colors ─────────────────────────────────────
@@ -127,6 +133,22 @@ export function useFinanceiro() {
       valorFormatado: `${l.tipo === 'entrada' ? '+' : '−'}${fmt(l.valor)}`,
     }))
 
+  // ── Export CSV ────────────────────────────────────────────────
+  const exportarCsv = () => {
+    const headers = ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor']
+    const rows = lancOrdenados.map(l => [
+      fmtDataCompleta(l.data),
+      l.tipo === 'entrada' ? 'Entrada' : 'Saída',
+      l.categoria,
+      l.descricao,
+      formatCsvValor(l.valor),
+    ])
+    const csv = buildCsv(headers, rows)
+    const loja = slugifyForFilename(configuracoes.nomeLoja || 'loja')
+    downloadCsv(`financeiro_${loja}_${mesSel}.csv`, csv)
+    toast.success('CSV exportado com sucesso!')
+  }
+
   // ── Delete ────────────────────────────────────────────────────
   const deletarLancamentoById = (id: string) => {
     deletarLancamento(id)
@@ -194,6 +216,7 @@ export function useFinanceiro() {
     tooltipItem,
     fmt,
     lancOrdenados,
+    exportarCsv,
     deletarLancamentoById,
     form,
     setForm,
