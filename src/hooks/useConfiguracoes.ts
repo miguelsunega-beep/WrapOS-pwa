@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Bell, Shield, Palette } from 'lucide-react'
+import { Palette } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { exportarBackup, importarBackup } from '../utils/backup'
 import { resetarDadosTeste } from '../utils/resetDadosTeste'
 import type { Servico } from '../types'
 
@@ -18,11 +17,11 @@ const inferirCategoria = (nome: string): string => {
   return 'Outros'
 }
 
-const blankServico = () => ({ nome: '' })
+const blankServico = () => ({ nome: '', preco: '', tempEstimado: '' })
 
 interface LojaForm    { nomeLoja: string; cidade: string; telefone: string; email: string }
 interface OpForm      { comissaoPadrao: string; corPrimaria: string }
-interface ServicoForm { nome: string }
+interface ServicoForm { nome: string; preco: string; tempEstimado: string }
 
 export interface ToggleItem {
   icon:   LucideIcon
@@ -31,7 +30,7 @@ export interface ToggleItem {
   toggle: () => void
 }
 
-export function useConfiguracoes() {
+export function useConfiguracoes(role: string) {
   const {
     configuracoes, atualizarConfiguracoes,
     servicos, adicionarServico, editarServico, deletarServico,
@@ -73,14 +72,6 @@ export function useConfiguracoes() {
     })
   }, [configuracoes.comissaoPadrao, configuracoes.corPrimaria])
 
-  // ── Notification values ────────────────────────────────────────
-  const notifEstoque  = configuracoes.notifEstoque  ?? true
-  const notifGarantia = configuracoes.notifGarantia ?? true
-  const notifPosVenda = configuracoes.notifPosVenda ?? true
-
-  // ── Auth 2FA (local, não persistido) ──────────────────────────
-  const [auth2fa, setAuth2fa] = useState(false)
-
   // ── Save handlers ──────────────────────────────────────────────
   const handleSalvarLoja = () => {
     atualizarConfiguracoes({
@@ -103,11 +94,7 @@ export function useConfiguracoes() {
 
   // ── Toggles array ─────────────────────────────────────────────
   const toggles: ToggleItem[] = [
-    { icon: Bell,    titulo: 'Notificações de Estoque Crítico', ativo: notifEstoque,     toggle: () => atualizarConfiguracoes({ notifEstoque:  !notifEstoque  }) },
-    { icon: Bell,    titulo: 'Alertas de Garantia Vencendo',    ativo: notifGarantia,    toggle: () => atualizarConfiguracoes({ notifGarantia: !notifGarantia }) },
-    { icon: Bell,    titulo: 'Lembretes de Pós-venda',          ativo: notifPosVenda,    toggle: () => atualizarConfiguracoes({ notifPosVenda: !notifPosVenda }) },
-    { icon: Shield,  titulo: 'Autenticação em Dois Fatores',    ativo: auth2fa,          toggle: () => setAuth2fa(p => !p)                                       },
-    { icon: Palette, titulo: 'Tema Escuro',                     ativo: theme === 'dark', toggle: toggleTheme                                                     },
+    { icon: Palette, titulo: 'Tema Escuro', ativo: theme === 'dark', toggle: toggleTheme },
   ]
 
   // ── Serviço state ──────────────────────────────────────────────
@@ -123,7 +110,11 @@ export function useConfiguracoes() {
 
   const prepararEditarServico = (s: Servico) => {
     setServEditId(s.id)
-    setServForm({ nome: s.nome })
+    setServForm({
+      nome:         s.nome,
+      preco:        s.preco !== undefined ? String(s.preco) : '',
+      tempEstimado: s.tempEstimado !== undefined ? String(s.tempEstimado) : '',
+    })
   }
 
   const resetServico = () => {
@@ -133,11 +124,16 @@ export function useConfiguracoes() {
 
   const salvarServico = (): boolean => {
     if (!servForm.nome.trim()) { toast.error('Nome é obrigatório.'); return false }
+    const dados = {
+      nome:         servForm.nome.trim(),
+      preco:        servForm.preco.trim()        === '' ? undefined : Math.max(0, parseFloat(servForm.preco)        || 0),
+      tempEstimado: servForm.tempEstimado.trim() === '' ? undefined : Math.max(0, parseFloat(servForm.tempEstimado) || 0),
+    }
     if (servEditId) {
-      editarServico(servEditId, { nome: servForm.nome.trim() })
+      editarServico(servEditId, dados)
       toast.success('Serviço atualizado!')
     } else {
-      adicionarServico({ nome: servForm.nome.trim() })
+      adicionarServico(dados)
       toast.success('Serviço adicionado!')
     }
     resetServico()
@@ -149,51 +145,13 @@ export function useConfiguracoes() {
     toast.success('Serviço excluído.')
   }
 
-  // ── Backup ───────────────────────────────────────────────────
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [arquivoImportar, setArquivoImportar] = useState<File | null>(null)
-  const [confirmarImportOpen, setConfirmarImportOpen] = useState(false)
-
-  const handleExportarBackup = () => {
-    exportarBackup()
-    toast.success('Backup exportado com sucesso!')
-  }
-
-  const abrirSeletorImportar = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleArquivoSelecionado = (arquivo: File | null) => {
-    if (!arquivo) return
-    setArquivoImportar(arquivo)
-    setConfirmarImportOpen(true)
-  }
-
-  const cancelarImportarBackup = () => {
-    setConfirmarImportOpen(false)
-    setArquivoImportar(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
-  const confirmarImportarBackup = async () => {
-    if (!arquivoImportar) return
-    try {
-      await importarBackup(arquivoImportar)
-      toast.success('Backup importado com sucesso! Recarregando...')
-      setConfirmarImportOpen(false)
-      setArquivoImportar(null)
-      setTimeout(() => window.location.reload(), 800)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Falha ao importar backup.')
-      cancelarImportarBackup()
-    }
-  }
-
-  // ── Zona de Perigo: resetar dados de teste ─────────────────────
+  // ── Zona de Perigo: resetar dados de teste (só o OWNER da loja) ─
+  const isOwner = role === 'OWNER'
   const [resetModalOpen, setResetModalOpen] = useState(false)
   const [resetConfirmText, setResetConfirmText] = useState('')
 
   const abrirResetModal = () => {
+    if (!isOwner) return
     setResetConfirmText('')
     setResetModalOpen(true)
   }
@@ -204,6 +162,11 @@ export function useConfiguracoes() {
   }
 
   const confirmarReset = async () => {
+    if (!isOwner) {
+      toast.error('Apenas o proprietário da loja pode executar esta ação.')
+      throw new Error('Ação restrita ao OWNER')
+    }
+
     const lojaId = sessionStorage.getItem('wrapos_perfil_ativo')
     if (!lojaId) {
       toast.error('Não foi possível identificar a loja atual.')
@@ -234,13 +197,7 @@ export function useConfiguracoes() {
     resetServico,
     salvarServico,
     deletarServicoById,
-    fileInputRef,
-    confirmarImportOpen,
-    handleExportarBackup,
-    abrirSeletorImportar,
-    handleArquivoSelecionado,
-    cancelarImportarBackup,
-    confirmarImportarBackup,
+    isOwner,
     resetModalOpen,     abrirResetModal, cancelarReset,
     resetConfirmText,   setResetConfirmText,
     confirmarReset,

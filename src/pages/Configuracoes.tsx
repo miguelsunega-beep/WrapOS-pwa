@@ -1,13 +1,18 @@
 import { useState } from 'react'
-import { Settings, Store, Bell, Tag, Plus, Pencil, Trash2, Download, Upload, DatabaseBackup, AlertTriangle } from 'lucide-react'
+import { Settings, Store, Palette, Tag, Plus, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { ActionButton } from '../components/ActionButton'
 import { Modal } from '../components/Modal'
 import { useConfiguracoes } from '../hooks/useConfiguracoes'
+import { fmt } from '../hooks/useOrdemServico'
 import type { Servico } from '../types'
 
-export function Configuracoes() {
+interface ConfiguracoesProps {
+  usuarioRole: string
+}
+
+export function Configuracoes({ usuarioRole }: ConfiguracoesProps) {
   const {
     loja,        setLoja,       handleSalvarLoja,
     op,          setOp,         handleSalvarOp,
@@ -20,17 +25,11 @@ export function Configuracoes() {
     resetServico,
     salvarServico,
     deletarServicoById,
-    fileInputRef,
-    confirmarImportOpen,
-    handleExportarBackup,
-    abrirSeletorImportar,
-    handleArquivoSelecionado,
-    cancelarImportarBackup,
-    confirmarImportarBackup,
+    isOwner,
     resetModalOpen,     abrirResetModal, cancelarReset,
     resetConfirmText,   setResetConfirmText,
     confirmarReset,
-  } = useConfiguracoes()
+  } = useConfiguracoes(usuarioRole)
 
   const [servModalOpen, setServModalOpen] = useState(false)
   const [servDeletarId, setServDeletarId] = useState<string | null>(null)
@@ -161,15 +160,15 @@ export function Configuracoes() {
         </div>
       </Card>
 
-      {/* Notificações e Preferências */}
+      {/* Preferências */}
       <Card>
         <div className="flex items-center gap-2.5 mb-4">
           <div className="w-8 h-8 bg-accent/10 rounded-lg flex items-center justify-center shrink-0">
-            <Bell size={15} className="text-accent" />
+            <Palette size={15} className="text-accent" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-ui-text">Notificações e Preferências</h2>
-            <p className="text-[11px] text-gray-600">Alertas automáticos e preferências do sistema</p>
+            <h2 className="text-sm font-semibold text-ui-text">Preferências</h2>
+            <p className="text-[11px] text-gray-600">Aparência do sistema</p>
           </div>
         </div>
         <div className="space-y-3">
@@ -192,37 +191,6 @@ export function Configuracoes() {
               </div>
             )
           })}
-        </div>
-      </Card>
-
-      {/* Backup */}
-      <Card>
-        <div className="flex items-center gap-2.5 mb-4">
-          <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center shrink-0">
-            <DatabaseBackup size={15} className="text-blue-400" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-ui-text">Backup</h2>
-            <p className="text-[11px] text-gray-600">Exporte ou restaure os dados deste navegador enquanto a migração para a nuvem não é concluída</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={handleExportarBackup}>
-            <Download size={13} /> Exportar backup agora
-          </Button>
-          <Button size="sm" variant="secondary" onClick={abrirSeletorImportar}>
-            <Upload size={13} /> Importar backup
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={e => {
-              handleArquivoSelecionado(e.target.files?.[0] ?? null)
-              e.target.value = ''
-            }}
-          />
         </div>
       </Card>
 
@@ -255,6 +223,10 @@ export function Configuracoes() {
                   <div key={s.id} className="group px-5 py-3 flex items-center gap-3 hover:bg-surface-600/30 border-b border-ui-border last:border-0 transition-colors">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-ui-text truncate">{s.nome}</p>
+                      <p className="text-[11px] text-gray-600 mt-0.5">
+                        {s.preco !== undefined ? fmt(s.preco) : 'Sem preço definido'}
+                        {s.tempEstimado !== undefined ? ` · ${s.tempEstimado}h estimadas` : ''}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button onClick={() => abrirEditarServico(s)} className="p-1.5 rounded-lg hover:bg-surface-500 text-gray-500 hover:text-ui-text transition-colors">
@@ -272,30 +244,32 @@ export function Configuracoes() {
         )}
       </Card>
 
-      {/* Zona de Perigo */}
-      <Card className="border-red-500/30">
-        <div className="flex items-center gap-2.5 mb-4">
-          <div className="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center shrink-0">
-            <AlertTriangle size={15} className="text-red-400" />
+      {/* Zona de Perigo — só visível ao OWNER da loja */}
+      {isOwner && (
+        <Card className="border-red-500/30">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center shrink-0">
+              <AlertTriangle size={15} className="text-red-400" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-red-400">Zona de Perigo</h2>
+              <p className="text-[11px] text-gray-600">Ações destrutivas — não afetam login, loja ou dados de conta</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-sm font-semibold text-red-400">Zona de Perigo</h2>
-            <p className="text-[11px] text-gray-600">Ações destrutivas — não afetam login, loja ou dados de conta</p>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <p className="text-sm text-ui-text">Resetar dados de teste</p>
+              <p className="text-[11px] text-gray-600 mt-0.5 max-w-md">
+                Apaga clientes, veículos, ordens de serviço, produtos, lançamentos, agendamentos, instaladores,
+                garantias, serviços e meta desta loja. Não afeta seu login nem os dados da loja em "Dados da Loja".
+              </p>
+            </div>
+            <Button size="sm" variant="danger" onClick={abrirResetModal}>
+              <Trash2 size={13} /> Resetar dados de teste
+            </Button>
           </div>
-        </div>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-sm text-ui-text">Resetar dados de teste</p>
-            <p className="text-[11px] text-gray-600 mt-0.5 max-w-md">
-              Apaga clientes, veículos, ordens de serviço, produtos, lançamentos, agendamentos, instaladores,
-              garantias, serviços e meta desta loja. Não afeta seu login nem os dados da loja em "Dados da Loja".
-            </p>
-          </div>
-          <Button size="sm" variant="danger" onClick={abrirResetModal}>
-            <Trash2 size={13} /> Resetar dados de teste
-          </Button>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       {/* Modal Serviço */}
       <Modal
@@ -314,6 +288,32 @@ export function Configuracoes() {
               className={inputCls}
             />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Preço (R$)</label>
+              <input
+                type="number"
+                min={0}
+                step={10}
+                value={servForm.preco}
+                onChange={e => setServForm(p => ({ ...p, preco: e.target.value }))}
+                placeholder="0"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Tempo Estimado (horas)</label>
+              <input
+                type="number"
+                min={0}
+                step={0.5}
+                value={servForm.tempEstimado}
+                onChange={e => setServForm(p => ({ ...p, tempEstimado: e.target.value }))}
+                placeholder="0"
+                className={inputCls}
+              />
+            </div>
+          </div>
           <div className="flex justify-end gap-2 pt-1 border-t border-ui-border">
             <Button variant="secondary" onClick={() => { setServModalOpen(false); resetServico() }}>Cancelar</Button>
             <ActionButton onClick={handleSalvarServico}>{servEditId ? 'Salvar' : 'Adicionar Serviço'}</ActionButton>
@@ -327,15 +327,6 @@ export function Configuracoes() {
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setServDeletarId(null)}>Cancelar</Button>
           <Button variant="danger" onClick={handleDeletarServico}><Trash2 size={14} /> Excluir</Button>
-        </div>
-      </Modal>
-
-      {/* Modal Confirmar Importação de Backup */}
-      <Modal isOpen={confirmarImportOpen} onClose={cancelarImportarBackup} title="Importar Backup" size="sm">
-        <p className="text-sm text-gray-400 mb-5">Isso vai substituir os dados atuais deste navegador. Continuar?</p>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={cancelarImportarBackup}>Cancelar</Button>
-          <Button variant="danger" onClick={confirmarImportarBackup}><Upload size={14} /> Substituir dados</Button>
         </div>
       </Modal>
 

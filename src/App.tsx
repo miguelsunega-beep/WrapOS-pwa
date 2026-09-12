@@ -44,7 +44,7 @@ function AppAutenticado({ usuario }: { usuario: Usuario }) {
             <Route path="financeiro"   element={<Financeiro />}    />
             <Route path="estoque"      element={<Estoque />}       />
             <Route path="equipe"       element={<Equipe />}        />
-            <Route path="configuracoes" element={<Configuracoes />}/>
+            <Route path="configuracoes" element={<Configuracoes usuarioRole={usuario.role} />}/>
             {/* Legacy redirects */}
             <Route path="operacional"  element={<Navigate to="/patio"         replace />} />
             <Route path="relatorios"   element={<Navigate to="/financeiro"    replace />} />

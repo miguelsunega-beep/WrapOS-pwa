@@ -267,7 +267,7 @@ export function useOrdemServico() {
       ...f,
       servicosSel: f.servicosSel.some(s => s.servicoId === id)
         ? f.servicosSel.filter(s => s.servicoId !== id)
-        : [...f.servicosSel, { servicoId: id, valor: 0 }],
+        : [...f.servicosSel, { servicoId: id, valor: servicos.find(s => s.id === id)?.preco ?? 0 }],
     }))
 
   const setValorServico = (id: string, valor: number) =>
