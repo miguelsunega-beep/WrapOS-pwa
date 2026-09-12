@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { AppProvider } from './context/AppContext'
 import { MainLayout }      from './layouts/MainLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { RedefinirSenha } from './components/RedefinirSenha'
 import type { Usuario } from './hooks/useAuth'
 
 // Lazy Loading das páginas pesadas (Code Splitting)
@@ -32,34 +33,41 @@ function AppAutenticado({ usuario }: { usuario: Usuario }) {
 
   return (
     <AppProvider>
-      <BrowserRouter>
-        <Suspense fallback={<div className="flex h-screen items-center justify-center text-ui-text font-medium text-sm">Carregando módulo...</div>}>
-          <Routes>
-            <Route path="/" element={<MainLayout />}>
-              <Route index               element={<Home />} />
-              <Route path="patio"        element={<Patio />}         />
-              <Route path="ordens"       element={<OrdemServico />}  />
-              <Route path="agendamento"  element={<Agendamento />}   />
-              <Route path="clientes"     element={<Clientes />}      />
-              <Route path="financeiro"   element={<Financeiro />}    />
-              <Route path="estoque"      element={<Estoque />}       />
-              <Route path="equipe"       element={<Equipe />}        />
-              <Route path="configuracoes" element={<Configuracoes />}/>
-              {/* Legacy redirects */}
-              <Route path="operacional"  element={<Navigate to="/patio"         replace />} />
-              <Route path="relatorios"   element={<Navigate to="/financeiro"    replace />} />
-              <Route path="garantia"     element={<Navigate to="/clientes"      replace />} />
-              <Route path="precificacao" element={<Navigate to="/configuracoes" replace />} />
-              <Route path="metas"        element={<Navigate to="/equipe"        replace />} />
-              <Route path="avisos"       element={<Navigate to="/patio"         replace />} />
-            </Route>
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
+      <Suspense fallback={<div className="flex h-screen items-center justify-center text-ui-text font-medium text-sm">Carregando módulo...</div>}>
+        <Routes>
+          <Route path="/" element={<MainLayout />}>
+            <Route index               element={<Home />} />
+            <Route path="patio"        element={<Patio />}         />
+            <Route path="ordens"       element={<OrdemServico />}  />
+            <Route path="agendamento"  element={<Agendamento />}   />
+            <Route path="clientes"     element={<Clientes />}      />
+            <Route path="financeiro"   element={<Financeiro />}    />
+            <Route path="estoque"      element={<Estoque />}       />
+            <Route path="equipe"       element={<Equipe />}        />
+            <Route path="configuracoes" element={<Configuracoes />}/>
+            {/* Legacy redirects */}
+            <Route path="operacional"  element={<Navigate to="/patio"         replace />} />
+            <Route path="relatorios"   element={<Navigate to="/financeiro"    replace />} />
+            <Route path="garantia"     element={<Navigate to="/clientes"      replace />} />
+            <Route path="precificacao" element={<Navigate to="/configuracoes" replace />} />
+            <Route path="metas"        element={<Navigate to="/equipe"        replace />} />
+            <Route path="avisos"       element={<Navigate to="/patio"         replace />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </AppProvider>
   )
 }
 
+/**
+ * /redefinir-senha fica FORA do ProtectedRoute de propósito: o link do
+ * email de recuperação abre uma sessão do Supabase Auth como outra
+ * qualquer, e ProtectedRoute trataria isso como login normal (levando pra
+ * dentro do app, sem lugar pra digitar a senha nova). RedefinirSenha.tsx
+ * já se auto-protege: só libera o formulário depois de observar o evento
+ * PASSWORD_RECOVERY do próprio Supabase, então navegar direto pra essa
+ * rota sem vir do link do email não abre a troca de senha.
+ */
 export default function App() {
   return (
     <ThemeProvider>
@@ -74,9 +82,19 @@ export default function App() {
           },
         }}
       />
-      <ProtectedRoute>
-        {usuario => <AppAutenticado usuario={usuario} />}
-      </ProtectedRoute>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                {usuario => <AppAutenticado usuario={usuario} />}
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
     </ThemeProvider>
   )
 }

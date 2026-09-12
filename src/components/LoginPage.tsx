@@ -44,7 +44,9 @@ export function LoginPage() {
     setResetError(null)
     setResetSubmitting(true)
 
-    const { error: err } = await supabase.auth.resetPasswordForEmail(email)
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/redefinir-senha`,
+    })
 
     setResetSubmitting(false)
 
