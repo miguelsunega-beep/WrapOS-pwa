@@ -76,7 +76,7 @@ const inputCls =
   'w-full px-3 py-2 rounded-lg text-[13px] outline-none transition-colors bg-surface-700 border border-ui-border text-ui-text placeholder-gray-600'
 
 export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirmarConcluir, onExcluir }: OSModalProps) {
-  const { servicos, produtos, editarOS, salvarMateriaisOS, lancamentos, deletarLancamento, cancelarOS, registrarPagamentoOS, mudarStatusOS, editarCliente, editarVeiculo } = useApp()
+  const { servicos, produtos, configuracoes, editarOS, salvarMateriaisOS, lancamentos, deletarLancamento, cancelarOS, registrarPagamentoOS, mudarStatusOS, editarCliente, editarVeiculo } = useApp()
 
   const [form, setForm]           = useState<FormState>({ instaladorId: '', formaPagamento: '', observacoes: '', comissao: 0 })
   const [materiais, setMateriais] = useState<MaterialUsado[]>([])
@@ -137,6 +137,15 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
     }
     return sum + (m.custo ?? 0)
   }, 0), [materiais, produtos])
+
+  // Nome/custo por linha de material, resolvido pra exibição no documento impresso.
+  const materiaisImpressao = useMemo(() => materiais.map(m => {
+    if (m.origem === 'estoque') {
+      const p = produtos.find(x => x.id === m.produtoId)
+      return { nome: p?.nome ?? '—', quantidade: m.quantidade, unidade: p?.unidade ?? '' }
+    }
+    return { nome: m.nome ?? '—', quantidade: m.quantidade, unidade: '' }
+  }), [materiais, produtos])
 
   // Compara sempre contra os dados atuais da própria OS (nunca contra um snapshot separado
   // que precisaria ser mantido em sincronia manualmente e poderia ficar desatualizado).
@@ -278,10 +287,87 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
   const nextAction = os ? NEXT_ACTION[os.status] : undefined
   const atrasada = os ? isOSAtrasada(os) : false
 
+  const STATUS_PAGAMENTO_LABEL: Record<string, string> = { pago: 'Pago', a_receber: 'A receber' }
+
   return (
     <AnimatePresence>
       {os && (
         <>
+          {/* ── Documento de impressão (fora do container com scroll/altura fixa) ── */}
+          <style>{`
+            .os-print-only { display: none; }
+            @media print {
+              body * { visibility: hidden !important; }
+              .os-print-only, .os-print-only * { visibility: visible !important; }
+              .os-print-only {
+                display: block !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                padding: 32px;
+                color: #000;
+                background: #fff;
+                font-family: Arial, Helvetica, sans-serif;
+              }
+              .os-print-only h1 { font-size: 18px; margin: 0 0 2px; }
+              .os-print-only h2 { font-size: 13px; margin: 20px 0 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+              .os-print-only p { margin: 2px 0; font-size: 12px; }
+              .os-print-only table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+              .os-print-only th, .os-print-only td { border: 1px solid #000; padding: 6px 10px; font-size: 12px; text-align: left; }
+              .os-print-only th:last-child, .os-print-only td:last-child { text-align: right; }
+              .os-print-only .total { text-align: right; font-size: 14px; font-weight: bold; margin-top: 10px; }
+              .os-print-only .assinatura { margin-top: 56px; width: 300px; border-top: 1px solid #000; padding-top: 4px; font-size: 11px; }
+            }
+          `}</style>
+          <div className="os-print-only">
+            <h1>{configuracoes.nomeLoja}</h1>
+            {(configuracoes.cidade || configuracoes.telefone) && (
+              <p>{[configuracoes.cidade, configuracoes.telefone].filter(Boolean).join(' · ')}</p>
+            )}
+            <p>Ordem de Serviço #{os.numero} — {fmtDate(os.dataCriacao)}</p>
+
+            <h2>Cliente e veículo</h2>
+            <p>Cliente: {cliente?.nome ?? '—'}{cliente?.telefone && ` — ${cliente.telefone}`}</p>
+            <p>
+              Veículo: {veiculo ? `${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} — ${veiculo.cor}` : '—'}
+              {veiculo?.placa && ` — Placa: ${veiculo.placa}`}
+            </p>
+
+            <h2>Serviços</h2>
+            <table>
+              <thead>
+                <tr><th>Serviço</th><th>Valor</th></tr>
+              </thead>
+              <tbody>
+                {servicosForm.map((s, i) => (
+                  <tr key={i}><td>{s.nome}</td><td>{fmt(s.preco)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+
+            {materiaisImpressao.length > 0 && (
+              <>
+                <h2>Materiais utilizados</h2>
+                <table>
+                  <thead>
+                    <tr><th>Material</th><th>Quantidade</th></tr>
+                  </thead>
+                  <tbody>
+                    {materiaisImpressao.map((m, i) => (
+                      <tr key={i}><td>{m.nome}</td><td>{m.quantidade}{m.unidade && ` ${m.unidade}`}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            <p className="total">Total: {fmt(valorTotal)}</p>
+            <p>Status de pagamento: {os.statusPagamento ? STATUS_PAGAMENTO_LABEL[os.statusPagamento] : STATUS_LABEL[os.status]}</p>
+
+            <div className="assinatura">Assinatura do cliente</div>
+          </div>
+
           <motion.div
             key="backdrop"
             initial={{ opacity: 0 }}
