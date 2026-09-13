@@ -446,12 +446,15 @@ export function useAgendamento() {
 
   const handleAprovarEntrada = async (ag: Agendamento) => {
     const servico = servicos.find(s => s.id === ag.servicoId)
+    // Mesma fonte de valor pros dois campos — valor negociado no agendamento,
+    // com fallback pro preço de catálogo — pra nunca divergir entre si.
+    const valor = ag.valor ?? servico?.preco ?? 0
     try {
       await adicionarOSSequencial({
         clienteId:      ag.clienteId,
         veiculoId:      ag.veiculoId,
-        servicos:       servico ? [{ servicoId: ag.servicoId, nome: servico.nome, preco: servico.preco ?? 0 }] : [],
-        valorTotal:     ag.valor ?? servico?.preco ?? 0,
+        servicos:       servico ? [{ servicoId: ag.servicoId, nome: servico.nome, preco: valor }] : [],
+        valorTotal:     valor,
         formaPagamento: 'A definir',
         instaladorId:   ag.instaladorId,
         box:            ag.box,
