@@ -6,6 +6,7 @@ import { AppProvider } from './context/AppContext'
 import { MainLayout }      from './layouts/MainLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RedefinirSenha } from './components/RedefinirSenha'
+import { Cadastro } from './components/Cadastro'
 import type { Usuario } from './hooks/useAuth'
 
 // Lazy Loading das páginas pesadas (Code Splitting)
@@ -67,6 +68,10 @@ function AppAutenticado({ usuario }: { usuario: Usuario }) {
  * já se auto-protege: só libera o formulário depois de observar o evento
  * PASSWORD_RECOVERY do próprio Supabase, então navegar direto pra essa
  * rota sem vir do link do email não abre a troca de senha.
+ *
+ * /cadastro também fica FORA do ProtectedRoute, pelo motivo oposto: é
+ * intencionalmente pública (cadastro self-serve, ver migration 023 e
+ * Cadastro.tsx) — quem abre essa rota ainda não tem sessão nenhuma.
  */
 export default function App() {
   return (
@@ -85,6 +90,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+          <Route path="/cadastro" element={<Cadastro />} />
           <Route
             path="/*"
             element={

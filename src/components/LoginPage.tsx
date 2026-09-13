@@ -174,13 +174,18 @@ export function LoginPage() {
               </form>
             )}
 
-            <div className="mt-5 pt-4 border-t border-ui-border text-center">
+            <div className="mt-5 pt-4 border-t border-ui-border text-center space-y-2">
               <button
                 onClick={toggleReset}
-                className="text-xs text-gray-500 hover:text-accent transition-colors"
+                className="block w-full text-xs text-gray-500 hover:text-accent transition-colors"
               >
                 {showReset ? 'Já tem a senha? Entrar' : 'Esqueci minha senha'}
               </button>
+              {!showReset && (
+                <a href="/cadastro" className="block text-xs text-gray-500 hover:text-accent transition-colors">
+                  Não tem conta? Criar conta
+                </a>
+              )}
             </div>
           </motion.div>
         </AnimatePresence>

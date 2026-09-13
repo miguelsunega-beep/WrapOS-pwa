@@ -124,6 +124,18 @@ USING (
 -- deste arquivo tinha o padrão de subquery aqui e quebrava todo login.
 -- A policy real de produção compara "authUserId" direto com auth.uid(),
 -- sem subquery nem SELECT em "usuarios".
+--
+-- WITH CHECK (false) adicionado na migration 023 (2026-09-13, cadastro
+-- self-serve): sem WITH CHECK, o Postgres reusava o USING acima também pra
+-- validar INSERT/UPDATE — como o USING só checa authUserId (não lojaId nem
+-- role), qualquer usuário autenticado conseguia se auto-inserir com o
+-- lojaId de QUALQUER loja existente e role OWNER, ou um usuário já vinculado
+-- podia trocar seu próprio lojaId/role por UPDATE. Achado durante a
+-- investigação do cadastro self-serve, corrigido junto (nenhum código do
+-- app faz INSERT/UPDATE em usuarios — só SELECT — então travar os dois não
+-- quebra nada existente). A única escrita em "usuarios" a partir de agora é
+-- via handle_novo_usuario() (SECURITY DEFINER, roda como postgres, que tem
+-- rolbypassrls=true — ignora esta policy por completo).
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "usuarios_por_loja" ON "public"."usuarios";
@@ -133,7 +145,8 @@ FOR ALL
 TO public
 USING (
   ("authUserId" = (auth.uid())::text)
-);
+)
+WITH CHECK (false);
 
 
 -- ── clientes ─────────────────────────────────────────────────────────────

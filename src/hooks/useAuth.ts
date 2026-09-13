@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { User } from '@supabase/supabase-js'
+import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
 export interface Usuario {
@@ -66,9 +66,27 @@ export function useAuth() {
     return { error: error?.message ?? null }
   }
 
-  async function signUp(email: string, password: string): Promise<AuthResult> {
-    const { error } = await supabase.auth.signUp({ email, password })
-    return { error: error?.message ?? null }
+  /**
+   * `metadata` vira `raw_user_meta_data` em auth.users — é o que a trigger
+   * `handle_novo_usuario()` (migration 023) lê pra provisionar `lojas`/
+   * `usuarios` automaticamente (chaves `nome_loja`/`nome_usuario`, usadas
+   * pela tela de Cadastro). `session` no retorno diz se a confirmação de
+   * email está desabilitada no projeto: vem preenchida quando o Supabase já
+   * loga o usuário no próprio signUp, `null` quando ele precisa confirmar o
+   * email antes — Cadastro.tsx decide a mensagem pós-cadastro com isso, sem
+   * precisar saber esse toggle de antemão.
+   */
+  async function signUp(
+    email: string,
+    password: string,
+    metadata?: Record<string, string>,
+  ): Promise<AuthResult & { session: Session | null }> {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      ...(metadata ? { options: { data: metadata } } : {}),
+    })
+    return { error: error?.message ?? null, session: data?.session ?? null }
   }
 
   async function signOut() {
