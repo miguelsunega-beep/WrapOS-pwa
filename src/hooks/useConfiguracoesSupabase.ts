@@ -6,25 +6,40 @@ import type { Configuracoes } from '../types'
 const uid = () => Math.random().toString(36).slice(2, 10)
 
 /**
- * Valores padrão pra uma loja nova sem linha em `configuracoes` ainda —
- * mesmos de `initialConfiguracoes` em AppContext.tsx (duplicado aqui, mesmo
- * motivo de `META_PADRAO` em useMetasSupabase.ts: evitar import circular
- * hook↔contexto). `configuracoes` é objeto singleton, não lista — mesmo
- * raciocínio de useMetasSupabase.ts, mas aqui ainda mais crítico: `useHome.ts`
- * chama `configuracoes.nomeLoja.split(' ')` sem nenhuma guarda, então um
- * objeto vazio quebraria a Home logo no primeiro render.
+ * Valores padrão pra uma loja sem linha em `configuracoes` ainda — usado só
+ * como fallback pro fluxo manual de "adicionar funcionário a uma loja já
+ * existente" (ver CLAUDE.md), que não passa por `handle_novo_usuario()` com
+ * `nome_loja` no metadata; contas criadas via `/cadastro` já ganham a linha
+ * direto na trigger (migration 024). `nomeLoja` NUNCA é inventado aqui —
+ * sempre herdado de `lojas.nome` (única fonte de verdade do nome real da
+ * loja) pelo chamador. cidade/telefone/email ficam sempre `''` (nunca
+ * `null` — as 3 colunas são NOT NULL sem default — e nunca um placeholder de
+ * exemplo tipo "WrapOS Studio"/"São Paulo"/"(11) 3456-7890"/
+ * "contato@wrapos.com.br", que é exatamente o bug que isto substitui —
+ * investigação de 2026-09-13 achou 3 lojas reais de produção com esse
+ * placeholder persistido como se fosse dado real). corPrimaria/numeroBoxes/
+ * comissaoPadrao mantêm os mesmos defaults de sempre — não são dado de
+ * identidade da loja.
+ *
+ * `configuracoes` é objeto singleton, não lista — mesmo raciocínio de
+ * useMetasSupabase.ts, mas aqui ainda mais crítico: `useHome.ts` chama
+ * `configuracoes.nomeLoja.split(' ')` sem nenhuma guarda — `''.split(' ')[0]`
+ * retorna `''` (não quebra), então o estado inicial pré-fetch usa
+ * `nomeLoja: ''` sem risco de crash na Home.
  */
-const CONFIGURACOES_PADRAO: Configuracoes = {
-  nomeLoja: 'WrapOS Studio',
-  cidade: 'São Paulo',
-  telefone: '(11) 3456-7890',
-  email: 'contato@wrapos.com.br',
-  corPrimaria: '#E94560',
-  numeroBoxes: 6,
-  comissaoPadrao: 12,
-  notifEstoque: true,
-  notifGarantia: true,
-  notifPosVenda: true,
+function configuracoesPadrao(nomeLoja: string): Configuracoes {
+  return {
+    nomeLoja,
+    cidade: '',
+    telefone: '',
+    email: '',
+    corPrimaria: '#E94560',
+    numeroBoxes: 6,
+    comissaoPadrao: 12,
+    notifEstoque: true,
+    notifGarantia: true,
+    notifPosVenda: true,
+  }
 }
 
 function normalizarConfiguracoes(row: Record<string, unknown>): Configuracoes {
@@ -61,7 +76,7 @@ function paraLinha(id: string, lojaId: string, c: Configuracoes) {
  * linha (o tipo `Configuracoes` do frontend nem expõe `id`).
  */
 export function useConfiguracoesSupabase(lojaId: string) {
-  const [configuracoes, setConfiguracoes] = useState<Configuracoes>(CONFIGURACOES_PADRAO)
+  const [configuracoes, setConfiguracoes] = useState<Configuracoes>(configuracoesPadrao(''))
 
   useEffect(() => {
     let cancelado = false
@@ -85,7 +100,19 @@ export function useConfiguracoesSupabase(lojaId: string) {
         return
       }
 
-      const valorInicial = CONFIGURACOES_PADRAO
+      // Sem linha ainda — só acontece hoje pro fluxo manual de funcionário
+      // (ver comentário de configuracoesPadrao acima; contas de /cadastro já
+      // ganham a linha na trigger). Herda o nome real da loja — nunca um
+      // placeholder inventado.
+      const { data: lojaRow } = await supabase
+        .from('lojas')
+        .select('nome')
+        .eq('id', lojaId)
+        .maybeSingle()
+
+      if (cancelado) return
+
+      const valorInicial = configuracoesPadrao(lojaRow?.nome ?? '')
       const { data: inserida, error: erroInsert } = await supabase
         .from('configuracoes')
         .insert(paraLinha(uid(), lojaId, valorInicial))
