@@ -26,6 +26,17 @@ function minutosAte(horario: string): number {
   return (hh * 60 + (mm ?? 0)) - (agora.getHours() * 60 + agora.getMinutes())
 }
 
+/** "Hoje" / "Amanhã" / abreviação tipo "Seg, 15" para datas mais distantes. */
+function formatDiaRelativo(dataISO: string, hoje: string): string {
+  if (dataISO === hoje) return 'Hoje'
+  const amanha = new Date(hoje + 'T12:00:00')
+  amanha.setDate(amanha.getDate() + 1)
+  if (dataISO === amanha.toLocaleDateString('sv-SE')) return 'Amanhã'
+  const d = new Date(dataISO + 'T12:00:00')
+  const diaSemana = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
+  return `${diaSemana.charAt(0).toUpperCase()}${diaSemana.slice(1)}, ${d.getDate()}`
+}
+
 function tempoAtrasado(dataSaida: string): string {
   const prazo = new Date(dataSaida + 'T23:59:59')
   const diff  = Math.floor((Date.now() - prazo.getTime()) / 60000)
@@ -74,14 +85,14 @@ export interface PulsoData {
   concluido: number
 }
 
-export interface ProximaHoraItem {
+export interface ProximoAgendamentoData {
   id: string
+  diaLabel: string
   horario: string
-  veiculo: string
-  servico: string
-  responsavel: string
-  statusTag: string
-  statusTema: 'blue' | 'gray' | 'green' | 'red'
+  clienteVeiculo: string
+  servicoNome: string
+  statusLabel: string
+  box: number
 }
 
 // ── Hook ───────────────────────────────────────────────────────────
@@ -90,7 +101,7 @@ export function useHome() {
   const navigate = useNavigate()
   const {
     ordens, agendamentos, produtos, lancamentos, meta,
-    veiculos, instaladores, servicos, configuracoes,
+    clientes, veiculos, instaladores, servicos, configuracoes,
   } = useApp()
 
   const agora      = new Date()
@@ -291,41 +302,37 @@ export function useHome() {
     return result
   }, [ordens, produtos, agendamentos, veiculos, servicos, instaladores, hoje, navigate])
 
-  // ── Próximas horas ──────────────────────────────────────────────
-  const proximasHoras = useMemo((): ProximaHoraItem[] =>
-    agendamentos
-      .filter(a => a.data === hoje)
-      .sort((a, b) => a.horario.localeCompare(b.horario))
-      .slice(0, 5)
-      .map(a => {
-        const v    = veiculos.find(vv => vv.id === a.veiculoId)
-        const svc  = servicos.find(s  => s.id  === a.servicoId)
-        const inst = instaladores.find(i => i.id === a.instaladorId)
-        const ef   = getStatusEfetivo(a, ordens)
+  // ── Próximo agendamento (qualquer data futura, não só hoje) ──────
+  // Mesma lógica de seleção do card de destaque em useAgendamento.ts
+  // (proximoAgendamento): status efetivo 'agendado' (cobre agendado e
+  // confirmado — getStatusEfetivo não distingue os dois sem OS vinculada),
+  // timestamp >= agora, mais próximo primeiro.
+  const proximoAgendamento = useMemo((): ProximoAgendamentoData | null => {
+    const nowHM = agora.toTimeString().slice(0, 5)
+    const candidato = [...agendamentos]
+      .filter(a => getStatusEfetivo(a, ordens) === 'agendado')
+      .filter(a => a.data > hoje || (a.data === hoje && a.horario >= nowHM))
+      .sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario))[0]
 
-        let statusTag: string
-        let statusTema: ProximaHoraItem['statusTema']
+    if (!candidato) return null
 
-        if      (ef === 'concluido')     { statusTag = 'Entrega';       statusTema = 'green' }
-        else if (ef === 'em_andamento')  { statusTag = 'Em andamento';  statusTema = 'blue'  }
-        else if (ef === 'os_cancelada')  { statusTag = 'Cancelado';     statusTema = 'red'   }
-        else {
-          const mins = minutosAte(a.horario)
-          statusTag  = mins > 0 && mins <= 90 ? 'Check-in' : 'Agendado'
-          statusTema = mins > 0 && mins <= 90 ? 'blue'     : 'gray'
-        }
+    const cliente = clientes.find(c => c.id === candidato.clienteId)
+    const veic    = veiculos.find(v => v.id === candidato.veiculoId)
+    const servico = servicos.find(s => s.id === candidato.servicoId)
 
-        return {
-          id:          a.id,
-          horario:     a.horario,
-          veiculo:     v    ? `${v.marca} ${v.modelo}` : 'Veículo',
-          servico:     svc  ? svc.nome                 : '',
-          responsavel: inst ? inst.nome                : '',
-          statusTag,
-          statusTema,
-        }
-      }),
-  [agendamentos, hoje, veiculos, servicos, instaladores, ordens])
+    const clienteVeiculo = [cliente?.nome, veic ? `${veic.modelo} ${veic.ano}` : null]
+      .filter(Boolean).join(' · ') || '—'
+
+    return {
+      id:             candidato.id,
+      diaLabel:       formatDiaRelativo(candidato.data, hoje),
+      horario:        candidato.horario,
+      clienteVeiculo,
+      servicoNome:    servico?.nome ?? 'Serviço não definido',
+      statusLabel:    candidato.status === 'confirmado' ? 'Confirmado' : 'Agendado',
+      box:            candidato.box,
+    }
+  }, [agendamentos, ordens, clientes, veiculos, servicos, hoje, agora])
 
   // ── Return ──────────────────────────────────────────────────────
   const nomePerfil    = configuracoes.nomeLoja.split(' ')[0]
@@ -346,7 +353,7 @@ export function useHome() {
     faltamStr:         fmt(faltam),
     diasRestantes,
     equipe,
-    proximasHoras,
+    proximoAgendamento,
     irParaAgendamento: () => navigate('/agendamento'),
     irParaPatio:       () => navigate('/patio'),
     irParaNovaOS:      () => navigate('/ordens', { state: { novaOS: true } }),

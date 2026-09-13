@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useHome } from '../hooks/useHome'
-import type { ProximaHoraItem } from '../hooks/useHome'
 import { AcaoCard } from '../components/AcaoCard'
 import { KpiCard } from '../components/KpiCard'
 import { PulsoPatioBar } from '../components/PulsoPatioBar'
@@ -22,7 +21,7 @@ export function Home() {
     faltamStr,
     diasRestantes,
     equipe,
-    proximasHoras,
+    proximoAgendamento,
     irParaAgendamento,
     irParaPatio,
     irParaNovaOS,
@@ -123,7 +122,7 @@ export function Home() {
             onAbrir={irParaPatio}
           />
 
-          {/* Próximas horas */}
+          {/* Próximo agendamento */}
           <section
             className="rounded-[10px] overflow-hidden"
             style={{ background: 'var(--wrap-surface)', border: '1px solid var(--wrap-border)' }}
@@ -133,7 +132,7 @@ export function Home() {
               style={{ borderBottom: '1px solid var(--wrap-border)' }}
             >
               <h2 className="text-sm font-semibold" style={{ color: 'var(--wrap-text)' }}>
-                Próximas horas
+                Próximo agendamento
               </h2>
               <button
                 onClick={irParaAgendamento}
@@ -144,15 +143,45 @@ export function Home() {
               </button>
             </div>
 
-            {proximasHoras.length === 0 ? (
+            {!proximoAgendamento ? (
               <p className="py-8 text-center text-sm" style={{ color: 'var(--wrap-muted)' }}>
-                Nenhum agendamento para hoje.
+                Nenhum agendamento futuro.
               </p>
             ) : (
-              <div style={{ '--divider': 'var(--wrap-border)' } as React.CSSProperties}>
-                {proximasHoras.map((item, i) => (
-                  <ProximaHoraRow key={item.id} item={item} isLast={i === proximasHoras.length - 1} />
-                ))}
+              <div className="flex gap-3 md:gap-4 px-4 py-3.5 md:px-5 md:py-4">
+                <div className="flex flex-col items-start shrink-0 w-12">
+                  <span
+                    className="text-[11px] font-semibold uppercase tracking-wide"
+                    style={{ color: 'var(--wrap-accent)' }}
+                  >
+                    {proximoAgendamento.diaLabel}
+                  </span>
+                  <span className="text-[20px] font-medium mt-1" style={{ color: 'var(--wrap-text)' }}>
+                    {proximoAgendamento.horario}
+                  </span>
+                </div>
+
+                <div className="shrink-0 self-stretch" style={{ width: '0.5px', background: 'var(--wrap-border)' }} />
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate" style={{ color: 'var(--wrap-text)' }}>
+                    {proximoAgendamento.clienteVeiculo}
+                  </p>
+                  <p className="text-xs truncate mt-0.5" style={{ color: 'var(--wrap-muted)' }}>
+                    {proximoAgendamento.servicoNome}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: 'rgb(var(--wrap-accent-rgb) / 0.15)', color: 'var(--wrap-accent)' }}
+                    >
+                      {proximoAgendamento.statusLabel}
+                    </span>
+                    <span className="text-[11px]" style={{ color: 'var(--wrap-muted)' }}>
+                      Box {proximoAgendamento.box}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </section>
@@ -280,49 +309,6 @@ export function Home() {
         onClose={() => setCheckinAgendamentoId(null)}
         agendamentoId={checkinAgendamentoId ?? undefined}
       />
-    </div>
-  )
-}
-
-// ── Internal sub-components ────────────────────────────────────────
-
-function ProximaHoraRow({ item, isLast }: { item: ProximaHoraItem; isLast: boolean }) {
-  const tagColors: Record<string, string> = {
-    blue:  'bg-blue-500/15 text-blue-400',
-    green: 'bg-emerald-500/15 text-emerald-400',
-    red:   'bg-red-500/15 text-red-400',
-    gray:  '',
-  }
-  const tagStyle = tagColors[item.statusTema] ?? ''
-
-  return (
-    <div
-      className="px-5 py-3 flex items-center gap-3"
-      style={!isLast ? { borderBottom: '1px solid var(--wrap-border)' } : undefined}
-    >
-      <p className="text-sm font-bold w-14 shrink-0" style={{ color: 'var(--wrap-text)' }}>
-        {item.horario}
-      </p>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold truncate" style={{ color: 'var(--wrap-text)' }}>
-          {item.veiculo}
-        </p>
-        <p className="text-xs truncate" style={{ color: 'var(--wrap-muted)' }}>
-          {[item.servico, item.responsavel].filter(Boolean).join(' · ')}
-        </p>
-      </div>
-      {tagStyle ? (
-        <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${tagStyle}`}>
-          {item.statusTag}
-        </span>
-      ) : (
-        <span
-          className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-          style={{ background: 'var(--wrap-surface2)', color: 'var(--wrap-muted)' }}
-        >
-          {item.statusTag}
-        </span>
-      )}
     </div>
   )
 }
