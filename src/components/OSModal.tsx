@@ -378,17 +378,15 @@ export function OSModal({ os, cliente, veiculo, instaladores, onClose, onConfirm
             style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
           />
 
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay-safe">
             <motion.div
               key="os-modal"
               initial={{ opacity: 0, scale: 0.97, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.97, y: 8 }}
               transition={{ type: 'spring', stiffness: 340, damping: 32 }}
-              className="relative flex flex-col rounded-2xl overflow-hidden"
+              className="relative flex flex-col rounded-2xl overflow-hidden os-modal-size"
               style={{
-                width: 'min(75vw, 960px)',
-                height: 'min(80vh, 800px)',
                 backgroundColor: 'var(--wrap-surface)',
                 border: '1px solid var(--wrap-border2)',
                 boxShadow: '0 24px 60px rgba(0,0,0,0.45)',

@@ -312,8 +312,10 @@ export function OrdemServico() {
         title="Nova Ordem de Serviço"
         size="xl"
       >
-        {/* Área scrollável */}
-        <div className="space-y-6 max-h-[62vh] overflow-y-auto pr-2 -mr-2">
+        {/* Área scrollável — no celular, a altura é o que sobra da tela visível
+            depois do cabeçalho e do rodapé (Valor Total + Salvar), pra o botão
+            Salvar nunca ficar escondido atrás da barra do Safari */}
+        <div className="space-y-6 max-h-[calc(100dvh_-_20rem_-_var(--safe-top)_-_var(--safe-bottom))] md:max-h-[62vh] overflow-y-auto pr-2 -mr-2">
 
           {/* ── Seção 1: Cliente & Veículo ── */}
           <section className="space-y-3">

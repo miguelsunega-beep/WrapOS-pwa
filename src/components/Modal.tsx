@@ -33,7 +33,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay-safe">
           <motion.div
             className="absolute inset-0 bg-black/65 backdrop-blur-[2px]"
             initial={{ opacity: 0 }}
@@ -43,14 +43,14 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             onClick={onClose}
           />
           <motion.div
-            className={`relative bg-surface-800 border border-ui-border rounded-2xl shadow-2xl w-full ${sizes[size]}`}
+            className={`relative max-md:flex max-md:flex-col modal-panel-mobile bg-surface-800 border border-ui-border rounded-2xl shadow-2xl w-full ${sizes[size]}`}
             style={{ borderColor: 'var(--wrap-border2)' }}
             initial={{ opacity: 0, scale: 0.96, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-ui-border">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-ui-border shrink-0">
               <h2 className="text-[15px] font-semibold text-ui-text">{title}</h2>
               <button
                 onClick={onClose}
@@ -59,7 +59,8 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
                 <X size={15} />
               </button>
             </div>
-            <div className="p-6">{children}</div>
+            {/* No celular o corpo rola por dentro (o painel tem altura máxima); no desktop fica como sempre foi */}
+            <div className="p-6 max-md:overflow-y-auto max-md:min-h-0">{children}</div>
           </motion.div>
         </div>
       )}

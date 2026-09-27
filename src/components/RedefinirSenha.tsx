@@ -73,7 +73,7 @@ export function RedefinirSenha() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-900 flex flex-col items-center justify-center p-6">
+    <div className="min-h-app bg-surface-900 flex flex-col items-center justify-center p-6">
       <div className="flex items-center gap-2.5 mb-8">
         <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shrink-0">
           <Film size={20} className="text-white" />

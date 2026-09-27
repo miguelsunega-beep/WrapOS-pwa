@@ -214,7 +214,8 @@ function FiltrosSheet({ open, onClose, ...filtrosProps }: FiltrosSheetProps) {
             onClick={onClose}
           />
           <motion.div
-            className="relative w-full max-h-[80vh] overflow-y-auto bg-surface-800 border-t border-ui-border rounded-t-2xl p-5"
+            className="relative w-full max-h-[80dvh] overflow-y-auto bg-surface-800 border-t border-ui-border rounded-t-2xl p-5"
+            style={{ paddingBottom: 'calc(1.25rem + var(--safe-bottom))' }}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}

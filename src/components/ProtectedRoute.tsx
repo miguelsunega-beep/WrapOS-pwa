@@ -9,7 +9,7 @@ export function ProtectedRoute({ children }: { children: (usuario: Usuario) => R
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface-900 flex items-center justify-center">
+      <div className="min-h-app bg-surface-900 flex items-center justify-center">
         <Loader2 size={24} className="animate-spin text-accent" />
       </div>
     )

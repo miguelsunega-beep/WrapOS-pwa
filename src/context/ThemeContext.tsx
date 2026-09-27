@@ -22,6 +22,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       root.classList.remove('dark')
     }
     localStorage.setItem('wrapos_theme', theme)
+
+    // Safari no iPhone pinta a área da barra de status/endereço com o
+    // theme-color: acompanha a cor da barra do topo do tema atual.
+    const surface = getComputedStyle(root).getPropertyValue('--wrap-surface').trim()
+    document.querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', surface || (theme === 'dark' ? '#13161e' : '#ffffff'))
   }, [theme])
 
   const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))

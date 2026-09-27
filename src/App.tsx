@@ -34,7 +34,7 @@ function AppAutenticado({ usuario }: { usuario: Usuario }) {
 
   return (
     <AppProvider usuarioId={usuario.id} usuarioNome={usuario.nome}>
-      <Suspense fallback={<div className="flex h-screen items-center justify-center text-ui-text font-medium text-sm">Carregando módulo...</div>}>
+      <Suspense fallback={<div className="flex h-app items-center justify-center text-ui-text font-medium text-sm">Carregando módulo...</div>}>
         <Routes>
           <Route path="/" element={<MainLayout />}>
             <Route index               element={<Home />} />
@@ -78,6 +78,7 @@ export default function App() {
     <ThemeProvider>
       <Toaster
         position="bottom-right"
+        mobileOffset={{ bottom: 'calc(16px + var(--safe-bottom))' }}
         toastOptions={{
           style: {
             background: 'var(--surface-700)',

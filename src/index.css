@@ -38,6 +38,54 @@ body {
   transition: background-color 0.2s, color 0.2s;
 }
 
+/* ── iPhone: áreas seguras e altura visível ───────────────────── */
+/* env(safe-area-inset-*) só vale mais que 0 com viewport-fit=cover (index.html).
+   No Safari em pé o topo fica 0 (a barra do navegador cobre); no atalho da tela
+   inicial ("app") o topo vale a altura da barra de status e o fundo, a da barra
+   de gestos. No desktop tudo é 0. */
+:root {
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+  /* No atalho da tela inicial o iPhone escreve hora/bateria em BRANCO por cima
+     do app (status-bar-style black-translucent): no tema claro a faixa atrás
+     delas precisa ser escura pra ficar legível. */
+  --statusbar-bg: #0d0f14;
+}
+html.dark { --statusbar-bg: var(--wrap-surface); }
+
+/* 100vh no iPhone é maior que a área visível do Safari e esconde a barra de
+   baixo atrás da barra do navegador; 100dvh acompanha a área visível. A 1ª
+   linha é o fallback pra navegador sem dvh. */
+.h-app     { height: 100vh; height: 100dvh; }
+.min-h-app { min-height: 100vh; min-height: 100dvh; }
+
+/* Barra que encosta no topo da tela: faixa da barra de status + superfície.
+   Com --safe-top = 0 (Safari, desktop) é só a superfície. */
+.bg-surface-statusbar {
+  background: linear-gradient(to bottom, var(--statusbar-bg) var(--safe-top), var(--wrap-surface) var(--safe-top));
+}
+
+/* Overlay de modal centralizado: 1rem de margem + área segura de cada lado
+   (igual a p-4 no desktop). */
+.modal-overlay-safe {
+  padding: calc(1rem + var(--safe-top)) calc(1rem + var(--safe-right)) calc(1rem + var(--safe-bottom)) calc(1rem + var(--safe-left));
+}
+/* Overlay de tela cheia (fixed inset-0) renderizado dentro de container com
+   space-y-* herdava margin-top: descia 20px (o fundo escuro não cobria o topo
+   e o modal ficava deslocado pra baixo). Overlay fixo nunca tem margem. */
+.fixed.inset-0 { margin: 0 !important; }
+
+/* Painel de modal que nunca passa da área visível (descontando notch e barra de gestos) */
+.max-h-modal {
+  max-height: 90vh;
+  max-height: min(90dvh, calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom)));
+}
+
+/* Tamanho do modal de detalhe da OS (OSModal) */
+.os-modal-size { width: min(75vw, 960px); height: min(80vh, 800px); }
+
 /* ── Scrollbar ────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--surface-800); }
@@ -53,6 +101,27 @@ input[type='time'],
 select,
 textarea {
   outline: none;
+}
+
+/* ── Celular (< 768px, mesmo corte do MainLayout) ──────────────── */
+@media (max-width: 767.98px) {
+  /* iPhone: campo com letra menor que 16px faz o Safari dar zoom sozinho ao
+     tocar, e a tela fica fora de proporção. No desktop nada muda. */
+  input, select, textarea { font-size: 16px !important; }
+
+  /* Modal genérico (Modal.tsx): rola por dentro em vez de vazar da tela */
+  .modal-panel-mobile {
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom));
+  }
+
+  /* Detalhe da OS: largura toda e altura da área visível (no desktop continua
+     75vw × 80vh) */
+  .os-modal-size {
+    width: 100%;
+    height: calc(100vh - 2rem);
+    height: calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom));
+  }
 }
 
 /* ── Skeleton shimmer ─────────────────────────────────────────── */

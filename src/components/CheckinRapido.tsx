@@ -369,7 +369,7 @@ export function CheckinRapido({
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center modal-overlay-safe"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -378,8 +378,7 @@ export function CheckinRapido({
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
           <motion.div
-            className="relative z-10 w-full max-w-[560px] bg-surface-800 rounded-2xl border border-ui-border shadow-2xl flex flex-col"
-            style={{ maxHeight: '90vh' }}
+            className="relative z-10 w-full max-w-[560px] max-h-modal bg-surface-800 rounded-2xl border border-ui-border shadow-2xl flex flex-col"
             initial={{ scale: 0.96, opacity: 0, y: 12 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.96, opacity: 0, y: 12 }}

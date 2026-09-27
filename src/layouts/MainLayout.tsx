@@ -126,7 +126,9 @@ const DRAWER_ITEMS: NavItem[] = [
 
 const sidebarBg: CSSProperties     = { background: 'var(--wrap-surface)', borderRight: '1px solid var(--wrap-border)' }
 const topbarStyle: CSSProperties   = { background: 'var(--wrap-surface)', borderBottom: '1px solid var(--wrap-border)', height: 52 }
-const rootStyle: CSSProperties     = { background: 'var(--wrap-bg)', color: 'var(--wrap-text)' }
+// iPhone: topo e fundo ganham a área segura (barra de status / barra de gestos) — 0 fora do atalho da tela inicial
+const topbarMobileStyle: CSSProperties = { borderBottom: '1px solid var(--wrap-border)', height: 'calc(52px + var(--safe-top))', paddingTop: 'var(--safe-top)' }
+const rootStyle: CSSProperties     = { background: 'var(--wrap-bg)', color: 'var(--wrap-text)', paddingLeft: 'var(--safe-left)', paddingRight: 'var(--safe-right)' }
 const mutedText: CSSProperties     = { color: 'var(--wrap-muted)' }
 const wrapText: CSSProperties      = { color: 'var(--wrap-text)' }
 const accentText: CSSProperties    = { color: 'var(--wrap-accent)' }
@@ -228,7 +230,7 @@ export function MainLayout() {
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen overflow-hidden" style={rootStyle}>
+    <div className="flex h-app overflow-hidden" style={rootStyle}>
 
       {/* ══════════════════════ SIDEBAR (desktop only) ══════════════════════ */}
       {/* Mudança 4: sidebar só no desktop */}
@@ -453,8 +455,8 @@ export function MainLayout() {
         {/* ─────────── TOPBAR MOBILE (só mobile) ─────────── */}
         {isMobile && (
           <header
-            style={topbarStyle}
-            className="flex items-center gap-2 px-3 shrink-0"
+            style={topbarMobileStyle}
+            className="bg-surface-statusbar flex items-center gap-2 px-3 shrink-0"
           >
             <button
               onClick={() => setDrawerOpen(true)}
@@ -500,7 +502,7 @@ export function MainLayout() {
         {/* Bottom nav (mobile) com botão central de ação */}
         {isMobile && (
           <nav
-            style={{ background: 'var(--wrap-surface)', borderTop: '1px solid var(--wrap-border)' }}
+            style={{ background: 'var(--wrap-surface)', borderTop: '1px solid var(--wrap-border)', paddingBottom: 'var(--safe-bottom)' }}
             className="flex items-stretch justify-around shrink-0 relative"
           >
             {BOTTOM_NAV_LEFT.map(item => {
@@ -585,8 +587,8 @@ export function MainLayout() {
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ type: 'tween', duration: 0.22, ease: 'easeOut' }}
-              style={sidebarBg}
-              className="fixed left-0 top-0 bottom-0 z-50 w-[260px] flex flex-col"
+              style={{ borderRight: '1px solid var(--wrap-border)', paddingTop: 'var(--safe-top)', paddingBottom: 'var(--safe-bottom)' }}
+              className="bg-surface-statusbar fixed left-0 top-0 bottom-0 z-50 w-[260px] flex flex-col"
             >
               <div
                 className="flex items-center gap-2.5 px-4"
@@ -685,8 +687,8 @@ export function MainLayout() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.97 }}
               transition={{ duration: 0.14 }}
-              style={{ background: 'var(--wrap-surface)', border: '1px solid var(--wrap-border2)' }}
-              className="fixed z-50 right-3 top-14 w-[min(20rem,calc(100vw-1.5rem))] rounded-xl shadow-2xl overflow-hidden"
+              style={{ background: 'var(--wrap-surface)', border: '1px solid var(--wrap-border2)', top: 'calc(3.5rem + var(--safe-top))' }}
+              className="fixed z-50 right-3 w-[min(20rem,calc(100vw-1.5rem))] rounded-xl shadow-2xl overflow-hidden"
             >
               <div className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--wrap-border)' }}>
                 <p className="text-[11px] font-semibold" style={wrapText}>Alertas do sistema</p>
