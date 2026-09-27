@@ -139,6 +139,16 @@ Criado quando todos os dados de negócio (clientes, ordens, agendamentos, financ
 Fontes: Syne (títulos, `font-display`) + DM Sans (corpo, `font-sans`).
 Cor de acento (`--wrap-accent-rgb`) é injetada em runtime via ThemeContext.
 
+## Mobile / iPhone — convenções (commit `63333c8`, 2026-09-27)
+O único usuário real hoje (loja Germany) usa **iPhone**, tanto no Safari quanto pelo atalho na tela inicial (modo "app"). Corte de mobile = `< 768px`, o mesmo do `getBreakpoint` do MainLayout e do `md:` do Tailwind. Mudanças de mobile ficam atrás de `md:`/`max-md:` ou do bloco `@media (max-width: 767.98px)` de `src/index.css` — o desktop não muda sem pedido explícito.
+- **Altura de tela cheia: nunca `h-screen`/`min-h-screen`/`100vh`** — usar as classes `h-app`/`min-h-app` (`src/index.css`: `100vh` de fallback + `100dvh`). No Safari do iPhone, 100vh é maior que a área visível e a bottom nav ficava escondida atrás da barra do navegador.
+- **Áreas seguras**: `viewport-fit=cover` no `index.html` liga as variáveis `--safe-top`/`--safe-bottom`/`--safe-left`/`--safe-right` (`env(safe-area-inset-*)`, 0 no desktop e no Safari em pé; no atalho da tela inicial valem a barra de status e a barra de gestos). Todo elemento fixo que encosta no topo/fundo da tela (topbar mobile, bottom nav, drawer, bottom sheet, toast) soma a área segura. Modal centralizado: overlay com `modal-overlay-safe` (no lugar de `p-4`) e painel com `max-h-modal`; o `Modal.tsx` já faz isso e, no celular, o corpo rola por dentro (`modal-panel-mobile`).
+- **Barra de status**: `apple-mobile-web-app-status-bar-style=black-translucent` → no atalho, hora/bateria saem **brancas** por cima do app. Por isso a faixa atrás delas é escura no tema claro (`--statusbar-bg` + classe `bg-surface-statusbar`, usada na topbar mobile e no drawer). Não trocar esse estilo à toa: o atalho já instalado nos celulares pode continuar com o antigo até ser reinstalado.
+- **Campos com 16px no celular**: regra global em `src/index.css` (`input, select, textarea { font-size: 16px !important }` abaixo de 768px). Campo com letra < 16px faz o Safari dar zoom sozinho ao tocar e a tela fica fora de proporção — não reduzir fonte de campo no mobile.
+- **Overlay `fixed inset-0` nunca tem margem** (regra global `.fixed.inset-0 { margin: 0 !important }`): modal renderizado dentro de container `space-y-*` herdava `margin-top` de 20px (o fundo não cobria o topo e o modal descia).
+- `theme-color` acompanha o tema: o `ThemeContext` copia `--wrap-surface` pro `<meta name="theme-color">`.
+- **Como testar sem iPhone**: o Chromium não emula áreas seguras — pra simular o atalho do iPhone 13, sobrescrever `:root{--safe-top:47px!important;--safe-bottom:34px!important}`. Tamanhos de referência: iPhone SE 375×667 (Safari visível ≈ 375×548), iPhone 13/14/15 390×844 (Safari ≈ 390×664), Pro Max 430×932. A confirmação final é sempre num iPhone de verdade.
+
 ## Regras
 - **AppContext.tsx e types/index.ts**: não alterar sem antes parar e confirmar comigo o motivo e o escopo da mudança. Não é proibição absoluta — é "avise antes", porque afetam o sistema inteiro.
 - NUNCA quebrar lógica existente das páginas.
