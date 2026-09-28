@@ -61,6 +61,15 @@ html.dark { --statusbar-bg: var(--wrap-surface); }
 .h-app     { height: 100vh; height: 100dvh; }
 .min-h-app { min-height: 100vh; min-height: 100dvh; }
 
+/* Atalho da tela inicial (standalone): com viewport-fit=cover + black-translucent
+   o iPhone desconta a barra de status de 100%/svh/dvh e sobra uma faixa vazia do
+   mesmo tamanho embaixo da barra de navegação. Só lvh mede a tela inteira.
+   Navegador sem lvh ignora a linha e fica no dvh acima. No desktop lvh = dvh. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .h-app     { height: 100lvh; }
+  .min-h-app { min-height: 100lvh; }
+}
+
 /* Barra que encosta no topo da tela: faixa da barra de status + superfície.
    Com --safe-top = 0 (Safari, desktop) é só a superfície. */
 .bg-surface-statusbar {
