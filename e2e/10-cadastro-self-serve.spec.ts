@@ -43,7 +43,7 @@ test.describe('Cenário 10 — Cadastro self-serve provisiona loja+usuario autom
 
     const timestamp = Date.now()
     const email = `cadastro.e2e.${timestamp}@wrapos.local`
-    const senha = 'senha-teste-cadastro-e2e'
+    const senha = 'senha-teste-cadastro-e2e-2026'
     const nomeLoja = `Loja Cadastro E2E ${timestamp}`
     const nomeUsuario = 'Fulano de Tal E2E'
 
@@ -56,7 +56,7 @@ test.describe('Cenário 10 — Cadastro self-serve provisiona loja+usuario autom
       await page.getByPlaceholder('Ex: Wrap Premium Envelopamentos').fill(nomeLoja)
       await page.getByPlaceholder('Seu nome completo').fill(nomeUsuario)
       await page.getByPlaceholder('voce@exemplo.com').fill(email)
-      await page.getByPlaceholder('Mínimo 6 caracteres').fill(senha)
+      await page.getByPlaceholder('Crie uma senha').fill(senha)
       await page.getByPlaceholder('Repita a senha').fill(senha)
       await page.getByRole('button', { name: 'Criar conta' }).click()
 

@@ -4,6 +4,11 @@ import { Film, Loader2 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 
+// Fixo em produção: se o app for aberto por um alias da Vercel (preview, URL do
+// deployment) que não está na allowlist do Supabase, o link cairia na Site URL
+// ("/") e logaria a pessoa sem nunca mostrar a tela de nova senha.
+const URL_APP = import.meta.env.DEV ? window.location.origin : 'https://wrap-os-pwa.vercel.app'
+
 export function LoginPage() {
   const { signIn } = useAuth()
   const [email, setEmail] = useState('')
@@ -45,13 +50,17 @@ export function LoginPage() {
     setResetSubmitting(true)
 
     const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/redefinir-senha`,
+      redirectTo: `${URL_APP}/redefinir-senha`,
     })
 
     setResetSubmitting(false)
 
     if (err) {
-      setResetError(err.message)
+      setResetError(
+        /rate limit|security purposes|too many/i.test(err.message)
+          ? 'Muitas tentativas seguidas. Aguarde um minuto e tente de novo.'
+          : 'Não foi possível enviar o link agora. Confira o email e tente novamente.'
+      )
       return
     }
 

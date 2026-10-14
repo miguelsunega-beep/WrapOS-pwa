@@ -1,8 +1,7 @@
 import { useState, FormEvent } from 'react'
 import { Film, Loader2, CheckCircle2, MailCheck } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-
-const SENHA_MIN_LENGTH = 6
+import { SENHA_REGRA_TEXTO, traduzirErroSenha, validarSenha } from '../lib/senha'
 
 type Status = 'formulario' | 'verifique_email' | 'sucesso'
 
@@ -31,12 +30,13 @@ export function Cadastro() {
     e.preventDefault()
     setError(null)
 
-    if (senha.length < SENHA_MIN_LENGTH) {
-      setError(`A senha precisa ter pelo menos ${SENHA_MIN_LENGTH} caracteres`)
+    const erroSenha = validarSenha(senha)
+    if (erroSenha) {
+      setError(erroSenha)
       return
     }
     if (senha !== confirmarSenha) {
-      setError('As senhas não coincidem')
+      setError('As senhas não coincidem.')
       return
     }
 
@@ -51,7 +51,7 @@ export function Cadastro() {
       setError(
         /already registered|already exists|user already/i.test(err)
           ? 'Este email já está cadastrado. Faça login ou recupere sua senha.'
-          : 'Não foi possível criar sua conta. Tente novamente em instantes.'
+          : traduzirErroSenha(err) ?? 'Não foi possível criar sua conta. Tente novamente em instantes.'
       )
       return
     }
@@ -156,12 +156,12 @@ export function Cadastro() {
                 <input
                   type="password"
                   required
-                  minLength={SENHA_MIN_LENGTH}
                   value={senha}
                   onChange={e => setSenha(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Crie uma senha"
                   className={inputCls}
                 />
+                <p className="mt-1.5 text-[11px] text-gray-500">{SENHA_REGRA_TEXTO}</p>
               </div>
 
               <div>
@@ -169,7 +169,6 @@ export function Cadastro() {
                 <input
                   type="password"
                   required
-                  minLength={SENHA_MIN_LENGTH}
                   value={confirmarSenha}
                   onChange={e => setConfirmarSenha(e.target.value)}
                   placeholder="Repita a senha"

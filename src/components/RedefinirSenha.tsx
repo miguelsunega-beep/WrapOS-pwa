@@ -1,11 +1,23 @@
 import { useEffect, useState, FormEvent } from 'react'
 import { Film, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { SENHA_REGRA_TEXTO, traduzirErroSenha, validarSenha } from '../lib/senha'
 
-const SENHA_MIN_LENGTH = 6
 const TIMEOUT_AGUARDANDO_RECOVERY_MS = 6000
+// Link válido: o supabase-js valida o token na rede antes de emitir o evento —
+// em 4G fraco no iPhone isso passa fácil de 6s.
+const TIMEOUT_LINK_RECOVERY_MS = 20000
 
 type Status = 'aguardando' | 'pronto' | 'invalido' | 'concluido'
+
+// Lido no primeiro render: o supabase-js limpa o hash da URL depois de processá-lo.
+function lerHashInicial() {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  return {
+    temLinkRecovery: params.get('type') === 'recovery',
+    erroCodigo: params.get('error_code') ?? params.get('error'),
+  }
+}
 
 /**
  * Só aceita `supabase.auth.updateUser({ password })` depois de observar o
@@ -14,13 +26,15 @@ type Status = 'aguardando' | 'pronto' | 'invalido' | 'concluido'
  * formulário nunca aparece (fica em 'aguardando' até o timeout).
  */
 export function RedefinirSenha() {
-  const [status, setStatus] = useState<Status>('aguardando')
+  const [hashInicial] = useState(lerHashInicial)
+  const [status, setStatus] = useState<Status>(hashInicial.erroCodigo ? 'invalido' : 'aguardando')
   const [senha, setSenha] = useState('')
   const [confirmarSenha, setConfirmarSenha] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
+    if (hashInicial.erroCodigo) return
     let mounted = true
 
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
@@ -34,25 +48,26 @@ export function RedefinirSenha() {
       if (mounted) {
         setStatus(atual => (atual === 'aguardando' ? 'invalido' : atual))
       }
-    }, TIMEOUT_AGUARDANDO_RECOVERY_MS)
+    }, hashInicial.temLinkRecovery ? TIMEOUT_LINK_RECOVERY_MS : TIMEOUT_AGUARDANDO_RECOVERY_MS)
 
     return () => {
       mounted = false
       clearTimeout(timeout)
       listener.subscription.unsubscribe()
     }
-  }, [])
+  }, [hashInicial])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
 
-    if (senha.length < SENHA_MIN_LENGTH) {
-      setError(`A senha precisa ter pelo menos ${SENHA_MIN_LENGTH} caracteres`)
+    const erroSenha = validarSenha(senha)
+    if (erroSenha) {
+      setError(erroSenha)
       return
     }
     if (senha !== confirmarSenha) {
-      setError('As senhas não coincidem')
+      setError('As senhas não coincidem.')
       return
     }
 
@@ -61,7 +76,12 @@ export function RedefinirSenha() {
     setSubmitting(false)
 
     if (err) {
-      setError(err.message)
+      setError(
+        traduzirErroSenha(err.message)
+          ?? (/session|jwt|expired/i.test(err.message)
+            ? 'Seu link de redefinição expirou. Volte ao login e peça um novo link.'
+            : 'Não foi possível salvar a nova senha. Tente novamente em instantes.')
+      )
       return
     }
 
@@ -132,12 +152,12 @@ export function RedefinirSenha() {
                   type="password"
                   required
                   autoFocus
-                  minLength={SENHA_MIN_LENGTH}
                   value={senha}
                   onChange={e => setSenha(e.target.value)}
                   placeholder="••••••••"
                   className="w-full bg-surface-700 border border-ui-border rounded-lg px-3 py-2.5 text-sm text-ui-text placeholder-gray-500 focus:outline-none focus:border-accent/50 transition-colors"
                 />
+                <p className="mt-1.5 text-[11px] text-gray-500">{SENHA_REGRA_TEXTO}</p>
               </div>
 
               <div>
@@ -145,7 +165,6 @@ export function RedefinirSenha() {
                 <input
                   type="password"
                   required
-                  minLength={SENHA_MIN_LENGTH}
                   value={confirmarSenha}
                   onChange={e => setConfirmarSenha(e.target.value)}
                   placeholder="••••••••"
